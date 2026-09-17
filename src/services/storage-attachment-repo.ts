@@ -187,11 +187,13 @@ export async function addAttachmentToCipherForUser(
        WHERE id = ?
          AND EXISTS (
            SELECT 1 FROM ciphers target_cipher
-           WHERE target_cipher.id = ? AND target_cipher.user_id = ?
+           WHERE target_cipher.id = ?
+             AND (target_cipher.user_id = ? OR target_cipher.organization_id IS NOT NULL)
          )
          AND EXISTS (
            SELECT 1 FROM ciphers current_cipher
-           WHERE current_cipher.id = attachments.cipher_id AND current_cipher.user_id = ?
+           WHERE current_cipher.id = attachments.cipher_id
+             AND (current_cipher.user_id = ? OR current_cipher.organization_id IS NOT NULL)
          )`
     )
     .bind(cipherId, attachmentId, cipherId, userId, userId)

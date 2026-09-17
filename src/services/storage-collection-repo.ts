@@ -279,3 +279,20 @@ export async function resolveCipherAccessForUser(
     accessibleCollectionIds,
   };
 }
+
+export async function listCollectionUsersByOrganizationUser(
+  db: D1Database,
+  organizationUserId: string
+): Promise<Array<{ collectionId: string; readOnly: boolean; hidePasswords: boolean }>> {
+  const result = await db
+    .prepare(
+      'SELECT collection_id, read_only, hide_passwords FROM collection_users WHERE organization_user_id = ?'
+    )
+    .bind(organizationUserId)
+    .all<{ collection_id: string; read_only: number; hide_passwords: number }>();
+  return (result.results || []).map((row) => ({
+    collectionId: row.collection_id,
+    readOnly: !!Number(row.read_only),
+    hidePasswords: !!Number(row.hide_passwords),
+  }));
+}
