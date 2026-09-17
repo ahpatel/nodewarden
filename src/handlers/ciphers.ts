@@ -1795,7 +1795,10 @@ export async function handleShareCipher(request: Request, env: Env, userId: stri
   const compatibilityError = validateCipherEncryptedFieldsForCompatibility(shared);
   if (compatibilityError) return errorResponse(compatibilityError, 400);
 
-  await storage.saveCipher(shared);
+  const transferred = await storage.transferCipherToOrganization(shared, userId);
+  if (!transferred) {
+    return errorResponse('Cipher not found', 404);
+  }
   await storage.setCipherCollections(shared.id, collectionIds);
   await bumpOrganizationMembers(request, env, storage, organizationId);
 
