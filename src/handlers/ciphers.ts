@@ -84,17 +84,25 @@ function notifyVaultSyncForRequest(
   notifyUserVaultSync(env, userId, revisionDate, readActingDeviceIdentifier(request));
 }
 
+// Push target for cipher-change notifications: the cipher owner for personal
+// ciphers, otherwise the acting user. Organization ciphers additionally fan
+// out to all confirmed members via bumpOrganizationMemberRevisions().
+function cipherNotifyTargetUserId(cipher: Cipher, actingUserId: string): string {
+  return cipher.userId ?? actingUserId;
+}
+
 function notifyCipherCreateForRequest(
   request: Request,
   env: Env,
   cipher: Cipher,
-  revisionDate: string
+  revisionDate: string,
+  actingUserId: string
 ): void {
   notifyUserCipherCreate(env, {
-    userId: cipher.userId,
+    userId: cipherNotifyTargetUserId(cipher, actingUserId),
     cipherId: cipher.id,
     revisionDate,
-    organizationId: normalizeOptionalId((cipher as any).organizationId ?? null),
+    organizationId: normalizeOptionalId(cipher.organizationId ?? null),
     collectionIds: Array.isArray((cipher as any).collectionIds)
       ? (cipher as any).collectionIds.map((id: unknown) => String(id || '').trim()).filter(Boolean)
       : null,
@@ -106,13 +114,14 @@ function notifyCipherUpdateForRequest(
   request: Request,
   env: Env,
   cipher: Cipher,
-  revisionDate: string
+  revisionDate: string,
+  actingUserId: string
 ): void {
   notifyUserCipherUpdate(env, {
-    userId: cipher.userId,
+    userId: cipherNotifyTargetUserId(cipher, actingUserId),
     cipherId: cipher.id,
     revisionDate,
-    organizationId: normalizeOptionalId((cipher as any).organizationId ?? null),
+    organizationId: normalizeOptionalId(cipher.organizationId ?? null),
     collectionIds: Array.isArray((cipher as any).collectionIds)
       ? (cipher as any).collectionIds.map((id: unknown) => String(id || '').trim()).filter(Boolean)
       : null,
@@ -124,13 +133,14 @@ function notifyCipherDeleteForRequest(
   request: Request,
   env: Env,
   cipher: Cipher,
-  revisionDate: string
+  revisionDate: string,
+  actingUserId: string
 ): void {
   notifyUserCipherDelete(env, {
-    userId: cipher.userId,
+    userId: cipherNotifyTargetUserId(cipher, actingUserId),
     cipherId: cipher.id,
     revisionDate,
-    organizationId: normalizeOptionalId((cipher as any).organizationId ?? null),
+    organizationId: normalizeOptionalId(cipher.organizationId ?? null),
     collectionIds: Array.isArray((cipher as any).collectionIds)
       ? (cipher as any).collectionIds.map((id: unknown) => String(id || '').trim()).filter(Boolean)
       : null,
@@ -1008,7 +1018,7 @@ export async function handleCreateCipher(request: Request, env: Env, userId: str
   await storage.saveCipher(cipher);
   const revisionDate = await storage.updateRevisionDate(userId);
   notifyVaultSyncForRequest(request, env, userId, revisionDate);
-  notifyCipherCreateForRequest(request, env, cipher, revisionDate);
+  notifyCipherCreateForRequest(request, env, cipher, revisionDate, userId);
   const responseOptions = cipherResponseOptionsForRequest(request);
 
   return jsonResponse(
@@ -1119,7 +1129,7 @@ export async function handleUpdateCipher(request: Request, env: Env, userId: str
   await storage.saveCipher(cipher);
   const revisionDate = await storage.updateRevisionDate(userId);
   notifyVaultSyncForRequest(request, env, userId, revisionDate);
-  notifyCipherUpdateForRequest(request, env, cipher, revisionDate);
+  notifyCipherUpdateForRequest(request, env, cipher, revisionDate, userId);
   const attachments = await storage.getAttachmentsByCipher(cipher.id);
   const responseOptions = cipherResponseOptionsForRequest(request);
 
@@ -1144,7 +1154,7 @@ export async function handleDeleteCipher(request: Request, env: Env, userId: str
   await storage.saveCipher(cipher);
   const revisionDate = await storage.updateRevisionDate(userId);
   notifyVaultSyncForRequest(request, env, userId, revisionDate);
-  notifyCipherDeleteForRequest(request, env, cipher, revisionDate);
+  notifyCipherDeleteForRequest(request, env, cipher, revisionDate, userId);
   await writeCipherAudit(storage, request, userId, 'cipher.delete.soft', {
     id: cipher.id,
     type: cipher.type,
@@ -1174,7 +1184,7 @@ export async function handleDeleteCipherCompat(request: Request, env: Env, userI
     await storage.deleteCipher(id, userId);
     const revisionDate = await storage.updateRevisionDate(userId);
     notifyVaultSyncForRequest(request, env, userId, revisionDate);
-    notifyCipherDeleteForRequest(request, env, cipher, revisionDate);
+    notifyCipherDeleteForRequest(request, env, cipher, revisionDate, userId);
     await writeCipherAudit(storage, request, userId, 'cipher.delete.permanent', {
       id,
       type: cipher.type,
@@ -1202,7 +1212,7 @@ export async function handlePermanentDeleteCipher(request: Request, env: Env, us
   await storage.deleteCipher(id, userId);
   const revisionDate = await storage.updateRevisionDate(userId);
   notifyVaultSyncForRequest(request, env, userId, revisionDate);
-  notifyCipherDeleteForRequest(request, env, cipher, revisionDate);
+  notifyCipherDeleteForRequest(request, env, cipher, revisionDate, userId);
   await writeCipherAudit(storage, request, userId, 'cipher.delete.permanent', {
     id,
     type: cipher.type,
@@ -1227,7 +1237,7 @@ export async function handleRestoreCipher(request: Request, env: Env, userId: st
   await storage.saveCipher(cipher);
   const revisionDate = await storage.updateRevisionDate(userId);
   notifyVaultSyncForRequest(request, env, userId, revisionDate);
-  notifyCipherUpdateForRequest(request, env, cipher, revisionDate);
+  notifyCipherUpdateForRequest(request, env, cipher, revisionDate, userId);
 
   return jsonResponse(
     cipherToResponse(cipher, [], cipherResponseOptionsForRequest(request))
@@ -1267,7 +1277,7 @@ export async function handlePartialUpdateCipher(request: Request, env: Env, user
   await storage.saveCipher(cipher);
   const revisionDate = await storage.updateRevisionDate(userId);
   notifyVaultSyncForRequest(request, env, userId, revisionDate);
-  notifyCipherUpdateForRequest(request, env, cipher, revisionDate);
+  notifyCipherUpdateForRequest(request, env, cipher, revisionDate, userId);
 
   return jsonResponse(
     cipherToResponse(cipher, [], cipherResponseOptionsForRequest(request))
@@ -1344,7 +1354,7 @@ export async function handleArchiveCipher(request: Request, env: Env, userId: st
   await storage.saveCipher(cipher);
   const revisionDate = await storage.updateRevisionDate(userId);
   notifyVaultSyncForRequest(request, env, userId, revisionDate);
-  notifyCipherUpdateForRequest(request, env, cipher, revisionDate);
+  notifyCipherUpdateForRequest(request, env, cipher, revisionDate, userId);
 
   const attachments = await storage.getAttachmentsByCipher(cipher.id);
   return jsonResponse(

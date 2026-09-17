@@ -207,11 +207,14 @@ export async function updateCipherRevisionDate(
   saveCipherRecord: SaveCipher,
   updateRevisionDate: UpdateRevisionDate,
   cipherId: string
-): Promise<{ userId: string; revisionDate: string } | null> {
+): Promise<{ userId: string | null; revisionDate: string } | null> {
   const cipher = await getCipherById(cipherId);
   if (!cipher) return null;
   cipher.updatedAt = new Date().toISOString();
   await saveCipherRecord(cipher);
+  // Organization ciphers have no personal owner; their members' revisions are
+  // bumped by the callers that resolve org access.
+  if (!cipher.userId) return { userId: null, revisionDate: cipher.updatedAt };
   const revisionDate = await updateRevisionDate(cipher.userId);
   return { userId: cipher.userId, revisionDate };
 }

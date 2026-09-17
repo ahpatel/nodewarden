@@ -38,17 +38,54 @@ const SCHEMA_STATEMENTS: readonly string[] = [
   'user_id TEXT PRIMARY KEY, revision_date TEXT NOT NULL, ' +
   'FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE)',
 
+  'CREATE TABLE IF NOT EXISTS organizations (' +
+  'id TEXT PRIMARY KEY, name TEXT NOT NULL, private_key TEXT NOT NULL, public_key TEXT, billing_email TEXT, creation_date TEXT NOT NULL, revision_date TEXT NOT NULL)',
+
   'CREATE TABLE IF NOT EXISTS ciphers (' +
-  'id TEXT PRIMARY KEY, user_id TEXT NOT NULL, type INTEGER NOT NULL, folder_id TEXT, name TEXT, notes TEXT, ' +
+  'id TEXT PRIMARY KEY, user_id TEXT, organization_id TEXT, type INTEGER NOT NULL, folder_id TEXT, name TEXT, notes TEXT, ' +
   'favorite INTEGER NOT NULL DEFAULT 0, data TEXT NOT NULL, reprompt INTEGER, key TEXT, ' +
   'created_at TEXT NOT NULL, updated_at TEXT NOT NULL, archived_at TEXT, deleted_at TEXT, ' +
-  'FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE)',
+  'FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE, ' +
+  'FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE)',
   'ALTER TABLE ciphers ADD COLUMN archived_at TEXT',
+  'ALTER TABLE ciphers ADD COLUMN organization_id TEXT',
   'CREATE INDEX IF NOT EXISTS idx_ciphers_user_updated ON ciphers(user_id, updated_at)',
   'CREATE INDEX IF NOT EXISTS idx_ciphers_user_archived ON ciphers(user_id, archived_at)',
   'CREATE INDEX IF NOT EXISTS idx_ciphers_user_deleted ON ciphers(user_id, deleted_at)',
   'CREATE INDEX IF NOT EXISTS idx_ciphers_user_deleted_updated ON ciphers(user_id, deleted_at, updated_at)',
   'CREATE INDEX IF NOT EXISTS idx_ciphers_user_folder ON ciphers(user_id, folder_id)',
+  'CREATE INDEX IF NOT EXISTS idx_ciphers_organization ON ciphers(organization_id, updated_at)',
+
+  'CREATE TABLE IF NOT EXISTS organization_users (' +
+  'id TEXT PRIMARY KEY, organization_id TEXT NOT NULL, user_id TEXT, email TEXT NOT NULL, key TEXT, ' +
+  'status INTEGER NOT NULL DEFAULT 1, type INTEGER NOT NULL DEFAULT 2, access_all INTEGER NOT NULL DEFAULT 0, ' +
+  'creation_date TEXT NOT NULL, revision_date TEXT NOT NULL, ' +
+  'FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE, ' +
+  'FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE)',
+  'CREATE UNIQUE INDEX IF NOT EXISTS idx_organization_users_org_email ON organization_users(organization_id, email)',
+  'CREATE INDEX IF NOT EXISTS idx_organization_users_user ON organization_users(user_id)',
+  'CREATE INDEX IF NOT EXISTS idx_organization_users_org_status ON organization_users(organization_id, status)',
+
+  'CREATE TABLE IF NOT EXISTS collections (' +
+  'id TEXT PRIMARY KEY, organization_id TEXT NOT NULL, name TEXT NOT NULL, external_id TEXT, ' +
+  'creation_date TEXT NOT NULL, revision_date TEXT NOT NULL, ' +
+  'FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE)',
+  'CREATE INDEX IF NOT EXISTS idx_collections_org ON collections(organization_id)',
+
+  'CREATE TABLE IF NOT EXISTS collection_users (' +
+  'collection_id TEXT NOT NULL, organization_user_id TEXT NOT NULL, ' +
+  'read_only INTEGER NOT NULL DEFAULT 0, hide_passwords INTEGER NOT NULL DEFAULT 0, ' +
+  'PRIMARY KEY (collection_id, organization_user_id), ' +
+  'FOREIGN KEY (collection_id) REFERENCES collections(id) ON DELETE CASCADE, ' +
+  'FOREIGN KEY (organization_user_id) REFERENCES organization_users(id) ON DELETE CASCADE)',
+  'CREATE INDEX IF NOT EXISTS idx_collection_users_org_user ON collection_users(organization_user_id)',
+
+  'CREATE TABLE IF NOT EXISTS cipher_collections (' +
+  'cipher_id TEXT NOT NULL, collection_id TEXT NOT NULL, ' +
+  'PRIMARY KEY (cipher_id, collection_id), ' +
+  'FOREIGN KEY (cipher_id) REFERENCES ciphers(id) ON DELETE CASCADE, ' +
+  'FOREIGN KEY (collection_id) REFERENCES collections(id) ON DELETE CASCADE)',
+  'CREATE INDEX IF NOT EXISTS idx_cipher_collections_collection ON cipher_collections(collection_id)',
 
   'CREATE TABLE IF NOT EXISTS folders (' +
   'id TEXT PRIMARY KEY, user_id TEXT NOT NULL, name TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, ' +
@@ -199,11 +236,54 @@ async function ensureAdminUserExists(db: D1Database): Promise<void> {
     .run();
 }
 
+// Legacy installs created ciphers.user_id as NOT NULL. SQLite cannot relax a
+// column constraint via ALTER TABLE, so existing installs need a one-time
+// guarded table rebuild. Foreign keys are disabled for the rebuild because
+// dropping the parent table would otherwise cascade-delete attachments.
+async function migrateCiphersToOrganizationShape(db: D1Database): Promise<void> {
+  const userIdColumn = await db
+    .prepare("SELECT \"notnull\" AS notnull FROM pragma_table_info('ciphers') WHERE name = 'user_id'")
+    .first<{ notnull: number }>();
+  if (!userIdColumn || !Number(userIdColumn.notnull)) return;
+
+  await db.prepare('PRAGMA foreign_keys = OFF').run();
+  try {
+    await db.prepare(
+      'CREATE TABLE ciphers_organization_migration (' +
+      'id TEXT PRIMARY KEY, user_id TEXT, organization_id TEXT, type INTEGER NOT NULL, folder_id TEXT, ' +
+      'name TEXT, notes TEXT, favorite INTEGER NOT NULL DEFAULT 0, data TEXT NOT NULL, reprompt INTEGER, ' +
+      'key TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, archived_at TEXT, deleted_at TEXT, ' +
+      'FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE, ' +
+      'FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE)'
+    ).run();
+    await db.prepare(
+      'INSERT INTO ciphers_organization_migration ' +
+      '(id, user_id, organization_id, type, folder_id, name, notes, favorite, data, reprompt, key, created_at, updated_at, archived_at, deleted_at) ' +
+      'SELECT id, user_id, organization_id, type, folder_id, name, notes, favorite, data, reprompt, key, created_at, updated_at, archived_at, deleted_at FROM ciphers'
+    ).run();
+    await db.prepare('DROP TABLE ciphers').run();
+    await db.prepare('ALTER TABLE ciphers_organization_migration RENAME TO ciphers').run();
+    for (const stmt of [
+      'CREATE INDEX IF NOT EXISTS idx_ciphers_user_updated ON ciphers(user_id, updated_at)',
+      'CREATE INDEX IF NOT EXISTS idx_ciphers_user_archived ON ciphers(user_id, archived_at)',
+      'CREATE INDEX IF NOT EXISTS idx_ciphers_user_deleted ON ciphers(user_id, deleted_at)',
+      'CREATE INDEX IF NOT EXISTS idx_ciphers_user_deleted_updated ON ciphers(user_id, deleted_at, updated_at)',
+      'CREATE INDEX IF NOT EXISTS idx_ciphers_user_folder ON ciphers(user_id, folder_id)',
+      'CREATE INDEX IF NOT EXISTS idx_ciphers_organization ON ciphers(organization_id, updated_at)',
+    ]) {
+      await db.prepare(stmt).run();
+    }
+  } finally {
+    await db.prepare('PRAGMA foreign_keys = ON').run();
+  }
+}
+
 export async function ensureStorageSchema(db: D1Database): Promise<void> {
   await db.prepare('PRAGMA foreign_keys = ON').run();
   await db.prepare('CREATE TABLE IF NOT EXISTS config (key TEXT PRIMARY KEY, value TEXT NOT NULL)').run();
   for (const stmt of SCHEMA_STATEMENTS) {
     await executeSchemaStatement(db, stmt);
   }
+  await migrateCiphersToOrganizationShape(db);
   await ensureAdminUserExists(db);
 }

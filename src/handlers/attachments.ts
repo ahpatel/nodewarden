@@ -42,10 +42,11 @@ function notifyCipherUpdateForRequest(
   request: Request,
   env: Env,
   cipher: Cipher,
-  revisionDate: string
+  revisionDate: string,
+  actingUserId: string
 ): void {
   notifyUserCipherUpdate(env, {
-    userId: cipher.userId,
+    userId: cipher.userId ?? actingUserId,
     cipherId: cipher.id,
     revisionDate,
     organizationId: normalizeOptionalId((cipher as any).organizationId ?? null),
@@ -110,7 +111,8 @@ async function processAttachmentUpload(
   env: Env,
   cipher: Cipher,
   attachment: Attachment,
-  cipherId: string
+  cipherId: string,
+  actingUserId: string
 ): Promise<Response> {
   const storage = new StorageService(env.DB);
   const maxFileSize = getBlobStorageMaxBytes(env, LIMITS.attachment.maxFileSizeBytes);
@@ -153,8 +155,8 @@ async function processAttachmentUpload(
 
   const revisionInfo = await storage.updateCipherRevisionDate(cipherId);
   if (revisionInfo) {
-    notifyVaultSyncForRequest(request, env, revisionInfo.userId, revisionInfo.revisionDate);
-    notifyCipherUpdateForRequest(request, env, cipher, revisionInfo.revisionDate);
+    notifyVaultSyncForRequest(request, env, revisionInfo.userId ?? actingUserId, revisionInfo.revisionDate);
+    notifyCipherUpdateForRequest(request, env, cipher, revisionInfo.revisionDate, actingUserId);
   }
 
   return new Response(null, { status: 201 });
@@ -214,8 +216,8 @@ export async function handleCreateAttachment(
   // Update cipher revision date
   const revisionInfo = await storage.updateCipherRevisionDate(cipherId);
   if (revisionInfo) {
-    notifyVaultSyncForRequest(request, env, revisionInfo.userId, revisionInfo.revisionDate);
-    notifyCipherUpdateForRequest(request, env, cipher, revisionInfo.revisionDate);
+    notifyVaultSyncForRequest(request, env, revisionInfo.userId ?? userId, revisionInfo.revisionDate);
+    notifyCipherUpdateForRequest(request, env, cipher, revisionInfo.revisionDate, userId);
   }
 
   // Get updated cipher for response
@@ -259,7 +261,7 @@ export async function handleUploadAttachment(
     return errorResponse('Attachment not found', 404);
   }
 
-  return processAttachmentUpload(request, env, cipher, attachment, cipherId);
+  return processAttachmentUpload(request, env, cipher, attachment, cipherId, userId);
 }
 
 export async function handlePublicUploadAttachment(
@@ -297,7 +299,7 @@ export async function handlePublicUploadAttachment(
     return errorResponse('Attachment not found', 404);
   }
 
-  return processAttachmentUpload(request, env, cipher, attachment, cipherId);
+  return processAttachmentUpload(request, env, cipher, attachment, cipherId, claims.userId);
 }
 
 // GET /api/ciphers/{cipherId}/attachment/{attachmentId}
@@ -387,8 +389,8 @@ export async function handleUpdateAttachmentMetadata(
   await storage.saveAttachment(attachment);
   const revisionInfo = await storage.updateCipherRevisionDate(cipherId);
   if (revisionInfo) {
-    notifyVaultSyncForRequest(request, env, revisionInfo.userId, revisionInfo.revisionDate);
-    notifyCipherUpdateForRequest(request, env, cipher, revisionInfo.revisionDate);
+    notifyVaultSyncForRequest(request, env, revisionInfo.userId ?? userId, revisionInfo.revisionDate);
+    notifyCipherUpdateForRequest(request, env, cipher, revisionInfo.revisionDate, userId);
   }
 
   return jsonResponse({
@@ -492,9 +494,9 @@ export async function handleDeleteAttachment(
   // Update cipher revision date
   const revisionInfo = await storage.updateCipherRevisionDate(cipherId);
   if (revisionInfo) {
-    notifyVaultSyncForRequest(request, env, revisionInfo.userId, revisionInfo.revisionDate);
-    notifyCipherUpdateForRequest(request, env, cipher, revisionInfo.revisionDate);
-    await writeAttachmentAudit(storage, request, revisionInfo.userId, 'attachment.delete', {
+    notifyVaultSyncForRequest(request, env, revisionInfo.userId ?? userId, revisionInfo.revisionDate);
+    notifyCipherUpdateForRequest(request, env, cipher, revisionInfo.revisionDate, userId);
+    await writeAttachmentAudit(storage, request, revisionInfo.userId ?? userId, 'attachment.delete', {
       id: attachmentId,
       cipherId,
       size: attachment.size,

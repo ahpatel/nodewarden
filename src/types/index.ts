@@ -245,7 +245,8 @@ export interface PasswordHistory {
 
 export interface Cipher {
   id: string;
-  userId: string;
+  userId: string | null;
+  organizationId?: string | null;
   type: CipherType;
   folderId: string | null;
   name: string | null;
@@ -269,6 +270,54 @@ export interface Cipher {
   deletedAt: string | null;
   /** Allow unknown fields from Bitwarden clients to be stored and passed through transparently. */
   [key: string]: any;
+}
+
+// Organization model (Bitwarden-compatible sharing)
+export type OrganizationUserStatus = 0 | 1 | 2 | 3; // 0=Revoked 1=Invited 2=Accepted 3=Confirmed
+export type OrganizationUserType = 0 | 1 | 2; // 0=Owner 1=Admin 2=User
+
+export interface Organization {
+  id: string;
+  /** Encrypted with the organization key (EncString). */
+  name: string;
+  /** Organization private key encrypted with the organization key (EncString). */
+  privateKey: string;
+  billingEmail: string | null;
+  /** Organization public key (base64, plaintext — mirrors users.public_key). */
+  publicKey?: string | null;
+  creationDate: string;
+  revisionDate: string;
+}
+
+export interface OrganizationUser {
+  id: string;
+  organizationId: string;
+  userId: string | null;
+  email: string;
+  /** Organization key encrypted with the member's public key; set on confirm. */
+  key: string | null;
+  status: OrganizationUserStatus;
+  type: OrganizationUserType;
+  accessAll: boolean;
+  creationDate: string;
+  revisionDate: string;
+}
+
+export interface Collection {
+  id: string;
+  organizationId: string;
+  /** Encrypted with the organization key (EncString). */
+  name: string;
+  externalId: string | null;
+  creationDate: string;
+  revisionDate: string;
+}
+
+export interface CollectionUserAccess {
+  collectionId: string;
+  organizationUserId: string;
+  readOnly: boolean;
+  hidePasswords: boolean;
 }
 
 // Folder model
