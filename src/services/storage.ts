@@ -66,6 +66,7 @@ import {
   deleteCiphersByIds as deleteStoredCiphersByIds,
   listCipherIdsByOrganization as listStoredCipherIdsByOrganization,
   restoreCiphersByIds as restoreStoredCiphersByIds,
+  transferCipherToOrganization as transferStoredCipherToOrganization,
   softDeleteCiphersByIds as softDeleteStoredCiphersByIds,
   unarchiveCiphersByIds as unarchiveStoredCiphersByIds,
 } from './storage-cipher-repo';
@@ -738,6 +739,12 @@ export class StorageService {
 
   async listCipherIdsByOrganization(organizationId: string): Promise<string[]> {
     return listStoredCipherIdsByOrganization(this.db, organizationId);
+  }
+
+  // Move a personal cipher into an organization. Returns false when the caller
+  // no longer owns the row.
+  async transferCipherToOrganization(cipher: Cipher, expectedUserId: string): Promise<boolean> {
+    return transferStoredCipherToOrganization(this.db, this.safeBind.bind(this), cipher, expectedUserId);
   }
 
   // --- Folders ---

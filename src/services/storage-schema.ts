@@ -238,13 +238,16 @@ async function ensureAdminUserExists(db: D1Database): Promise<void> {
 
 // Legacy installs created ciphers.user_id as NOT NULL. SQLite cannot relax a
 // column constraint via ALTER TABLE, so existing installs need a one-time
-// guarded table rebuild. Foreign keys are disabled for the rebuild because
-// dropping the parent table would otherwise cascade-delete attachments.
+// guarded table rebuild. The NOT NULL state is detected from the stored CREATE
+// TABLE text because D1 does not expose the pragma_table_info table-valued
+// function. Foreign keys are disabled for the rebuild because dropping the
+// parent table would otherwise cascade-delete attachments.
 async function migrateCiphersToOrganizationShape(db: D1Database): Promise<void> {
-  const userIdColumn = await db
-    .prepare("SELECT \"notnull\" AS notnull FROM pragma_table_info('ciphers') WHERE name = 'user_id'")
-    .first<{ notnull: number }>();
-  if (!userIdColumn || !Number(userIdColumn.notnull)) return;
+  const ddlRow = await db
+    .prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'ciphers'")
+    .first<{ sql: string | null }>();
+  const cipherDdl = String(ddlRow?.sql || '');
+  if (!/\buser_id\s+TEXT\s+NOT\s+NULL\b/i.test(cipherDdl)) return;
 
   await db.prepare('PRAGMA foreign_keys = OFF').run();
   try {

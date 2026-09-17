@@ -640,3 +640,41 @@ export async function listCipherIdsByOrganization(db: D1Database, organizationId
     .all<{ id: string }>();
   return (result.results || []).map((row) => row.id);
 }
+
+// Move a personally-owned cipher into an organization. The user_id guard
+// proves the caller still owns the row at write time; the transfer nulls the
+// personal owner, sets the organization, and clears the personal folder.
+// saveCipher's upsert cannot express this because its conflict guard requires
+// user_id equality.
+export async function transferCipherToOrganization(
+  db: D1Database,
+  safeBind: SafeBind,
+  cipher: Cipher,
+  expectedUserId: string
+): Promise<boolean> {
+  const folderId = normalizeOptionalId(cipher.folderId);
+  const data = buildCipherData(cipher, folderId);
+  const stmt = db.prepare(
+    'UPDATE ciphers SET ' +
+    'user_id = NULL, organization_id = ?, folder_id = NULL, type = ?, name = ?, notes = ?, favorite = ?, ' +
+    'data = ?, reprompt = ?, key = ?, updated_at = ?, archived_at = ?, deleted_at = ? ' +
+    'WHERE id = ? AND user_id = ?'
+  );
+  const result = await safeBind(
+    stmt,
+    normalizeOptionalId(cipher.organizationId),
+    Number(cipher.type) || 1,
+    cipher.name,
+    cipher.notes,
+    cipher.favorite ? 1 : 0,
+    data,
+    cipher.reprompt ?? 0,
+    cipher.key,
+    cipher.updatedAt,
+    cipher.archivedAt ?? null,
+    cipher.deletedAt,
+    cipher.id,
+    expectedUserId
+  ).run();
+  return (result.meta?.changes || 0) > 0;
+}
