@@ -11,6 +11,7 @@ import {
 import { buildDomainsResponse } from '../services/domain-rules';
 import { buildWebAuthnPrfOption } from '../utils/account-passkeys';
 import { buildProfileResponse } from '../utils/profile-response';
+import { profileOrganizationResponse, collectionToResponse } from './organizations';
 
 // CONTRACT:
 // /api/sync reuses cipherToResponse() as the single cipher response shaper.
@@ -77,20 +78,30 @@ export async function handleSync(request: Request, env: Env, userId: string): Pr
     return cachedResponse;
   }
 
-  const [ciphers, folders, sends, attachmentsByCipher, domainSettings] = await Promise.all([
-    storage.getAllCiphers(userId),
+  const [folders, sends, domainSettings, organizations, collections] = await Promise.all([
     storage.getAllFolders(userId),
     excludeSends ? Promise.resolve([]) : storage.getAllSends(userId),
-    storage.getAttachmentsByUserId(userId),
     excludeDomains ? Promise.resolve(null) : storage.getUserDomainSettings(userId),
+    storage.listConfirmedOrganizationsForUser(userId),
+    storage.listCollectionsForUser(userId),
   ]);
+  const ciphers = await storage.getAllCiphersIncludingOrgs(userId);
+  const attachmentsByCipher = await storage.getAttachmentsByCipherIds(
+    ciphers.map((cipher) => cipher.id)
+  );
   const webAuthnPrfOptions = accountPasskeys
     .map(buildWebAuthnPrfOption)
     .filter((option): option is NonNullable<typeof option> => !!option);
   const userDecryptionOptions = buildUserDecryptionOptions(user, webAuthnPrfOptions[0] || null);
   const validFolderIds = new Set(folders.map((folder) => folder.id));
 
-  const profile: ProfileResponse = buildProfileResponse(user, env);
+  const profile: ProfileResponse = buildProfileResponse(
+    user,
+    env,
+    organizations.map((membership) =>
+      profileOrganizationResponse(membership.organization, membership.organizationUser)
+    )
+  );
 
   const cipherResponses: CipherResponse[] = [];
   for (const cipher of ciphers) {
@@ -115,7 +126,13 @@ export async function handleSync(request: Request, env: Env, userId: string): Pr
   const syncResponse: SyncResponse = {
     profile,
     folders: folderResponses,
-    collections: [],
+    collections: collections.map((collection) =>
+      collectionToResponse(collection, {
+        readOnly: collection.readOnly,
+        hidePasswords: collection.hidePasswords,
+        object: 'collectionDetails',
+      })
+    ),
     ciphers: cipherResponses,
     domains: excludeDomains
       ? null

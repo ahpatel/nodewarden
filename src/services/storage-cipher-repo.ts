@@ -632,3 +632,11 @@ export async function deleteCiphersByIds(db: D1Database, ids: string[]): Promise
     await db.prepare(`DELETE FROM ciphers WHERE id IN (${placeholders})`).bind(...chunk).run();
   }
 }
+
+export async function listCipherIdsByOrganization(db: D1Database, organizationId: string): Promise<string[]> {
+  const result = await db
+    .prepare('SELECT id FROM ciphers WHERE organization_id = ?')
+    .bind(organizationId)
+    .all<{ id: string }>();
+  return (result.results || []).map((row) => row.id);
+}

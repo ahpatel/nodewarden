@@ -219,3 +219,47 @@ export async function linkOrganizationUsersByEmail(db: D1Database, userId: strin
     .bind(userId, new Date().toISOString(), email)
     .run();
 }
+
+// All linked memberships for a user, any status (pending invitations included).
+export async function listOrganizationsForUser(
+  db: D1Database,
+  userId: string
+): Promise<UserOrganizationMembership[]> {
+  const result = await db
+    .prepare(
+      `SELECT o.id AS org_id, o.name AS org_name, o.private_key AS org_private_key, o.billing_email AS org_billing_email,
+              o.public_key AS org_public_key, o.creation_date AS org_creation_date, o.revision_date AS org_revision_date,
+              ou.id AS ou_id, ou.organization_id AS ou_organization_id, ou.user_id AS ou_user_id, ou.email AS ou_email,
+              ou.key AS ou_key, ou.status AS ou_status, ou.type AS ou_type, ou.access_all AS ou_access_all,
+              ou.creation_date AS ou_creation_date, ou.revision_date AS ou_revision_date
+       FROM organization_users ou
+       JOIN organizations o ON o.id = ou.organization_id
+       WHERE ou.user_id = ?
+       ORDER BY ou.creation_date ASC`
+    )
+    .bind(userId)
+    .all<any>();
+  return (result.results || []).map((row) => ({
+    organization: mapOrganizationRow({
+      id: row.org_id,
+      name: row.org_name,
+      private_key: row.org_private_key,
+      billing_email: row.org_billing_email,
+      public_key: row.org_public_key,
+      creation_date: row.org_creation_date,
+      revision_date: row.org_revision_date,
+    }),
+    organizationUser: mapOrganizationUserRow({
+      id: row.ou_id,
+      organization_id: row.ou_organization_id,
+      user_id: row.ou_user_id,
+      email: row.ou_email,
+      key: row.ou_key,
+      status: row.ou_status,
+      type: row.ou_type,
+      access_all: row.ou_access_all,
+      creation_date: row.ou_creation_date,
+      revision_date: row.ou_revision_date,
+    }),
+  }));
+}

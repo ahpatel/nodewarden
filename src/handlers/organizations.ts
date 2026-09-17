@@ -1,0 +1,997 @@
+import {
+  Env,
+  Organization,
+  OrganizationUser,
+  OrganizationUserStatus,
+  OrganizationUserType,
+  Collection,
+  Cipher,
+  User,
+  Invite,
+} from '../types';
+import { StorageService } from '../services/storage';
+import { notifyUserVaultSync } from '../durable/notifications-hub';
+import { jsonResponse, errorResponse } from '../utils/response';
+import { generateUUID } from '../utils/uuid';
+import { readActingDeviceIdentifier } from '../utils/device';
+import { isYubiKeyEnabled } from '../utils/yubico-otp';
+import { auditRequestMetadata, writeAuditEvent } from '../services/audit-events';
+import { bumpOrganizationMembers } from '../utils/org-notify';
+import { isValidEncString } from './ciphers';
+import { deleteAllAttachmentsForCiphers } from './attachments';
+
+// CONTRACT:
+// Bitwarden-compatible organizations: sharing between users with client-side
+// crypto. The server never decrypts; it stores EncStrings and gates access.
+//
+// Wire shapes mirror the Bitwarden server responses (OrganizationResponse,
+// OrganizationUserUserDetailsResponse, CollectionResponse,
+// ProfileOrganizationResponse) as exercised by official clients via
+// /api/sync, /api/ciphers/:id/share, and the member/collection management
+// surface used by the NodeWarden webapp.
+//
+// No email is sent anywhere. Invitations are email-string records: a user
+// whose email matches can accept from the webapp. Inviting an unregistered
+// email also mints a registration invite code so the owner can onboard the
+// person without the server admin.
+
+const ORG_USER_STATUS = {
+  REVOKED: 0,
+  INVITED: 1,
+  ACCEPTED: 2,
+  CONFIRMED: 3,
+} as const;
+
+const ORG_USER_TYPE = {
+  OWNER: 0,
+  ADMIN: 1,
+  USER: 2,
+} as const;
+
+const ORG_INVITE_REGISTRATION_TTL_HOURS = 24 * 7;
+
+function normalizeEmail(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const normalized = value.trim().toLowerCase();
+  return normalized ? normalized : null;
+}
+
+function normalizeOptionalId(value: unknown): string | null {
+  if (value == null) return null;
+  const normalized = String(value).trim();
+  return normalized ? normalized : null;
+}
+
+function randomHex(bytes: number): string {
+  const arr = new Uint8Array(bytes);
+  crypto.getRandomValues(arr);
+  return Array.from(arr, (b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+function optionalEncString(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  return isValidEncString(trimmed) ? trimmed : null;
+}
+
+async function readJsonBody(request: Request): Promise<any | null> {
+  try {
+    return await request.json();
+  } catch {
+    return null;
+  }
+}
+
+async function writeOrgAudit(
+  storage: StorageService,
+  request: Request,
+  actorUserId: string,
+  action: string,
+  metadata: Record<string, unknown>,
+  level: 'info' | 'security' = 'info'
+): Promise<void> {
+  await writeAuditEvent(storage, {
+    actorUserId,
+    action,
+    category: 'data',
+    level,
+    targetType: 'organization',
+    targetId: typeof metadata.organizationId === 'string' ? metadata.organizationId : null,
+    metadata: {
+      ...metadata,
+      ...auditRequestMetadata(request),
+    },
+  });
+}
+
+// Fan-out for org changes lives in src/utils/org-notify.ts and is re-exported
+// through bumpOrganizationMembers imported above.
+
+function organizationToResponse(organization: Organization): Record<string, unknown> {
+  return {
+    id: organization.id,
+    name: organization.name,
+    businessName: null,
+    billingEmail: organization.billingEmail,
+    plan: 'Teams',
+    planType: 2,
+    seats: null,
+    maxSeats: null,
+    maxCollections: null,
+    maxStorageGb: null,
+    use2fa: true,
+    useKeys: true,
+    useTotp: true,
+    usePolicies: false,
+    useGroups: false,
+    useDirectory: false,
+    useSso: false,
+    useEvents: false,
+    useScim: false,
+    useResetPassword: false,
+    selfHost: true,
+    hasPublicAndPrivateKeys: !!organization.publicKey && !!organization.privateKey,
+    object: 'organization',
+  };
+}
+
+// The per-user organization view embedded in sync.profile.organizations.
+// `key` (the organization key encrypted with the member's public key) is the
+// decryption path for every org cipher, so it must be present when confirmed.
+export function profileOrganizationResponse(
+  organization: Organization,
+  organizationUser: OrganizationUser
+): Record<string, unknown> {
+  return {
+    id: organization.id,
+    name: organization.name,
+    key: organizationUser.key,
+    status: Number(organizationUser.status),
+    type: Number(organizationUser.type),
+    enabled: true,
+    maxAutoscaleSeats: null,
+    seats: null,
+    maxCollections: null,
+    maxStorageGb: null,
+    use2fa: true,
+    useTotp: true,
+    useKeys: true,
+    usePolicies: false,
+    useGroups: false,
+    useDirectory: false,
+    useSso: false,
+    useEvents: false,
+    useResetPassword: false,
+    planType: 2,
+    hasPublicAndPrivateKeys: !!organization.publicKey && !!organization.privateKey,
+    object: 'profileOrganization',
+  };
+}
+
+export function collectionToResponse(
+  collection: Collection,
+  options: { readOnly?: boolean; hidePasswords?: boolean; object?: string } = {}
+): Record<string, unknown> {
+  return {
+    id: collection.id,
+    organizationId: collection.organizationId,
+    name: collection.name,
+    externalId: collection.externalId ?? null,
+    ...(options.readOnly !== undefined ? { readOnly: !!options.readOnly } : {}),
+    ...(options.hidePasswords !== undefined ? { hidePasswords: !!options.hidePasswords } : {}),
+    object: options.object || 'collection',
+  };
+}
+
+function organizationUserToResponse(
+  organizationUser: OrganizationUser,
+  user: User | null
+): Record<string, unknown> {
+  return {
+    id: organizationUser.id,
+    userId: organizationUser.userId,
+    name: user?.name ?? null,
+    email: organizationUser.email,
+    type: Number(organizationUser.type),
+    status: Number(organizationUser.status),
+    accessAll: !!organizationUser.accessAll,
+    twoFactorEnabled: !!user && (!!user.totpSecret || isYubiKeyEnabled(user)),
+    avatarColor: null,
+    object: 'organizationUserUserDetails',
+  };
+}
+
+function collectionAccessRowsToResponse(rows: Array<{ collectionId: string; readOnly: boolean; hidePasswords: boolean }>): unknown[] {
+  return rows.map((row) => ({
+    id: row.collectionId,
+    readOnly: !!row.readOnly,
+    hidePasswords: !!row.hidePasswords,
+  }));
+}
+
+interface OwnerContext {
+  organization: Organization;
+  organizationUser: OrganizationUser;
+}
+
+async function requireOrganizationOwner(
+  storage: StorageService,
+  organizationId: string,
+  userId: string
+): Promise<OwnerContext | Response> {
+  const organization = await storage.getOrganization(organizationId);
+  if (!organization) return errorResponse('Organization not found', 404);
+  const organizationUser = await storage.getOrganizationUserForUser(organizationId, userId);
+  if (!organizationUser || organizationUser.status !== ORG_USER_STATUS.CONFIRMED) {
+    return errorResponse('Organization not found', 404);
+  }
+  if (organizationUser.type !== ORG_USER_TYPE.OWNER) {
+    return errorResponse('Only organization owners may perform this action', 403);
+  }
+  return { organization, organizationUser };
+}
+
+function readCollectionAccessInput(value: unknown): Array<{ collectionId: string; readOnly: boolean; hidePasswords: boolean }> | null {
+  if (!Array.isArray(value)) return null;
+  const out: Array<{ collectionId: string; readOnly: boolean; hidePasswords: boolean }> = [];
+  for (const item of value) {
+    if (!item || typeof item !== 'object') continue;
+    const row = item as Record<string, unknown>;
+    const collectionId = normalizeOptionalId(row.id);
+    if (!collectionId) continue;
+    out.push({
+      collectionId,
+      readOnly: !!row.readOnly,
+      hidePasswords: !!row.hidePasswords,
+    });
+  }
+  return out;
+}
+
+// GET /api/organizations
+// Memberships for the current user (any linked status) so the webapp can show
+// pending invitations and owned organizations.
+export async function handleListMyOrganizations(request: Request, env: Env, userId: string): Promise<Response> {
+  const storage = new StorageService(env.DB);
+  const memberships = await storage.listOrganizationsForUser(userId);
+
+  const data = [];
+  for (const membership of memberships) {
+    const { organization, organizationUser } = membership;
+    const pending = organizationUser.status === ORG_USER_STATUS.INVITED || organizationUser.status === ORG_USER_STATUS.ACCEPTED;
+    let ownerEmail: string | null = null;
+    if (pending) {
+      // Pending members cannot decrypt the org name (they lack the org key);
+      // surface the owner's email so the webapp banner is still informative.
+      const organizationUsers = await storage.listOrganizationUsers(organization.id);
+      ownerEmail = organizationUsers.find((member) => member.type === ORG_USER_TYPE.OWNER)?.email ?? null;
+    }
+    data.push({
+      ...organizationToResponse(organization),
+      status: Number(organizationUser.status),
+      type: Number(organizationUser.type),
+      organizationUserId: organizationUser.id,
+      ...(pending ? { ownerEmail } : {}),
+    });
+  }
+
+  return jsonResponse({
+    data,
+    object: 'list',
+    continuationToken: null,
+  });
+}
+
+// POST /api/organizations
+// Body: { name (enc w/ org key), key (org key enc w/ creator pubkey),
+//         keys: { publicKey, encryptedPrivateKey }, collectionName (enc w/ org key),
+//         billingEmail? }
+export async function handleCreateOrganization(request: Request, env: Env, userId: string): Promise<Response> {
+  const storage = new StorageService(env.DB);
+  const body = await readJsonBody(request);
+  if (!body) return errorResponse('Invalid JSON', 400);
+
+  const name = optionalEncString(body.name);
+  const key = optionalEncString(body.key);
+  const collectionName = optionalEncString(body.collectionName ?? body.defaultCollectionName);
+  const publicKey = typeof body.keys?.publicKey === 'string' ? body.keys.publicKey.trim() : null;
+  const privateKey = optionalEncString(body.keys?.encryptedPrivateKey ?? body.keys?.privateKey);
+
+  if (!name) return errorResponse('name must be an encrypted string', 400);
+  if (!key) return errorResponse('key must be an encrypted string', 400);
+  if (!publicKey) return errorResponse('keys.publicKey is required', 400);
+  if (!privateKey) return errorResponse('keys.encryptedPrivateKey must be an encrypted string', 400);
+
+  const user = await storage.getUserById(userId);
+  if (!user) return errorResponse('User not found', 404);
+
+  const now = new Date().toISOString();
+  const organization: Organization = {
+    id: generateUUID(),
+    name,
+    privateKey,
+    publicKey,
+    billingEmail: typeof body.billingEmail === 'string' && body.billingEmail.trim() ? body.billingEmail.trim() : user.email,
+    creationDate: now,
+    revisionDate: now,
+  };
+
+  const organizationUser: OrganizationUser = {
+    id: generateUUID(),
+    organizationId: organization.id,
+    userId,
+    email: user.email,
+    key,
+    status: ORG_USER_STATUS.CONFIRMED,
+    type: ORG_USER_TYPE.OWNER,
+    accessAll: true,
+    creationDate: now,
+    revisionDate: now,
+  };
+
+  await storage.saveOrganization(organization);
+  await storage.saveOrganizationUser(organizationUser);
+
+  // Default collection, as the official clients create during org setup.
+  if (collectionName) {
+    await storage.saveCollection({
+      id: generateUUID(),
+      organizationId: organization.id,
+      name: collectionName,
+      externalId: null,
+      creationDate: now,
+      revisionDate: now,
+    });
+  }
+
+  const revisionDate = await storage.updateRevisionDate(userId);
+  notifyUserVaultSync(env, userId, revisionDate, readActingDeviceIdentifier(request));
+  await writeOrgAudit(storage, request, userId, 'organization.create', {
+    organizationId: organization.id,
+  });
+
+  return jsonResponse(organizationToResponse(organization), 200);
+}
+
+// GET /api/organizations/:id (owners)
+export async function handleGetOrganization(request: Request, env: Env, userId: string, organizationId: string): Promise<Response> {
+  const storage = new StorageService(env.DB);
+  const owner = await requireOrganizationOwner(storage, organizationId, userId);
+  if (owner instanceof Response) return owner;
+  return jsonResponse(organizationToResponse(owner.organization));
+}
+
+// PUT /api/organizations/:id (owners) — { name (enc w/ org key) }
+export async function handleUpdateOrganization(request: Request, env: Env, userId: string, organizationId: string): Promise<Response> {
+  const storage = new StorageService(env.DB);
+  const owner = await requireOrganizationOwner(storage, organizationId, userId);
+  if (owner instanceof Response) return owner;
+
+  const body = await readJsonBody(request);
+  if (!body) return errorResponse('Invalid JSON', 400);
+
+  const name = optionalEncString(body.name);
+  if (!name) return errorResponse('name must be an encrypted string', 400);
+
+  const organization = owner.organization;
+  organization.name = name;
+  organization.revisionDate = new Date().toISOString();
+  await storage.saveOrganization(organization);
+
+  await bumpOrganizationMembers(request, env, storage, organizationId);
+  await writeOrgAudit(storage, request, userId, 'organization.update', { organizationId });
+
+  return jsonResponse(organizationToResponse(organization));
+}
+
+// DELETE /api/organizations/:id (owners)
+// Deletes the org and every shared cipher, collection, and membership.
+export async function handleDeleteOrganization(request: Request, env: Env, userId: string, organizationId: string): Promise<Response> {
+  const storage = new StorageService(env.DB);
+  const owner = await requireOrganizationOwner(storage, organizationId, userId);
+  if (owner instanceof Response) return owner;
+
+  const members = await storage.listConfirmedOrganizationUserIds(organizationId);
+  const orgCipherIds = await storage.listCipherIdsByOrganization(organizationId);
+
+  await deleteAllAttachmentsForCiphers(env, orgCipherIds);
+  await storage.deleteOrganization(organizationId);
+
+  const contextId = readActingDeviceIdentifier(request);
+  for (const member of members) {
+    const revisionDate = await storage.updateRevisionDate(member.userId);
+    notifyUserVaultSync(env, member.userId, revisionDate, contextId);
+  }
+  await writeOrgAudit(storage, request, userId, 'organization.delete', {
+    organizationId,
+    cipherCount: orgCipherIds.length,
+  }, 'security');
+
+  return new Response(null, { status: 204 });
+}
+
+// POST /api/organizations/:id/leave
+export async function handleLeaveOrganization(request: Request, env: Env, userId: string, organizationId: string): Promise<Response> {
+  const storage = new StorageService(env.DB);
+  const organization = await storage.getOrganization(organizationId);
+  if (!organization) return errorResponse('Organization not found', 404);
+  const organizationUser = await storage.getOrganizationUserForUser(organizationId, userId);
+  if (!organizationUser) return errorResponse('Not a member of this organization', 404);
+
+  if (organizationUser.type === ORG_USER_TYPE.OWNER && organizationUser.status >= ORG_USER_STATUS.ACCEPTED) {
+    const confirmedOwners = await storage.countConfirmedOrganizationOwners(organizationId);
+    if (confirmedOwners <= 1) {
+      return errorResponse('The last owner cannot leave the organization. Promote another owner or delete the organization.', 400);
+    }
+  }
+
+  await storage.deleteOrganizationUser(organizationUser.id);
+  const revisionDate = await storage.updateRevisionDate(userId);
+  notifyUserVaultSync(env, userId, revisionDate, readActingDeviceIdentifier(request));
+  await bumpOrganizationMembers(request, env, storage, organizationId, userId);
+  await writeOrgAudit(storage, request, userId, 'organization.user.leave', {
+    organizationId,
+    organizationUserId: organizationUser.id,
+  });
+
+  return new Response(null, { status: 204 });
+}
+
+// POST /api/organizations/:id/invites (owners)
+// Body: { emails: string[], collections: [{id, readOnly, hidePasswords}], type, accessAll }
+export async function handleInviteOrganizationUsers(request: Request, env: Env, userId: string, organizationId: string): Promise<Response> {
+  const storage = new StorageService(env.DB);
+  const owner = await requireOrganizationOwner(storage, organizationId, userId);
+  if (owner instanceof Response) return owner;
+
+  const body = await readJsonBody(request);
+  if (!body) return errorResponse('Invalid JSON', 400);
+
+  const emails: string[] = Array.isArray(body.emails)
+    ? body.emails.map(normalizeEmail).filter((email: string | null): email is string => !!email)
+    : [];
+  if (!emails.length) return errorResponse('emails array is required', 400);
+
+  const type: OrganizationUserType = Number(body.type) === ORG_USER_TYPE.OWNER ? ORG_USER_TYPE.OWNER : ORG_USER_TYPE.USER;
+  const accessAll = !!body.accessAll;
+  const collectionAccess = readCollectionAccessInput(body.collections) || [];
+
+  // Validate all referenced collections belong to this organization.
+  if (collectionAccess.length) {
+    const collections = await storage.getCollectionsByIds(collectionAccess.map((row) => row.collectionId));
+    const validIds = new Set(collections.filter((collection) => collection.organizationId === organizationId).map((collection) => collection.id));
+    for (const row of collectionAccess) {
+      if (!validIds.has(row.collectionId)) {
+        return errorResponse(`Collection ${row.collectionId} does not belong to this organization`, 400);
+      }
+    }
+  }
+
+  const now = new Date().toISOString();
+  const invited: Array<{ email: string; organizationUserId: string; registered: boolean; inviteCode?: string }> = [];
+  const skipped: Array<{ email: string; reason: string }> = [];
+
+  for (const email of Array.from(new Set(emails))) {
+    const existing = await storage.getOrganizationUserByEmail(organizationId, email);
+    if (existing) {
+      skipped.push({ email, reason: 'already-invited' });
+      continue;
+    }
+
+    const invitedUser = await storage.getUser(email);
+    if (invitedUser && invitedUser.id === userId) {
+      skipped.push({ email, reason: 'self' });
+      continue;
+    }
+
+    const organizationUser: OrganizationUser = {
+      id: generateUUID(),
+      organizationId,
+      userId: invitedUser?.id ?? null,
+      email,
+      key: null,
+      status: ORG_USER_STATUS.INVITED,
+      type,
+      accessAll,
+      creationDate: now,
+      revisionDate: now,
+    };
+    await storage.saveOrganizationUser(organizationUser);
+
+    // Per-collection access rows for users without accessAll.
+    if (!accessAll && collectionAccess.length) {
+      await storage.replaceOrganizationUserCollections(
+        organizationUser.id,
+        collectionAccess.map((row) => ({ collectionId: row.collectionId, readOnly: row.readOnly, hidePasswords: row.hidePasswords }))
+      );
+    }
+
+    let inviteCode: string | undefined;
+    if (!invitedUser) {
+      // Unregistered email: mint a registration invite code so the owner can
+      // onboard the person without the server admin.
+      const expiresAt = new Date(Date.now() + ORG_INVITE_REGISTRATION_TTL_HOURS * 60 * 60 * 1000);
+      const invite: Invite = {
+        code: randomHex(20),
+        createdBy: userId,
+        usedBy: null,
+        expiresAt: expiresAt.toISOString(),
+        status: 'active',
+        createdAt: now,
+        updatedAt: now,
+      };
+      await storage.createInvite(invite);
+      inviteCode = invite.code;
+    }
+
+    invited.push({
+      email,
+      organizationUserId: organizationUser.id,
+      registered: !!invitedUser,
+      ...(inviteCode ? { inviteCode } : {}),
+    });
+  }
+
+  await writeOrgAudit(storage, request, userId, 'organization.user.invite', {
+    organizationId,
+    invited: invited.map((item) => item.email),
+    skipped: skipped.map((item) => item.email),
+  });
+
+  return jsonResponse({ invited, skipped, object: 'organizationInviteResult' });
+}
+
+// GET /api/organizations/:id/users (owners)
+export async function handleListOrganizationUsers(request: Request, env: Env, userId: string, organizationId: string): Promise<Response> {
+  const storage = new StorageService(env.DB);
+  const owner = await requireOrganizationOwner(storage, organizationId, userId);
+  if (owner instanceof Response) return owner;
+
+  const organizationUsers = await storage.listOrganizationUsers(organizationId);
+  const data = [];
+  for (const organizationUser of organizationUsers) {
+    const user = organizationUser.userId ? await storage.getUserById(organizationUser.userId) : null;
+    data.push(organizationUserToResponse(organizationUser, user));
+  }
+
+  return jsonResponse({
+    data,
+    object: 'list',
+    continuationToken: null,
+  });
+}
+
+// GET /api/organizations/:id/users/:organizationUserId (owners)
+// Includes the member's public key so owners can encrypt the org key on confirm.
+export async function handleGetOrganizationUser(
+  request: Request,
+  env: Env,
+  userId: string,
+  organizationId: string,
+  organizationUserId: string
+): Promise<Response> {
+  const storage = new StorageService(env.DB);
+  const owner = await requireOrganizationOwner(storage, organizationId, userId);
+  if (owner instanceof Response) return owner;
+
+  const organizationUser = await storage.getOrganizationUser(organizationUserId);
+  if (!organizationUser || organizationUser.organizationId !== organizationId) {
+    return errorResponse('Organization user not found', 404);
+  }
+
+  const user = organizationUser.userId ? await storage.getUserById(organizationUser.userId) : null;
+  const collectionUsers = await storage.listCollectionUsersByOrganizationUser(organizationUserId);
+  const collections = collectionUsers.length
+    ? await storage.getCollectionsByIds(collectionUsers.map((row) => row.collectionId))
+    : [];
+  const collectionIds = new Set(collections.map((collection) => collection.id));
+
+  return jsonResponse({
+    ...organizationUserToResponse(organizationUser, user),
+    userId: organizationUser.userId,
+    publicKey: user?.publicKey ?? null,
+    collections: collectionUsers
+      .filter((row) => collectionIds.has(row.collectionId))
+      .map((row) => ({ id: row.collectionId, readOnly: !!row.readOnly, hidePasswords: !!row.hidePasswords })),
+    object: 'organizationUserDetails',
+  });
+}
+
+// POST /api/organizations/:id/users/:organizationUserId/accept
+// Email-string invite acceptance: the authenticated user must match the email
+// on the invitation. No token is required (there is no email delivery).
+export async function handleAcceptOrganizationInvitation(
+  request: Request,
+  env: Env,
+  userId: string,
+  organizationId: string,
+  organizationUserId: string
+): Promise<Response> {
+  const storage = new StorageService(env.DB);
+  const user = await storage.getUserById(userId);
+  if (!user) return errorResponse('User not found', 404);
+
+  const organizationUser = await storage.getOrganizationUser(organizationUserId);
+  if (!organizationUser || organizationUser.organizationId !== organizationId) {
+    return errorResponse('Organization invitation not found', 404);
+  }
+  if (organizationUser.status !== ORG_USER_STATUS.INVITED) {
+    return errorResponse('Invitation is no longer pending', 400);
+  }
+  if (organizationUser.userId && organizationUser.userId !== userId) {
+    return errorResponse('This invitation belongs to another account', 403);
+  }
+  if (organizationUser.email !== user.email && organizationUser.email !== user.email.toLowerCase()) {
+    return errorResponse('This invitation was issued for a different email address', 403);
+  }
+
+  organizationUser.status = ORG_USER_STATUS.ACCEPTED;
+  organizationUser.userId = userId;
+  organizationUser.revisionDate = new Date().toISOString();
+  await storage.saveOrganizationUser(organizationUser);
+
+  const revisionDate = await storage.updateRevisionDate(userId);
+  notifyUserVaultSync(env, userId, revisionDate, readActingDeviceIdentifier(request));
+  await writeOrgAudit(storage, request, userId, 'organization.user.accept', {
+    organizationId,
+    organizationUserId,
+  });
+
+  return new Response(null, { status: 200 });
+}
+
+// POST /api/organizations/:id/users/:organizationUserId/confirm (owners)
+// Body: { key: org key encrypted with the member's public key }
+export async function handleConfirmOrganizationUser(
+  request: Request,
+  env: Env,
+  userId: string,
+  organizationId: string,
+  organizationUserId: string
+): Promise<Response> {
+  const storage = new StorageService(env.DB);
+  const owner = await requireOrganizationOwner(storage, organizationId, userId);
+  if (owner instanceof Response) return owner;
+
+  const body = await readJsonBody(request);
+  if (!body) return errorResponse('Invalid JSON', 400);
+  const key = optionalEncString(body.key);
+  if (!key) return errorResponse('key must be an encrypted string', 400);
+
+  const organizationUser = await storage.getOrganizationUser(organizationUserId);
+  if (!organizationUser || organizationUser.organizationId !== organizationId) {
+    return errorResponse('Organization user not found', 404);
+  }
+  if (organizationUser.status !== ORG_USER_STATUS.ACCEPTED) {
+    return errorResponse('User has not accepted the invitation yet', 400);
+  }
+  if (!organizationUser.userId) {
+    return errorResponse('User has not linked an account to this invitation', 400);
+  }
+
+  organizationUser.status = ORG_USER_STATUS.CONFIRMED;
+  organizationUser.key = key;
+  organizationUser.revisionDate = new Date().toISOString();
+  await storage.saveOrganizationUser(organizationUser);
+
+  await bumpOrganizationMembers(request, env, storage, organizationId);
+  await writeOrgAudit(storage, request, userId, 'organization.user.confirm', {
+    organizationId,
+    organizationUserId,
+  });
+
+  return new Response(null, { status: 200 });
+}
+
+// PUT /api/organizations/:id/users/:organizationUserId (owners)
+// Body: { type, accessAll, collections: [{id, readOnly, hidePasswords}] }
+export async function handleUpdateOrganizationUser(
+  request: Request,
+  env: Env,
+  userId: string,
+  organizationId: string,
+  organizationUserId: string
+): Promise<Response> {
+  const storage = new StorageService(env.DB);
+  const owner = await requireOrganizationOwner(storage, organizationId, userId);
+  if (owner instanceof Response) return owner;
+
+  const body = await readJsonBody(request);
+  if (!body) return errorResponse('Invalid JSON', 400);
+
+  const organizationUser = await storage.getOrganizationUser(organizationUserId);
+  if (!organizationUser || organizationUser.organizationId !== organizationId) {
+    return errorResponse('Organization user not found', 404);
+  }
+
+  if (body.type !== undefined) {
+    const nextType = Number(body.type);
+    if (nextType !== ORG_USER_TYPE.OWNER && nextType !== ORG_USER_TYPE.USER) {
+      return errorResponse('Unsupported member type', 400);
+    }
+    if (organizationUser.type === ORG_USER_TYPE.OWNER && nextType !== ORG_USER_TYPE.OWNER) {
+      const confirmedOwners = await storage.countConfirmedOrganizationOwners(organizationId);
+      if (confirmedOwners <= 1) {
+        return errorResponse('The last owner cannot be demoted. Promote another owner first.', 400);
+      }
+    }
+    organizationUser.type = nextType as OrganizationUserType;
+  }
+  if (body.accessAll !== undefined) {
+    organizationUser.accessAll = !!body.accessAll;
+  }
+  organizationUser.revisionDate = new Date().toISOString();
+  await storage.saveOrganizationUser(organizationUser);
+
+  if (Array.isArray(body.collections)) {
+    const collectionAccess = readCollectionAccessInput(body.collections) || [];
+    if (collectionAccess.length) {
+      const collections = await storage.getCollectionsByIds(collectionAccess.map((row) => row.collectionId));
+      const validIds = new Set(collections.filter((collection) => collection.organizationId === organizationId).map((collection) => collection.id));
+      for (const row of collectionAccess) {
+        if (!validIds.has(row.collectionId)) {
+          return errorResponse(`Collection ${row.collectionId} does not belong to this organization`, 400);
+        }
+      }
+    }
+    await storage.replaceOrganizationUserCollections(
+      organizationUserId,
+      collectionAccess.map((row) => ({ collectionId: row.collectionId, readOnly: row.readOnly, hidePasswords: row.hidePasswords }))
+    );
+  }
+
+  // Permission changes alter this member's sync payload only.
+  if (organizationUser.userId) {
+    const revisionDate = await storage.updateRevisionDate(organizationUser.userId);
+    notifyUserVaultSync(env, organizationUser.userId, revisionDate, readActingDeviceIdentifier(request));
+  }
+  await writeOrgAudit(storage, request, userId, 'organization.user.update', {
+    organizationId,
+    organizationUserId,
+  });
+
+  return new Response(null, { status: 200 });
+}
+
+// DELETE /api/organizations/:id/users/:organizationUserId (owners)
+export async function handleRemoveOrganizationUser(
+  request: Request,
+  env: Env,
+  userId: string,
+  organizationId: string,
+  organizationUserId: string
+): Promise<Response> {
+  const storage = new StorageService(env.DB);
+  const owner = await requireOrganizationOwner(storage, organizationId, userId);
+  if (owner instanceof Response) return owner;
+
+  const organizationUser = await storage.getOrganizationUser(organizationUserId);
+  if (!organizationUser || organizationUser.organizationId !== organizationId) {
+    return errorResponse('Organization user not found', 404);
+  }
+  if (organizationUser.type === ORG_USER_TYPE.OWNER && organizationUser.status >= ORG_USER_STATUS.ACCEPTED) {
+    const confirmedOwners = await storage.countConfirmedOrganizationOwners(organizationId);
+    if (confirmedOwners <= 1) {
+      return errorResponse('The last owner cannot be removed. Promote another owner or delete the organization.', 400);
+    }
+  }
+
+  const removedUserId = organizationUser.userId;
+  await storage.deleteOrganizationUser(organizationUserId);
+
+  if (removedUserId) {
+    const revisionDate = await storage.updateRevisionDate(removedUserId);
+    notifyUserVaultSync(env, removedUserId, revisionDate, readActingDeviceIdentifier(request));
+  }
+  await writeOrgAudit(storage, request, userId, 'organization.user.remove', {
+    organizationId,
+    organizationUserId,
+  }, 'security');
+
+  return new Response(null, { status: 204 });
+}
+
+// --- Organization collections (owner management) ---
+
+// POST /api/organizations/:id/collections (owners)
+export async function handleCreateOrganizationCollection(
+  request: Request,
+  env: Env,
+  userId: string,
+  organizationId: string
+): Promise<Response> {
+  const storage = new StorageService(env.DB);
+  const owner = await requireOrganizationOwner(storage, organizationId, userId);
+  if (owner instanceof Response) return owner;
+
+  const body = await readJsonBody(request);
+  if (!body) return errorResponse('Invalid JSON', 400);
+  const name = optionalEncString(body.name);
+  if (!name) return errorResponse('name must be an encrypted string', 400);
+
+  const now = new Date().toISOString();
+  const collection: Collection = {
+    id: generateUUID(),
+    organizationId,
+    name,
+    externalId: normalizeOptionalId(body.externalId),
+    creationDate: now,
+    revisionDate: now,
+  };
+  await storage.saveCollection(collection);
+
+  // v2-style create also carries member assignments.
+  if (Array.isArray(body.users)) {
+    const assignment = await readOrganizationUserAssignmentInput(storage, organizationId, body.users);
+    if (assignment instanceof Response) return assignment;
+    await storage.replaceCollectionUsers(collection.id, assignment);
+  }
+
+  await bumpOrganizationMembers(request, env, storage, organizationId);
+  await writeOrgAudit(storage, request, userId, 'organization.collection.create', {
+    organizationId,
+    collectionId: collection.id,
+  });
+
+  return jsonResponse(collectionToResponse(collection), 200);
+}
+
+async function readOrganizationUserAssignmentInput(
+  storage: StorageService,
+  organizationId: string,
+  value: unknown
+): Promise<Array<{ organizationUserId: string; readOnly: boolean; hidePasswords: boolean }> | Response> {
+  if (!Array.isArray(value)) return [];
+  const out: Array<{ organizationUserId: string; readOnly: boolean; hidePasswords: boolean }> = [];
+  for (const item of value) {
+    if (!item || typeof item !== 'object') continue;
+    const row = item as Record<string, unknown>;
+    const organizationUserId = normalizeOptionalId(row.id);
+    if (!organizationUserId) continue;
+    const organizationUser = await storage.getOrganizationUser(organizationUserId);
+    if (!organizationUser || organizationUser.organizationId !== organizationId) {
+      return errorResponse(`Organization user ${organizationUserId} does not belong to this organization`, 400);
+    }
+    out.push({
+      organizationUserId,
+      readOnly: !!row.readOnly,
+      hidePasswords: !!row.hidePasswords,
+    });
+  }
+  return out;
+}
+
+// GET /api/organizations/:id/collections (owners)
+export async function handleListOrganizationCollections(
+  request: Request,
+  env: Env,
+  userId: string,
+  organizationId: string
+): Promise<Response> {
+  const storage = new StorageService(env.DB);
+  const owner = await requireOrganizationOwner(storage, organizationId, userId);
+  if (owner instanceof Response) return owner;
+
+  const collections = await storage.listCollectionsForOrganization(organizationId);
+  return jsonResponse({
+    data: collections.map((collection) => collectionToResponse(collection)),
+    object: 'list',
+    continuationToken: null,
+  });
+}
+
+// GET /api/organizations/:id/collections/:collectionId/details (owners)
+export async function handleGetOrganizationCollectionDetails(
+  request: Request,
+  env: Env,
+  userId: string,
+  organizationId: string,
+  collectionId: string
+): Promise<Response> {
+  const storage = new StorageService(env.DB);
+  const owner = await requireOrganizationOwner(storage, organizationId, userId);
+  if (owner instanceof Response) return owner;
+
+  const collection = await storage.getCollection(collectionId);
+  if (!collection || collection.organizationId !== organizationId) {
+    return errorResponse('Collection not found', 404);
+  }
+
+  const collectionUsers = await storage.listCollectionUsers(collectionId);
+  return jsonResponse({
+    ...collectionToResponse(collection),
+    users: collectionUsers.map((row) => ({
+      id: row.organizationUserId,
+      readOnly: !!row.readOnly,
+      hidePasswords: !!row.hidePasswords,
+    })),
+    groups: [],
+    object: 'collectionDetails',
+  });
+}
+
+// PUT /api/organizations/:id/collections/:collectionId (owners)
+// Body: { name, externalId, users: [{id, readOnly, hidePasswords}], groups: [] }
+export async function handleUpdateOrganizationCollection(
+  request: Request,
+  env: Env,
+  userId: string,
+  organizationId: string,
+  collectionId: string
+): Promise<Response> {
+  const storage = new StorageService(env.DB);
+  const owner = await requireOrganizationOwner(storage, organizationId, userId);
+  if (owner instanceof Response) return owner;
+
+  const collection = await storage.getCollection(collectionId);
+  if (!collection || collection.organizationId !== organizationId) {
+    return errorResponse('Collection not found', 404);
+  }
+
+  const body = await readJsonBody(request);
+  if (!body) return errorResponse('Invalid JSON', 400);
+
+  const name = optionalEncString(body.name);
+  if (name) collection.name = name;
+  if (body.externalId !== undefined) collection.externalId = normalizeOptionalId(body.externalId);
+  collection.revisionDate = new Date().toISOString();
+  await storage.saveCollection(collection);
+
+  if (Array.isArray(body.users)) {
+    const assignment = await readOrganizationUserAssignmentInput(storage, organizationId, body.users);
+    if (assignment instanceof Response) return assignment;
+    await storage.replaceCollectionUsers(collectionId, assignment);
+  }
+
+  await bumpOrganizationMembers(request, env, storage, organizationId);
+  await writeOrgAudit(storage, request, userId, 'organization.collection.update', {
+    organizationId,
+    collectionId,
+  });
+
+  return jsonResponse(collectionToResponse(collection));
+}
+
+// DELETE /api/organizations/:id/collections/:collectionId (owners)
+export async function handleDeleteOrganizationCollection(
+  request: Request,
+  env: Env,
+  userId: string,
+  organizationId: string,
+  collectionId: string
+): Promise<Response> {
+  const storage = new StorageService(env.DB);
+  const owner = await requireOrganizationOwner(storage, organizationId, userId);
+  if (owner instanceof Response) return owner;
+
+  const collection = await storage.getCollection(collectionId);
+  if (!collection || collection.organizationId !== organizationId) {
+    return errorResponse('Collection not found', 404);
+  }
+
+  await storage.deleteCollection(collectionId);
+  await bumpOrganizationMembers(request, env, storage, organizationId);
+  await writeOrgAudit(storage, request, userId, 'organization.collection.delete', {
+    organizationId,
+    collectionId,
+  }, 'security');
+
+  return new Response(null, { status: 204 });
+}
+
+// GET /api/collections — collections across all confirmed orgs for the user.
+export async function handleListMyCollections(request: Request, env: Env, userId: string): Promise<Response> {
+  const storage = new StorageService(env.DB);
+  const collections = await storage.listCollectionsForUser(userId);
+  return jsonResponse({
+    data: collections.map((collection) =>
+      collectionToResponse(collection, {
+        readOnly: collection.readOnly,
+        hidePasswords: collection.hidePasswords,
+        object: 'collectionDetails',
+      })
+    ),
+    object: 'list',
+    continuationToken: null,
+  });
+}

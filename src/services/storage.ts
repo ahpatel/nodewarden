@@ -64,6 +64,7 @@ import {
   deleteCipher as deleteStoredCipher,
   archiveCiphersByIds as archiveStoredCiphersByIds,
   deleteCiphersByIds as deleteStoredCiphersByIds,
+  listCipherIdsByOrganization as listStoredCipherIdsByOrganization,
   restoreCiphersByIds as restoreStoredCiphersByIds,
   softDeleteCiphersByIds as softDeleteStoredCiphersByIds,
   unarchiveCiphersByIds as unarchiveStoredCiphersByIds,
@@ -79,6 +80,7 @@ import {
   getOrganizationUserForUser as findStoredOrganizationUserForUser,
   listConfirmedOrganizationUserIds as listStoredConfirmedOrgUserIds,
   listConfirmedOrganizationsForUser as listStoredConfirmedOrgsForUser,
+  listOrganizationsForUser as listStoredOrganizationsForUser,
   listOrganizationUsers as listStoredOrganizationUsers,
   linkOrganizationUsersByEmail as linkStoredOrganizationUsersByEmail,
   saveOrganization as saveStoredOrganization,
@@ -93,6 +95,7 @@ import {
   getCollection as findStoredCollection,
   listCollectionIdsForCipher as listStoredCollectionIdsForCipher,
   listCollectionUsers as listStoredCollectionUsers,
+  listCollectionUsersByOrganizationUser as listStoredCollectionUsersByOrganizationUser,
   listCollectionsForOrganization as listStoredCollectionsForOrganization,
   listCollectionsForUser as listStoredCollectionsForUser,
   replaceCollectionUsers as replaceStoredCollectionUsers,
@@ -626,6 +629,10 @@ export class StorageService {
     return listStoredConfirmedOrgsForUser(this.db, userId);
   }
 
+  async listOrganizationsForUser(userId: string): Promise<UserOrganizationMembership[]> {
+    return listStoredOrganizationsForUser(this.db, userId);
+  }
+
   async linkOrganizationUsersByEmail(userId: string, email: string): Promise<void> {
     await linkStoredOrganizationUsersByEmail(this.db, userId, email);
   }
@@ -658,6 +665,12 @@ export class StorageService {
 
   async listCollectionUsers(collectionId: string): Promise<CollectionUserAccess[]> {
     return listStoredCollectionUsers(this.db, collectionId);
+  }
+
+  async listCollectionUsersByOrganizationUser(
+    organizationUserId: string
+  ): Promise<Array<{ collectionId: string; readOnly: boolean; hidePasswords: boolean }>> {
+    return listStoredCollectionUsersByOrganizationUser(this.db, organizationUserId);
   }
 
   async replaceCollectionUsers(
@@ -721,6 +734,10 @@ export class StorageService {
 
   async deleteCiphersByIds(ids: string[]): Promise<void> {
     await deleteStoredCiphersByIds(this.db, ids);
+  }
+
+  async listCipherIdsByOrganization(organizationId: string): Promise<string[]> {
+    return listStoredCipherIdsByOrganization(this.db, organizationId);
   }
 
   // --- Folders ---
