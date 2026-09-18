@@ -34,12 +34,16 @@ import {
 import { calcTotpNow, type TotpCodeResult } from '@/lib/crypto';
 import { computeSshFingerprint, generateDefaultSshKeyMaterial } from '@/lib/ssh';
 import { ChevronLeft } from 'lucide-preact';
-import type { Cipher, CustomFieldType, Folder, VaultDraft, VaultDraftField } from '@/lib/types';
+import type { Cipher, CustomFieldType, Folder, VaultCollection, VaultDraft, VaultDraftField } from '@/lib/types';
 import { t } from '@/lib/i18n';
 
 interface VaultPageProps {
   ciphers: Cipher[];
   folders: Folder[];
+  /** Organization collections with decrypted names. */
+  collections?: VaultCollection[];
+  /** Confirmed organizations with decrypted names. */
+  organizations?: Array<{ id: string; name: string; keyAvailable: boolean }>;
   loading: boolean;
   error: string;
   emailForReprompt: string;
@@ -410,6 +414,9 @@ export default function VaultPage(props: VaultPageProps) {
         }
         if (sidebarFilter.kind === 'favorite' && !cipher.favorite) return false;
         if (sidebarFilter.kind === 'type' && meta?.typeKey !== sidebarFilter.value) return false;
+        if (sidebarFilter.kind === 'collection') {
+          if (!cipher.organizationId || !(cipher.collectionIds || []).includes(sidebarFilter.collectionId)) return false;
+        }
         if (sidebarFilter.kind === 'folder') {
           if (sidebarFilter.folderId === null) {
             if (cipher.folderId) return false;
@@ -480,6 +487,7 @@ export default function VaultPage(props: VaultPageProps) {
   const sidebarFilterKey = useMemo(() => {
     if (sidebarFilter.kind === 'folder') return `folder:${sidebarFilter.folderId ?? 'none'}`;
     if (sidebarFilter.kind === 'type') return `type:${sidebarFilter.value}`;
+    if (sidebarFilter.kind === 'collection') return `collection:${sidebarFilter.collectionId}`;
     if (sidebarFilter.kind === 'duplicates') return `duplicates:${duplicateMode}`;
     return sidebarFilter.kind;
   }, [sidebarFilter, duplicateMode]);
@@ -670,6 +678,10 @@ const folderName = useCallback((id: string | null | undefined): string => {
 
   const startEdit = useCallback((): void => {
     if (!selectedCipher) return;
+    if (selectedCipher.organizationId && selectedCipher.edit === false) {
+      props.onNotify('warning', t('txt_organizations_readonly_warning'));
+      return;
+    }
     setDraft(draftFromCipher(selectedCipher));
     setIsCreating(false);
     setIsEditing(true);
@@ -1208,6 +1220,8 @@ const folderName = useCallback((id: string | null | undefined): string => {
         )}
         <VaultSidebar
           folders={props.folders}
+          collections={props.collections}
+          organizations={props.organizations}
           sidebarFilter={sidebarFilter}
           busy={busy}
           isMobileLayout={isMobileLayout}

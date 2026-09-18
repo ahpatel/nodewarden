@@ -7,8 +7,10 @@ import LoadingState from '@/components/LoadingState';
 import type { AdminBackupImportResponse, AdminBackupRunResponse, AdminBackupSettings, RemoteBackupBrowserResponse } from '@/lib/api/backup';
 import type { AuditLogFilters } from '@/lib/api/admin';
 import type { CiphersImportPayload } from '@/lib/api/vault';
+import type { AuthedFetch } from '@/lib/api/shared';
+import type { OrgKeyMap } from '@/lib/vault-decrypt';
 import { t } from '@/lib/i18n';
-import type { AccountPasskeyCredential, AdminInvite, AdminUser, AuditLogListResult, AuditLogSettings, AuthRequest, AuthorizedDevice, Cipher, CustomEquivalentDomain, DomainRules, Folder as VaultFolder, Profile, Send, SendDraft, SessionState, TwoFactorPasskeySettings, VaultDraft, YubiKeyOtpSettings } from '@/lib/types';
+import type { AccountPasskeyCredential, AdminInvite, AdminUser, AuditLogListResult, AuditLogSettings, AuthRequest, AuthorizedDevice, Cipher, CustomEquivalentDomain, DomainRules, Folder as VaultFolder, Profile, Send, SendDraft, SessionState, TwoFactorPasskeySettings, VaultCollection, VaultDraft, YubiKeyOtpSettings } from '@/lib/types';
 import type { ExportRequest } from '@/lib/export-formats';
 
 const VaultPage = lazy(() => import('@/components/VaultPage'));
@@ -23,6 +25,7 @@ const AdminPage = lazy(() => import('@/components/AdminPage'));
 const LogCenterPage = lazy(() => import('@/components/LogCenterPage'));
 const BackupCenterPage = lazy(() => import('@/components/BackupCenterPage'));
 const ImportPage = lazy(() => import('@/components/ImportPage'));
+const OrganizationsPage = lazy(() => import('@/components/OrganizationsPage'));
 
 function RouteContentFallback() {
   return <LoadingState card lines={5} />;
@@ -48,6 +51,14 @@ export interface AppMainRoutesProps {
   decryptedCiphers: Cipher[];
   decryptedFolders: VaultFolder[];
   decryptedSends: Send[];
+  /** Organization collections with decrypted names. */
+  decryptedCollections: VaultCollection[];
+  /** Confirmed organizations with decrypted names (empty when none). */
+  decryptedOrganizations: Array<{ id: string; name: string; keyAvailable: boolean }>;
+  /** Organization decryption keys by organizationId (null when none). */
+  orgKeys: OrgKeyMap | null;
+  /** Authenticated fetch for organization management endpoints. */
+  authedFetch: AuthedFetch;
   vaultError: string;
   ciphersLoading: boolean;
   foldersLoading: boolean;
@@ -188,6 +199,9 @@ export default function AppMainRoutes(props: AppMainRoutesProps) {
         accountKeys={props.session?.symEncKey && props.session?.symMacKey ? { encB64: props.session.symEncKey, macB64: props.session.symMacKey } : null}
         onNotify={props.onNotify}
         folders={props.decryptedFolders}
+        collections={props.decryptedCollections}
+        organizations={props.decryptedOrganizations}
+        orgKeys={props.orgKeys}
         onExport={props.onExport}
       />
     </Suspense>
@@ -246,6 +260,19 @@ export default function AppMainRoutes(props: AppMainRoutesProps) {
           />
         </Suspense>
       </Route>
+      <Route path="/organizations">
+        <Suspense fallback={<RouteContentFallback />}>
+          <OrganizationsPage
+            profile={props.profile}
+            session={props.session}
+            authedFetch={props.authedFetch}
+            orgKeys={props.orgKeys}
+            onNotify={props.onNotify}
+            onRefresh={props.onRefreshVault}
+            onNavigate={props.onNavigate}
+          />
+        </Suspense>
+      </Route>
       <Route path="/vault/totp">
         <Suspense fallback={<RouteContentFallback />}>
           <TotpCodesPage ciphers={props.decryptedCiphers} loading={props.ciphersLoading} onNotify={props.onNotify} />
@@ -256,6 +283,8 @@ export default function AppMainRoutes(props: AppMainRoutesProps) {
           <VaultPage
             ciphers={props.decryptedCiphers}
             folders={props.decryptedFolders}
+            collections={props.decryptedCollections}
+            organizations={props.decryptedOrganizations}
             loading={props.ciphersLoading || props.foldersLoading}
             error={props.vaultError}
             emailForReprompt={props.profile?.email || props.session?.email || ''}
