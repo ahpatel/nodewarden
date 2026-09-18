@@ -1557,6 +1557,15 @@ Object.assign(de, { "txt_password_security_show_all": "Alle anzeigen", "txt_pass
   "txt_organizations_access_all_note": "Zugriff auf alle Einträge ignoriert Sammlungszuweisungen. Abwählen, um Zugriff pro Sammlung zu vergeben.",
   "txt_organizations_invite_admin_registration_note": "{count} eingeladene(r) Benutzer ist/sind nicht registriert. Bitten Sie Ihren Server-Admin, Registrierungscodes zu erstellen.",
   "txt_organizations_invite_squatter_warning": "Neues Konto",
+  "txt_admin_org_self_service_title": "Self-Service-Registrierung für Organisationen",
+  "txt_admin_org_self_service_on": "Aktiviert",
+  "txt_admin_org_self_service_off": "Deaktiviert (Registrierung nur durch Admin)",
+  "txt_admin_org_self_service_unknown": "Unbekannt",
+  "txt_admin_org_self_service_description": "Steuert, ob Organisationsbesitzer Registrierungscodes für unregistrierte Personen erstellen können, die sie in ihre Organisation einladen. Bei Deaktivierung (Standard) kann nur der Server-Admin Registrierungscodes erstellen — Organisationseinladungen werden weiterhin erstellt, aber die Person muss separat einen Registrierungscode vom Server-Admin anfordern.",
+  "txt_admin_org_self_service_warning": "Bei Aktivierung kann jeder bestätigte Benutzer, der eine Organisation erstellt, Registrierungscodes erstellen — die Benutzerzahl Ihrer Instanz wächst ohne Ihre Zustimmung. Codes sind nur an die eingeladene E-Mail gebunden, aber die Registrierungsschranke ist nicht mehr admin-exklusiv.",
+  "txt_admin_org_self_service_enable": "Self-Service-Registrierung aktivieren",
+  "txt_admin_org_self_service_disable": "Self-Service-Registrierung deaktivieren",
+  "txt_admin_org_self_service_password_placeholder": "Master-Passwort (bestätigen)",
 });
 
 export default de;

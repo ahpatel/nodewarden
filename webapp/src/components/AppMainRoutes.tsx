@@ -508,6 +508,7 @@ export default function AppMainRoutes(props: AppMainRoutesProps) {
               invites={props.invites}
               loading={props.adminLoading}
               error={props.adminError}
+              authedFetch={props.authedFetch}
               onRefresh={props.onRefreshAdmin}
               onCreateInvite={props.onCreateInvite}
               onDeleteInvalidInvites={props.onDeleteInvalidInvites}

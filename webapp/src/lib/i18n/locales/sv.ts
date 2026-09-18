@@ -1557,6 +1557,15 @@ Object.assign(sv, { "txt_password_security_show_all": "Show all", "txt_password_
   "txt_organizations_access_all_note": "Åtkomst till alla föremål ignorerar samlings tilldelningar. Avmarkera för att ge åtkomst per samling.",
   "txt_organizations_invite_admin_registration_note": "{count} inbjuden(a) användare är inte registrerade. Be din serveradministratör att skapa registreringskoder.",
   "txt_organizations_invite_squatter_warning": "Nytt konto",
+  "txt_admin_org_self_service_title": "Självbetjäningsregistrering för organisationer",
+  "txt_admin_org_self_service_on": "Aktiverad",
+  "txt_admin_org_self_service_off": "Inaktiverad (registrering endast av administratör)",
+  "txt_admin_org_self_service_unknown": "Okänd",
+  "txt_admin_org_self_service_description": "Kontrollerar om organisationsägare kan skapa registreringskoder för oregistrerade personer som de bjuder in till sin organisation. När inaktiverat (standard) kan endast serveradministratören skapa registreringskoder — organisationsinbjudningar skapas fortfarande, men personen måste hämta en registreringskod från serveradministratören separat.",
+  "txt_admin_org_self_service_warning": "När aktiverad kan varje bekräftad användare som skapar en organisation generera registreringskoder — vilket ökar din instans befolkning utan ditt medgivande. Koder är endast kopplade till den inbjudna e-postadressen, men registreringsgrinden är inte längre exklusivt för administratören.",
+  "txt_admin_org_self_service_enable": "Aktivera självbetjäningsregistrering",
+  "txt_admin_org_self_service_disable": "Inaktivera självbetjäningsregistrering",
+  "txt_admin_org_self_service_password_placeholder": "Huvudlösenord (bekräfta)",
 });
 
 export default sv;

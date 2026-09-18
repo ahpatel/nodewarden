@@ -1557,6 +1557,15 @@ Object.assign(fi, { "txt_password_security_show_all": "Show all", "txt_password_
   "txt_organizations_access_all_note": "Kaikkien kohteiden käyttö ohittaa kokoelmien määrittelyt. Poista valinta myöntääksesi käyttöoikeuden kokoelmittain.",
   "txt_organizations_invite_admin_registration_note": "{count} kutsuttua käyttäjää ei ole rekisteröitynyt. Pyydä palvelimen ylläpitäjää luomaan rekisteröintikoodit.",
   "txt_organizations_invite_squatter_warning": "Uusi tili",
+  "txt_admin_org_self_service_title": "Organisaatioiden itsepalvelurekisteröinti",
+  "txt_admin_org_self_service_on": "Käytössä",
+  "txt_admin_org_self_service_off": "Poistettu käytöstä (vain ylläpitäjä voi rekisteröidä)",
+  "txt_admin_org_self_service_unknown": "Tuntematon",
+  "txt_admin_org_self_service_description": "Määrittää, voivatko organisaation omistajat luoda rekisteröintikoodja rekisteröitymättömille henkilöille, joita he kutsuvat organisaatioonsa. Kun poistettu käytöstä (oletus), vain palvelimen ylläpitäjä voi luoda rekisteröintikoodeja — organisaatiokutsut luodaan silti, mutta henkilön on pyydettävä rekisteröintikoodi erikseen ylläpitäjältä.",
+  "txt_admin_org_self_service_warning": "Kun käytössä, mikä tahansa vahvistettu käyttäjä voi luoda organisaation ja rekisteröintikoodeja — kasvattaen instanssin käyttäjämäärää ilman suostumustasi. Koodit on sidottu vain kutsuttuun sähköpostiosoitteeseen, mutta rekisteröintiportti ei ole enää yksinomaan ylläpitäjän hallinnassa.",
+  "txt_admin_org_self_service_enable": "Ota itsepalvelurekisteröinti käyttöön",
+  "txt_admin_org_self_service_disable": "Poista itsepalvelurekisteröinti käytöstä",
+  "txt_admin_org_self_service_password_placeholder": "Pääsalasana (vahvista)",
 });
 
 export default fi;

@@ -1586,6 +1586,15 @@ Object.assign(zhCN, {
   "txt_organizations_access_all_note": "开启后可访问全部项目并忽略集合分配。取消勾选可按集合单独授权。",
   "txt_organizations_invite_admin_registration_note": "{count} 位被邀请的用户尚未注册。请联系服务器管理员为其创建注册邀请码。",
   "txt_organizations_invite_squatter_warning": "新账号",
+  "txt_admin_org_self_service_title": "组织自助注册",
+  "txt_admin_org_self_service_on": "已启用",
+  "txt_admin_org_self_service_off": "已禁用（仅管理员可注册）",
+  "txt_admin_org_self_service_unknown": "未知",
+  "txt_admin_org_self_service_description": "控制组织所有者是否可以为他们邀请加入组织的未注册人员创建注册邀请码。禁用（默认）时，只有服务器管理员可以创建注册码——组织邀请仍会创建，但被邀请人需要另行从服务器管理员处获取注册码。",
+  "txt_admin_org_self_service_warning": "启用后，任何已确认的用户只要创建了组织就可以生成注册码——在您未同意的情况下增长实例用户数。代码仅绑定到被邀请的邮箱，但注册门控不再仅限管理员。",
+  "txt_admin_org_self_service_enable": "启用自助注册",
+  "txt_admin_org_self_service_disable": "禁用自助注册",
+  "txt_admin_org_self_service_password_placeholder": "主密码（确认）",
 });
 
 export default zhCN;

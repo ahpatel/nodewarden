@@ -1557,6 +1557,15 @@ Object.assign(es, { "txt_password_security_show_all": "Show all", "txt_password_
   "txt_organizations_access_all_note": "El acceso a todos los elementos ignora las asignaciones de colecciones. Desmárquelo para conceder acceso por colección.",
   "txt_organizations_invite_admin_registration_note": "{count} usuario(s) invitado(s) no están registrados. Pida al administrador del servidor que cree códigos de invitación de registro.",
   "txt_organizations_invite_squatter_warning": "Cuenta nueva",
+  "txt_admin_org_self_service_title": "Registro de autoservicio de organizaciones",
+  "txt_admin_org_self_service_on": "Habilitado",
+  "txt_admin_org_self_service_off": "Deshabilitado (registro solo por el administrador)",
+  "txt_admin_org_self_service_unknown": "Desconocido",
+  "txt_admin_org_self_service_description": "Controla si los propietarios de organizaciones pueden crear códigos de invitación de registro para personas no registradas que invitan a su organización. Cuando está deshabilitado (predeterminado), solo el administrador del servidor puede crear códigos de registro — las invitaciones a la organización se crean igualmente, pero la persona debe obtener un código de registro del administrador por separado.",
+  "txt_admin_org_self_service_warning": "Cuando está habilitado, cualquier usuario confirmado que cree una organización puede generar códigos de registro, aumentando la población de su instancia sin su consentimiento. Los códigos están vinculados solo al correo electrónico invitado, pero la barrera de registro ya no es exclusiva del administrador.",
+  "txt_admin_org_self_service_enable": "Habilitar registro de autoservicio",
+  "txt_admin_org_self_service_disable": "Deshabilitar registro de autoservicio",
+  "txt_admin_org_self_service_password_placeholder": "Contraseña maestra (confirmar)",
 });
 
 export default es;

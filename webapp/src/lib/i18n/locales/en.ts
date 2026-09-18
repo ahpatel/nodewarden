@@ -1636,6 +1636,15 @@ Object.assign(en, {
   "txt_organizations_access_all_note": "Access to all items ignores collection assignments. Uncheck to grant access per collection.",
   "txt_organizations_invite_admin_registration_note": "{count} invited user(s) are not registered. Ask your server admin to create registration invite codes for them.",
   "txt_organizations_invite_squatter_warning": "New account",
+  "txt_admin_org_self_service_title": "Organization self-service registration",
+  "txt_admin_org_self_service_on": "Enabled",
+  "txt_admin_org_self_service_off": "Disabled (admin-only registration)",
+  "txt_admin_org_self_service_unknown": "Unknown",
+  "txt_admin_org_self_service_description": "Controls whether organization owners can create registration invite codes for unregistered people they invite to their organization. When disabled (default), only server admins can mint registration codes — org invitations for new people are still created, but they must obtain a registration code from the server admin separately.",
+  "txt_admin_org_self_service_warning": "When enabled, any confirmed user who creates an organization can mint registration codes — growing your instance population without your consent. Codes are bound to the invited email only, but the registration gate is no longer admin-exclusive.",
+  "txt_admin_org_self_service_enable": "Enable self-service registration",
+  "txt_admin_org_self_service_disable": "Disable self-service registration",
+  "txt_admin_org_self_service_password_placeholder": "Master password (confirm)",
 });
 
 export default en;

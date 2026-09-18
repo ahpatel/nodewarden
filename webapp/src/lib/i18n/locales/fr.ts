@@ -1557,6 +1557,15 @@ Object.assign(fr, { "txt_password_security_show_all": "Tout afficher", "txt_pass
   "txt_organizations_access_all_note": "L’accès à tous les éléments ignore les affectations de collections. Décochez pour un accès par collection.",
   "txt_organizations_invite_admin_registration_note": "{count} utilisateur(s) invité(s) non enregistré(s). Demandez à l’administrateur du serveur de créer des codes d’invitation d’inscription.",
   "txt_organizations_invite_squatter_warning": "Nouveau compte",
+  "txt_admin_org_self_service_title": "Inscription libre-service des organisations",
+  "txt_admin_org_self_service_on": "Activé",
+  "txt_admin_org_self_service_off": "Désactivé (inscription réservée à l’administrateur)",
+  "txt_admin_org_self_service_unknown": "Inconnu",
+  "txt_admin_org_self_service_description": "Contrôle si les propriétaires d’organisations peuvent créer des codes d’invitation d’inscription pour les personnes non enregistrées qu’ils invitent dans leur organisation. Lorsque désactivé (par défaut), seul l’administrateur du serveur peut créer des codes d’inscription — les invitations d’organisation sont toujours créées, mais la personne doit obtenir un code d’inscription auprès de l’administrateur.",
+  "txt_admin_org_self_service_warning": "Lorsqu’activé, tout utilisateur confirmé qui crée une organisation peut générer des codes d’inscription, augmentant la population de votre instance sans votre consentement. Les codes sont liés uniquement à l’e-mail invité, mais la barrière d’inscription n’est plus exclusive à l’administrateur.",
+  "txt_admin_org_self_service_enable": "Activer l’inscription libre-service",
+  "txt_admin_org_self_service_disable": "Désactiver l’inscription libre-service",
+  "txt_admin_org_self_service_password_placeholder": "Mot de passe maître (confirmer)",
 });
 
 export default fr;
