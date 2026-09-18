@@ -55,6 +55,7 @@ import { deriveLoginHash, getPreloginKdfConfig, verifyMasterPassword } from '@/l
 import type { AuthedFetch } from '@/lib/api/shared';
 import { downloadBytesAsFile } from '@/lib/download';
 import type { Cipher, Folder as VaultFolder, Profile, Send, SendDraft, SessionState, VaultDraft } from '@/lib/types';
+import type { OrgKeyMap } from '@/lib/vault-decrypt';
 
 type Notify = (type: 'success' | 'error' | 'warning', text: string) => void;
 
@@ -66,6 +67,8 @@ interface UseVaultSendActionsOptions {
   defaultKdfIterations: number;
   encryptedCiphers: Cipher[] | undefined;
   encryptedFolders: VaultFolder[] | undefined;
+  /** Organization decryption keys by organizationId (org item import support). */
+  orgKeys?: OrgKeyMap | null;
   refetchCiphers: () => Promise<{ data?: Cipher[] | undefined } | unknown>;
   refetchFolders: () => Promise<{ data?: VaultFolder[] | undefined } | unknown>;
   refetchSends: () => Promise<unknown>;
@@ -77,6 +80,15 @@ interface UseVaultSendActionsOptions {
   patchDecryptedFolders: (updater: (prev: VaultFolder[]) => VaultFolder[]) => void;
   patchDecryptedSends: (updater: (prev: Send[]) => Send[]) => void;
   refreshVaultRevisionStamp: () => Promise<void>;
+}
+
+// Raw import items that carry a source-server organization marker (GUID or
+// name) are "organization items" and can be redirected into a nodewarden
+// organization by the import flow.
+function rawImportItemIsOrganizationItem(raw: Record<string, unknown>): boolean {
+  const orgId = String(raw.organizationId || '').trim();
+  const orgName = String(raw.organization || '').trim();
+  return !!orgId || !!orgName;
 }
 
 function extractImportIdMaps(cipherMap: ImportedCipherMapEntry[] | null) {
@@ -290,6 +302,7 @@ export default function useVaultSendActions(options: UseVaultSendActionsOptions)
     defaultKdfIterations,
     encryptedCiphers,
     encryptedFolders,
+    orgKeys,
     refetchCiphers,
     refetchFolders,
     refetchSends,
@@ -1040,7 +1053,11 @@ export default function useVaultSendActions(options: UseVaultSendActionsOptions)
 
       async importVault(
         payload: CiphersImportPayload,
-        options: { folderMode: 'original' | 'none' | 'target'; targetFolderId: string | null },
+        options: {
+          folderMode: 'original' | 'none' | 'target';
+          targetFolderId: string | null;
+          organization?: { organizationId: string; collectionIds: string[] } | null;
+        },
         attachments: ImportAttachmentFile[] = []
       ): Promise<ImportResultSummary> {
         if (!session?.symEncKey || !session?.symMacKey) throw new Error(t('txt_vault_key_unavailable'));
@@ -1048,6 +1065,17 @@ export default function useVaultSendActions(options: UseVaultSendActionsOptions)
 
         const mode = options.folderMode || 'original';
         const targetFolderId = (options.targetFolderId || '').trim() || null;
+        const organization = options.organization || null;
+        const organizationKeyMaterial = organization ? orgKeys?.[organization.organizationId] : null;
+        if (organization && !organizationKeyMaterial) {
+          throw new Error(t('txt_import_org_key_unavailable'));
+        }
+        // buildCipherImportPayload only reads symEncKey/symMacKey, so a
+        // session-shaped object carrying the org key halves re-uses the whole
+        // user-key encryption path for organization items.
+        const organizationSession: SessionState | null = organizationKeyMaterial
+          ? { ...session, symEncKey: organizationKeyMaterial.encB64, symMacKey: organizationKeyMaterial.macB64 }
+          : null;
         const nextPayload: CiphersImportPayload = { ciphers: [], folders: [], folderRelationships: [] };
 
         if (mode === 'original') {
@@ -1095,10 +1123,18 @@ export default function useVaultSendActions(options: UseVaultSendActionsOptions)
 
         for (let i = 0; i < payload.ciphers.length; i++) {
           const raw = (payload.ciphers[i] || {}) as Record<string, unknown>;
-          const draft = importCipherToDraft(raw, mode === 'target' ? targetFolderId : null);
-          const cipherPayload = await buildCipherImportPayload(session, draft);
+          const isOrganizationItem = !!organization && !!organizationSession && rawImportItemIsOrganizationItem(raw);
+          const draft = importCipherToDraft(
+            raw,
+            isOrganizationItem ? null : mode === 'target' ? targetFolderId : null
+          );
+          const cipherPayload = await buildCipherImportPayload(isOrganizationItem ? organizationSession! : session, draft);
           const sourceId = String(raw.id || '').trim();
           if (sourceId) cipherPayload.id = sourceId;
+          if (isOrganizationItem) {
+            cipherPayload.organizationId = organization!.organizationId;
+            cipherPayload.collectionIds = [...organization!.collectionIds];
+          }
           nextPayload.ciphers.push(cipherPayload);
         }
 
@@ -1390,6 +1426,7 @@ export default function useVaultSendActions(options: UseVaultSendActionsOptions)
     encryptedFolders,
     importAuthedFetch,
     onNotify,
+    orgKeys,
     patchDecryptedCiphers,
     patchDecryptedFolders,
     patchDecryptedSends,

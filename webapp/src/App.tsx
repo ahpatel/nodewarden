@@ -69,7 +69,9 @@ import { APP_NOTIFY_EVENT, type AppNotifyDetail } from '@/lib/app-notify';
 import { dispatchBackupProgress, type BackupProgressDetail } from '@/lib/backup-restore-progress';
 import { clearOfflineUnlockRecord } from '@/lib/offline-auth';
 import { clearPasswordSecurityCache } from '@/lib/password-security-cache';
-import { decryptSends, decryptVaultCore } from '@/lib/vault-decrypt';
+import { decryptSends, decryptVaultCore, type OrgKeyMap } from '@/lib/vault-decrypt';
+import { base64ToBytes, decryptStr } from '@/lib/crypto';
+import { importUserPrivateKey, unwrapOrganizationKey, clearUnwrappedOrgKeyCache } from '@/lib/org-crypto';
 import { decryptSendsInWorker, decryptVaultCoreInWorker } from '@/lib/vault-worker';
 import {
   DEMO_CIPHERS,
@@ -85,7 +87,7 @@ import {
   createDemoMainRoutesProps,
 } from '@/lib/demo';
 import type { AdminBackupSettings } from '@/lib/api/backup';
-import type { AdminInvite, AdminUser, AppPhase, AuditLogSettings, AuthRequest, AuthorizedDevice, Cipher, CustomEquivalentDomain, DomainRules, Folder as VaultFolder, Profile, Send, SessionState } from '@/lib/types';
+import type { AdminInvite, AdminUser, AppPhase, AuditLogSettings, AuthRequest, AuthorizedDevice, Cipher, CustomEquivalentDomain, DomainRules, Folder as VaultFolder, Profile, Send, SessionState, VaultCollection } from '@/lib/types';
 import type { VaultCoreSnapshot } from '@/lib/vault-cache';
 
 function isBackupProgressDetail(value: unknown): value is BackupProgressDetail {
@@ -262,6 +264,9 @@ export default function App() {
   const [decryptedFolders, setDecryptedFolders] = useState<VaultFolder[]>([]);
   const [decryptedCiphers, setDecryptedCiphers] = useState<Cipher[]>([]);
   const [decryptedSends, setDecryptedSends] = useState<Send[]>([]);
+  const [orgKeys, setOrgKeys] = useState<OrgKeyMap | null>(null);
+  const [decryptedCollections, setDecryptedCollections] = useState<VaultCollection[]>([]);
+  const [decryptedOrganizations, setDecryptedOrganizations] = useState<Array<{ id: string; name: string; keyAvailable: boolean }>>([]);
   const [demoUsers, setDemoUsers] = useState<AdminUser[]>(() => DEMO_ADMIN_USERS.map((user) => ({ ...user })));
   const [demoInvites, setDemoInvites] = useState<AdminInvite[]>(() => DEMO_ADMIN_INVITES.map((invite) => ({ ...invite })));
   const [demoAuthorizedDevices, setDemoAuthorizedDevices] = useState<AuthorizedDevice[]>(() => DEMO_AUTHORIZED_DEVICES.map((device) => ({ ...device })));
@@ -1322,12 +1327,72 @@ export default function App() {
     uriChecksumRepairAttemptRef.current = '';
   }, [session?.accessToken]);
 
+  // Resolve organization decryption keys: each confirmed org's key arrives in
+  // the profile encrypted with this user's RSA public key. Unwrapping needs
+  // the user's private key (itself encrypted with the user symmetric key).
+  const profileOrganizations = (profile?.organizations || []) as Array<{ id: string; name: string; key: string | null; status: number }>;
+  const orgKeyResolveKey = profileOrganizations
+    .map((org) => `${org.id}:${org.key || ''}:${org.status}`)
+    .join('|');
+  useEffect(() => {
+    const organizations = profileOrganizations.filter((org) => org.status === 3 && !!org.key);
+    if (IS_DEMO_MODE || !organizations.length || !session?.symEncKey || !session?.symMacKey || !profile?.privateKey) {
+      if (!IS_DEMO_MODE) {
+        setOrgKeys(null);
+        setDecryptedOrganizations(profileOrganizations.map((org) => ({ id: org.id, name: '', keyAvailable: false })));
+      }
+      return;
+    }
+    let active = true;
+    (async () => {
+      const userEnc = base64ToBytes(session.symEncKey!);
+      const userMac = base64ToBytes(session.symMacKey!);
+      const privateKey = await importUserPrivateKey(profile?.privateKey, userEnc, userMac);
+      if (!privateKey) {
+        if (active) {
+          setOrgKeys(null);
+          setDecryptedOrganizations(organizations.map((org) => ({ id: org.id, name: '', keyAvailable: false })));
+        }
+        return;
+      }
+      const nextKeys: OrgKeyMap = {};
+      const nextOrganizations: Array<{ id: string; name: string; keyAvailable: boolean }> = [];
+      for (const org of organizations) {
+        const parts = await unwrapOrganizationKey(org.id, org.key, privateKey);
+        let name = '';
+        if (parts) {
+          try {
+            name = await decryptStr(org.name, parts.encBytes, parts.macBytes);
+          } catch {
+            name = '';
+          }
+        }
+        if (parts) {
+          nextKeys[org.id] = { encB64: parts.encB64, macB64: parts.macB64 };
+        }
+        nextOrganizations.push({ id: org.id, name, keyAvailable: !!parts });
+      }
+      if (active) {
+        setOrgKeys(Object.keys(nextKeys).length ? nextKeys : null);
+        setDecryptedOrganizations(nextOrganizations);
+      }
+    })();
+    return () => {
+      active = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orgKeyResolveKey, session?.symEncKey, session?.symMacKey, profile?.privateKey]);
+
   useEffect(() => {
     if (IS_DEMO_MODE) return;
     if (!session?.symEncKey || !session?.symMacKey) {
       setDecryptedFolders([]);
       setDecryptedCiphers([]);
       setDecryptedSends([]);
+      setDecryptedCollections([]);
+      setOrgKeys(null);
+      setDecryptedOrganizations([]);
+      clearUnwrappedOrgKeyCache();
       setVaultInitialDecryptDone(false);
       setVaultDecryptError('');
       setSendsDecryptDone(false);
@@ -1344,21 +1409,26 @@ export default function App() {
           result = await decryptVaultCoreInWorker({
             folders: encryptedFolders,
             ciphers: encryptedCiphers,
+            collections: encryptedVaultCore?.collections || [],
             symEncKeyB64: session.symEncKey!,
             symMacKeyB64: session.symMacKey!,
+            orgKeys,
           });
         } catch {
           result = await decryptVaultCore({
             folders: encryptedFolders,
             ciphers: encryptedCiphers,
+            collections: encryptedVaultCore?.collections || [],
             symEncKeyB64: session.symEncKey!,
             symMacKeyB64: session.symMacKey!,
+            orgKeys,
           });
         }
 
         if (!active) return;
         setDecryptedFolders(result.folders);
         setDecryptedCiphers(result.ciphers);
+        setDecryptedCollections(Array.isArray(result.collections) ? result.collections : []);
         setVaultInitialDecryptDone(true);
         if (!session.accessToken) return;
         const repairKey = `${session.accessToken}:${encryptedCiphers.map((cipher) => `${cipher.id}:${cipher.revisionDate || ''}`).join(',')}`;
@@ -1393,7 +1463,7 @@ export default function App() {
     return () => {
       active = false;
     };
-  }, [session?.symEncKey, session?.symMacKey, vaultCacheKey, encryptedFolders, encryptedCiphers]);
+  }, [session?.symEncKey, session?.symMacKey, vaultCacheKey, encryptedFolders, encryptedCiphers, encryptedVaultCore, orgKeys]);
 
   useEffect(() => {
     if (IS_DEMO_MODE) return;
@@ -1593,6 +1663,7 @@ export default function App() {
         ciphers: [encrypted],
         symEncKeyB64: session.symEncKey,
         symMacKeyB64: session.symMacKey,
+        orgKeys,
       });
       const decrypted = result.ciphers[0];
       if (decrypted) setDecryptedCiphers((current) => upsertById(current, decrypted));
@@ -1846,6 +1917,7 @@ export default function App() {
     defaultKdfIterations,
     encryptedCiphers,
     encryptedFolders,
+    orgKeys,
     refetchCiphers: async () => {
       const result = await refetchVaultCoreData() as { data?: VaultCoreSnapshot };
       return { data: result.data?.ciphers };
@@ -2033,6 +2105,10 @@ export default function App() {
     decryptedCiphers,
     decryptedFolders,
     decryptedSends,
+    decryptedCollections,
+    decryptedOrganizations,
+    orgKeys,
+    authedFetch,
     vaultError: vaultCoreQuery.isError && !encryptedVaultCore ? t('txt_load_vault_failed') : vaultDecryptError,
     ciphersLoading: !(vaultCoreQuery.isError && !encryptedVaultCore) && !vaultDecryptError && !vaultInitialDecryptDone,
     foldersLoading: !(vaultCoreQuery.isError && !encryptedVaultCore) && !vaultDecryptError && !vaultInitialDecryptDone,

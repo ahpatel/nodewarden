@@ -19,7 +19,32 @@ export interface Profile {
   privateKey?: string | null;
   publicKey?: string | null;
   role: 'admin' | 'user';
+  organizations?: ProfileOrganization[];
   [k: string]: unknown;
+}
+
+// Per-user organization view embedded in the profile (sync).
+// key = organization key encrypted with this user's public key ("4.<b64>").
+export interface ProfileOrganization {
+  id: string;
+  name: string;
+  key: string | null;
+  status: number;
+  type: number;
+  [k: string]: unknown;
+}
+
+// Collection entry as served by /api/collections and sync (user-scoped flags).
+export interface VaultCollection {
+  id: string;
+  organizationId: string;
+  name: string;
+  externalId?: string | null;
+  readOnly?: boolean;
+  hidePasswords?: boolean;
+  object?: string;
+  /** Decrypted collection name (client-side only). */
+  decName?: string;
 }
 
 export interface Folder {
@@ -241,6 +266,10 @@ export interface Cipher {
   id: string;
   type: number;
   folderId?: string | null;
+  organizationId?: string | null;
+  collectionIds?: string[];
+  edit?: boolean;
+  viewPassword?: boolean;
   favorite?: boolean;
   reprompt?: number;
   name?: string | null;
