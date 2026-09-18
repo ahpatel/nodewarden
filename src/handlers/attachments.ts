@@ -67,16 +67,30 @@ async function loadAttachmentContext(
   attachmentId: string,
   options: { requireWrite?: boolean } = {}
 ): Promise<{ cipher: Cipher; attachment: Attachment } | Response> {
-  const loaded = await storage.getAccessibleCipher(cipherId, userId);
-  if (!loaded) return errorResponse('Cipher not found', 404);
-  if (options.requireWrite && loaded.access && !loaded.access.canEdit) {
-    return errorResponse('You do not have permission to modify this cipher', 403);
-  }
+  const loaded = await loadCipherContext(storage, userId, cipherId, options);
+  if (loaded instanceof Response) return loaded;
   const attachment = await storage.getAttachment(attachmentId);
   if (!attachment || attachment.cipherId !== cipherId) {
     return errorResponse('Attachment not found', 404);
   }
   return { cipher: loaded.cipher, attachment };
+}
+
+// Load a cipher for an authenticated operation without requiring an existing
+// attachment (used by the attachment-create endpoint, where the attachment
+// does not exist yet).
+async function loadCipherContext(
+  storage: StorageService,
+  userId: string,
+  cipherId: string,
+  options: { requireWrite?: boolean } = {}
+): Promise<{ cipher: Cipher } | Response> {
+  const loaded = await storage.getAccessibleCipher(cipherId, userId);
+  if (!loaded) return errorResponse('Cipher not found', 404);
+  if (options.requireWrite && loaded.access && !loaded.access.canEdit) {
+    return errorResponse('You do not have permission to modify this cipher', 403);
+  }
+  return { cipher: loaded.cipher };
 }
 
 function contentDispositionAttachment(fileName: string | null | undefined): string {
@@ -197,8 +211,9 @@ export async function handleCreateAttachment(
 ): Promise<Response> {
   const storage = new StorageService(env.DB);
 
-  // Verify cipher exists and belongs to user (or is an editable org cipher)
-  const context = await loadAttachmentContext(storage, userId, cipherId, cipherId, { requireWrite: true });
+  // Verify cipher exists and belongs to user (or is an editable org cipher);
+  // the attachment does not exist yet, so use the cipher-only context loader.
+  const context = await loadCipherContext(storage, userId, cipherId, { requireWrite: true });
   if (context instanceof Response) return context;
   const cipher = context.cipher;
 
