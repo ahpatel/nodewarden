@@ -82,6 +82,8 @@ interface UseVaultSendActionsOptions {
   patchDecryptedFolders: (updater: (prev: VaultFolder[]) => VaultFolder[]) => void;
   patchDecryptedSends: (updater: (prev: Send[]) => Send[]) => void;
   refreshVaultRevisionStamp: () => Promise<void>;
+  /** Refetch the profile so organization keys/names resolve after org changes. */
+  refreshProfile?: () => Promise<unknown>;
 }
 
 // Raw import items that carry a source-server organization marker (GUID or
@@ -316,6 +318,7 @@ export default function useVaultSendActions(options: UseVaultSendActionsOptions)
     patchDecryptedFolders,
     patchDecryptedSends,
     refreshVaultRevisionStamp,
+    refreshProfile,
   } = options;
   const [downloadingAttachmentKey, setDownloadingAttachmentKey] = useState('');
   const [attachmentDownloadPercent, setAttachmentDownloadPercent] = useState<number | null>(null);
@@ -327,6 +330,12 @@ export default function useVaultSendActions(options: UseVaultSendActionsOptions)
   return useMemo(() => {
     const refetchVault = async () => {
       await Promise.all([refetchCiphers(), refetchFolders(), refetchSends()]);
+      // Organization membership changes (create/accept/confirm/leave/delete)
+      // surface through profile.organizations; keep it fresh so org keys and
+      // names resolve without a hard reload.
+      if (refreshProfile) {
+        await refreshProfile().catch(() => undefined);
+      }
     };
 
     const requireOnlineWrite = () => {
@@ -1481,6 +1490,7 @@ export default function useVaultSendActions(options: UseVaultSendActionsOptions)
     refetchCiphers,
     refetchFolders,
     refetchSends,
+    refreshProfile,
     refreshVaultRevisionStamp,
     session,
     sendUploadPercent,

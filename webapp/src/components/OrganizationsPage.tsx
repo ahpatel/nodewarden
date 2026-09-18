@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'preact/hooks';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { Plus, RefreshCw, SlidersHorizontal, Trash2 } from 'lucide-preact';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import { base64ToBytes, decryptStr } from '@/lib/crypto';
@@ -103,6 +103,13 @@ export default function OrganizationsPage(props: OrganizationsPageProps) {
   const orgKeys = props.orgKeys;
   const onRefreshVault = props.onRefresh;
 
+  // Previous decrypted names, kept in a ref so refreshOrganizations does not
+  // depend on the state object (which would refetch-loop via the effect).
+  const displayNamesRef = useRef<Record<string, string>>({});
+  useEffect(() => {
+    displayNamesRef.current = displayNames;
+  }, [displayNames]);
+
   const refreshOrganizations = useCallback(async () => {
     try {
       setError('');
@@ -111,7 +118,12 @@ export default function OrganizationsPage(props: OrganizationsPageProps) {
       const names: Record<string, string> = {};
       for (const org of list) {
         if (Number(org.status) === STATUS_CONFIRMED && orgKeys) {
-          names[org.id] = await decryptOrgName(org.name, orgKeys, org.id);
+          // Keep the previously resolved name when the org key is not in
+          // scope yet (e.g. right after creating an organization).
+          names[org.id] =
+            (await decryptOrgName(org.name, orgKeys, org.id)) ||
+            displayNamesRef.current[org.id] ||
+            '';
         }
       }
       setDisplayNames(names);
@@ -180,7 +192,7 @@ export default function OrganizationsPage(props: OrganizationsPageProps) {
       const wrappedKey = await wrapOrganizationKeyForUser(rawKey, props.profile.publicKey);
       const encName = await encryptWithOrgKey(name, parts);
       const encCollectionName = await encryptWithOrgKey(name, parts);
-      await createOrganization(authedFetch, {
+      const created = await createOrganization(authedFetch, {
         name: encName,
         key: wrappedKey,
         keys: { publicKey: keyPair.publicKeyB64, encryptedPrivateKey: keyPair.encryptedPrivateKey },
@@ -188,6 +200,9 @@ export default function OrganizationsPage(props: OrganizationsPageProps) {
         billingEmail: props.profile?.email || null,
       });
       setCreateName('');
+      // The org key is not resolved through the profile pipeline yet; show
+      // the given name immediately instead of the org id fallback.
+      setDisplayNames((prev) => ({ ...prev, [created.id]: name }));
       notify('success', t('txt_organizations_created'));
       await refreshOrganizations();
       await onRefreshVault();

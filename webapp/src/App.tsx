@@ -1928,6 +1928,9 @@ export default function App() {
       return { data: result.data?.folders };
     },
     refetchSends: refetchSendsFromVaultCore,
+    refreshProfile: async () => {
+      await profileQuery.refetch();
+    },
     onNotify: pushToast,
     patchEncryptedCiphers: (updater) => {
       patchVaultCoreSnapshot((snapshot) => ({
