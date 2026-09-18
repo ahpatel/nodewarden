@@ -1337,7 +1337,8 @@ export default function App() {
     .map((org) => `${org.id}:${org.key || ''}:${org.status}`)
     .join('|');
   useEffect(() => {
-    const organizations = profileOrganizations.filter((org) => org.status === 3 && !!org.key);
+    // Bitwarden OrganizationUserStatusType on the wire: Confirmed = 2.
+    const organizations = profileOrganizations.filter((org) => org.status === 2 && !!org.key);
     if (IS_DEMO_MODE || !organizations.length || !session?.symEncKey || !session?.symMacKey || !profile?.privateKey) {
       if (!IS_DEMO_MODE) {
         setOrgKeys(null);

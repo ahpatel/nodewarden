@@ -42,6 +42,19 @@ const ORG_USER_STATUS = {
   CONFIRMED: 3,
 } as const;
 
+// Wire translation: Bitwarden clients use OrganizationUserStatusType
+// (Invited=0, Accepted=1, Confirmed=2, Revoked=-1). Our storage offsets by one
+// (1=Invited, 2=Accepted, 3=Confirmed); clients receiving an out-of-enum
+// status drop the organization from their state, which breaks org item
+// rendering.
+function wireOrganizationUserStatus(storedStatus: number): number {
+  return Math.max(-1, storedStatus - 1);
+}
+
+// ProductTierType on the wire: Free=0, Families=1, Teams=2, Enterprise=3,
+// TeamsStarter=4. We present every organization as Teams.
+const WIRE_PRODUCT_TIER_TYPE = 2;
+
 const ORG_USER_TYPE = {
   OWNER: 0,
   ADMIN: 1,
@@ -115,6 +128,7 @@ function organizationToResponse(organization: Organization): Record<string, unkn
     billingEmail: organization.billingEmail,
     plan: 'Teams',
     planType: 2,
+    productTierType: WIRE_PRODUCT_TIER_TYPE,
     seats: null,
     maxSeats: null,
     maxCollections: null,
@@ -142,28 +156,70 @@ export function profileOrganizationResponse(
   organization: Organization,
   organizationUser: OrganizationUser
 ): Record<string, unknown> {
+  const wireStatus = wireOrganizationUserStatus(Number(organizationUser.status));
   return {
     id: organization.id,
     name: organization.name,
     key: organizationUser.key,
-    status: Number(organizationUser.status),
+    status: wireStatus,
     type: Number(organizationUser.type),
     enabled: true,
     maxAutoscaleSeats: null,
+    maxSeats: null,
     seats: null,
     maxCollections: null,
     maxStorageGb: null,
     use2fa: true,
     useTotp: true,
     useKeys: true,
+    useApi: true,
     usePolicies: false,
     useGroups: false,
     useDirectory: false,
     useSso: false,
     useEvents: false,
+    useScim: false,
+    useOrganizationDomains: false,
+    useKeyConnector: false,
+    useCustomPermissions: false,
     useResetPassword: false,
+    useSecretsManager: false,
+    usePasswordManager: true,
+    usePam: false,
+    useActivateAutofillPolicy: false,
+    selfHost: true,
+    usersGetPremium: true,
+    plan: 'Teams',
     planType: 2,
+    productTierType: WIRE_PRODUCT_TIER_TYPE,
     hasPublicAndPrivateKeys: !!organization.publicKey && !!organization.privateKey,
+    familySponsorshipAvailable: false,
+    accessSecretsManager: false,
+    limitCollectionCreation: false,
+    limitCollectionDeletion: false,
+    limitItemDeletion: false,
+    allowAdminAccessToAllCollectionItems: true,
+    userIsClaimedByOrganization: false,
+    useAccessIntelligence: false,
+    useAdminSponsoredFamilies: false,
+    isAdminInitiated: false,
+    ssoEnabled: false,
+    identifier: null,
+    permissions: {
+      accessEventLogs: true,
+      accessImportExport: true,
+      accessReports: true,
+      manageResetPassword: false,
+      manageScim: false,
+      manageSso: false,
+      manageUsers: true,
+      manageGroups: false,
+      managePolicies: false,
+      manageOrganizations: false,
+      editAnyCollection: true,
+      deleteAnyCollection: true,
+      createNewCollections: true,
+    },
     object: 'profileOrganization',
   };
 }
@@ -193,7 +249,7 @@ function organizationUserToResponse(
     name: user?.name ?? null,
     email: organizationUser.email,
     type: Number(organizationUser.type),
-    status: Number(organizationUser.status),
+    status: wireOrganizationUserStatus(Number(organizationUser.status)),
     accessAll: !!organizationUser.accessAll,
     twoFactorEnabled: !!user && (!!user.totpSecret || isYubiKeyEnabled(user)),
     avatarColor: null,
@@ -268,7 +324,7 @@ export async function handleListMyOrganizations(request: Request, env: Env, user
     }
     data.push({
       ...organizationToResponse(organization),
-      status: Number(organizationUser.status),
+      status: wireOrganizationUserStatus(Number(organizationUser.status)),
       type: Number(organizationUser.type),
       organizationUserId: organizationUser.id,
       // The org key wrapped for this member (same string the sync profile

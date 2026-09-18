@@ -47,9 +47,10 @@ interface OrganizationsPageProps {
   onNavigate: (path: string) => void;
 }
 
-const STATUS_INVITED = 1;
-const STATUS_ACCEPTED = 2;
-const STATUS_CONFIRMED = 3;
+// Wire status values (Bitwarden OrganizationUserStatusType).
+const STATUS_INVITED = 0;
+const STATUS_ACCEPTED = 1;
+const STATUS_CONFIRMED = 2;
 const TYPE_OWNER = 0;
 
 function orgKeyMaterialFromMap(orgKeys: OrgKeyMap | null, organizationId: string): OrgKeyParts | null {
