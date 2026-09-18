@@ -1485,6 +1485,33 @@ async function splitBulkIdsByAccess(
   return { personal, organization };
 }
 
+// Enforce per-target-collection editability for move endpoints, mirroring the
+// share flow: non-accessAll members may only move ciphers into collections
+// they hold a non-readOnly assignment on.
+async function verifyTargetCollectionsEditable(
+  storage: StorageService,
+  userId: string,
+  organizationId: string,
+  collectionIds: string[]
+): Promise<Response | null> {
+  const membership = await storage.getOrganizationUserForUser(organizationId, userId);
+  if (!membership || membership.status !== 3) {
+    return errorResponse('Organization not found', 404);
+  }
+  if (membership.accessAll || membership.type === 0) return null;
+  const editableIds = new Set(
+    (await storage.listCollectionUsersByOrganizationUser(membership.id))
+      .filter((row) => !row.readOnly)
+      .map((row) => row.collectionId)
+  );
+  for (const collectionId of collectionIds) {
+    if (!editableIds.has(collectionId)) {
+      return errorResponse('You do not have permission to move ciphers to these collections', 403);
+    }
+  }
+  return null;
+}
+
 async function bumpOrganizationsForBulk(
   request: Request,
   env: Env,
@@ -1846,6 +1873,11 @@ export async function handleSetCipherCollections(request: Request, env: Env, use
   const collectionIds = Array.isArray(body.collectionIds)
     ? Array.from(new Set(body.collectionIds.map((collectionId: unknown) => String(collectionId || '').trim()).filter(Boolean)))
     : [];
+  // Reject empty targets: stripping all links silently revokes the cipher from
+  // every non-accessAll member (access-map tampering, not a legitimate move).
+  if (!collectionIds.length) {
+    return errorResponse('At least one collection is required', 400);
+  }
 
   const collections = await storage.getCollectionsByIds(collectionIds);
   const validIds = new Set(collections.filter((collection) => collection.organizationId === cipher.organizationId).map((collection) => collection.id));
@@ -1854,11 +1886,18 @@ export async function handleSetCipherCollections(request: Request, env: Env, use
       return errorResponse(`Collection ${collectionId} does not belong to this organization`, 400);
     }
   }
+  const permissionError = await verifyTargetCollectionsEditable(storage, userId, cipher.organizationId, collectionIds);
+  if (permissionError) return permissionError;
 
   cipher.updatedAt = new Date().toISOString();
   await storage.saveCipher(cipher);
   await storage.setCipherCollections(cipher.id, collectionIds);
   await bumpOrganizationMembers(request, env, storage, cipher.organizationId);
+  await writeCipherAudit(storage, request, userId, 'cipher.collections.update', {
+    id: cipher.id,
+    organizationId: cipher.organizationId,
+    collectionIds,
+  });
 
   cipher.collectionIds = collectionIds;
   if (loaded.access) {
@@ -1913,12 +1952,19 @@ export async function handleBulkSetCipherCollections(request: Request, env: Env,
       return errorResponse(`Collection ${collectionId} does not belong to this organization`, 400);
     }
   }
+  const permissionError = await verifyTargetCollectionsEditable(storage, userId, organizationId, collectionIds);
+  if (permissionError) return permissionError;
 
   const movedIds = organization.map((item) => item.id);
   for (const cipherId of movedIds) {
     await storage.setCipherCollections(cipherId, collectionIds);
   }
   await bumpOrganizationMembers(request, env, storage, organizationId);
+  await writeCipherAudit(storage, request, userId, 'cipher.collections.update.bulk', {
+    organizationId,
+    count: movedIds.length,
+    collectionIds,
+  });
 
   return new Response(null, { status: 204 });
 }
