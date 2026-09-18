@@ -624,6 +624,7 @@ export interface ProfileResponse {
   yubikeyEnabled?: boolean;
   key: string;
   privateKey: string | null;
+  publicKey?: string | null;
   accountKeys: any | null;
   securityStamp: string;
   organizations: any[];
