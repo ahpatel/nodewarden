@@ -426,6 +426,10 @@ export interface VaultDraft {
   passportIssueDate: string;
   passportExpirationDate: string;
   customFields: VaultDraftField[];
+  /** Organization to create/transfer the item into (webapp org support). */
+  organizationId?: string | null;
+  /** Collections the item belongs to (meaningful only with organizationId). */
+  collectionIds?: string[];
 }
 
 export interface ListResponse<T> {

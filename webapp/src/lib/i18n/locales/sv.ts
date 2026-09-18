@@ -1550,6 +1550,10 @@ Object.assign(sv, { "txt_password_security_show_all": "Show all", "txt_password_
   "txt_org_share_select_org": "Välj en organisation…",
   "txt_org_share_failed": "Det gick inte att flytta föremålet till organisationen",
   "txt_org_share_success": "Föremålet flyttades till organisationen",
+  "txt_org_field_label": "Organisation",
+  "txt_org_personal": "Personligt",
+  "txt_org_editor_collection_required": "Välj minst en samling för ett organisationsföremål",
+  "txt_org_editor_org_locked": "Organisationsföremål kan inte flyttas tillbaka till det personliga valvet här. Använd export och återimport.",
 
 });
 

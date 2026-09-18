@@ -1579,6 +1579,10 @@ Object.assign(zhTW, {
   "txt_org_share_select_org": "選擇組織…",
   "txt_org_share_failed": "將項目移入組織失敗",
   "txt_org_share_success": "項目已移入組織",
+  "txt_org_field_label": "組織",
+  "txt_org_personal": "個人",
+  "txt_org_editor_collection_required": "組織項目必須至少選擇一個集合",
+  "txt_org_editor_org_locked": "無法在此將組織項目移回個人密碼庫。請使用匯出並重新匯入。",
 
 });
 

@@ -1629,6 +1629,10 @@ Object.assign(en, {
   "txt_org_share_select_org": "Select an organization…",
   "txt_org_share_failed": "Failed to move item to organization",
   "txt_org_share_success": "Item moved to organization",
+  "txt_org_field_label": "Organization",
+  "txt_org_personal": "Personal",
+  "txt_org_editor_collection_required": "Select at least one collection for an organization item",
+  "txt_org_editor_org_locked": "Organization items cannot be moved back to the personal vault here. Use export and re-import instead.",
 
 });
 

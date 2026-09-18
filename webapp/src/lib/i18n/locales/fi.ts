@@ -1550,6 +1550,10 @@ Object.assign(fi, { "txt_password_security_show_all": "Show all", "txt_password_
   "txt_org_share_select_org": "Valitse organisaatio…",
   "txt_org_share_failed": "Kohteen siirtäminen organisaatioon epäonnistui",
   "txt_org_share_success": "Kohde siirrettiin organisaatioon",
+  "txt_org_field_label": "Organisaatio",
+  "txt_org_personal": "Henkilökohtainen",
+  "txt_org_editor_collection_required": "Valitse vähintään yksi kokoelma organisaation kohteelle",
+  "txt_org_editor_org_locked": "Organisaation kohteita ei voi siirtää takaisin henkilökohtaiseen holviin tästä. Käytä vientiä ja uudelleentuontia.",
 
 });
 

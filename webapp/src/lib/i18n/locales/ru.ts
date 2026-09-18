@@ -1550,6 +1550,10 @@ Object.assign(ru, { "txt_password_security_show_all": "Show all", "txt_password_
   "txt_org_share_select_org": "Выберите организацию…",
   "txt_org_share_failed": "Не удалось переместить элемент в организацию",
   "txt_org_share_success": "Элемент перемещён в организацию",
+  "txt_org_field_label": "Организация",
+  "txt_org_personal": "Личное",
+  "txt_org_editor_collection_required": "Для элемента организации выберите хотя бы одну коллекцию",
+  "txt_org_editor_org_locked": "Нельзя переместить элемент организации обратно в личное хранилище. Используйте экспорт и повторный импорт.",
 
 });
 

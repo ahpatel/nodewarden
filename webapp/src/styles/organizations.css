@@ -194,6 +194,18 @@
   margin-top: 0;
 }
 
+/* Vault editor: collection checkboxes for organization items */
+.org-editor-collections {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 8px 0 2px;
+}
+
+.org-editor-collections .checkbox-row {
+  margin-top: 0;
+}
+
 @media (max-width: 640px) {
   .org-create-row {
     flex-direction: column;

@@ -553,12 +553,16 @@ export function createEmptyDraft(type: number): VaultDraft {
     passportIssueDate: '',
     passportExpirationDate: '',
     customFields: [],
+    organizationId: null,
+    collectionIds: [],
   };
 }
 
 export function draftFromCipher(cipher: Cipher): VaultDraft {
   const draft = createEmptyDraft(Number(cipher.type || 1));
   draft.id = cipher.id;
+  draft.organizationId = cipher.organizationId || null;
+  draft.collectionIds = Array.isArray(cipher.collectionIds) ? [...cipher.collectionIds] : [];
   draft.favorite = !!cipher.favorite;
   draft.name = cipher.decName || '';
   draft.folderId = cipher.folderId || '';

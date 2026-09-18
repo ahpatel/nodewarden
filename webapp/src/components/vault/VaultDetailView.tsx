@@ -34,6 +34,10 @@ interface VaultDetailViewProps {
   passkeyCreatedAt: string | null;
   hiddenFieldVisibleMap: Record<number, boolean>;
   folderName: (id: string | null | undefined) => string;
+  /** Organization display name for org items (empty for personal items). */
+  organizationName?: string;
+  /** Decrypted collection names for org items. */
+  collectionNames?: string[];
   downloadingAttachmentKey: string;
   attachmentDownloadPercent: number | null;
   onOpenReprompt: () => void;
@@ -177,8 +181,20 @@ export default function VaultDetailView(props: VaultDetailViewProps) {
               <div className="detail-title-main">
                 <h3 className="detail-title">{props.selectedCipher.decName || t('txt_no_name')}</h3>
                 <div className="detail-folder-line">
-                  <Folder size={13} aria-hidden="true" />
-                  <span>{props.folderName(props.selectedCipher.folderId)}</span>
+                  {props.selectedCipher.organizationId ? (
+                    <>
+                      <Users size={13} aria-hidden="true" />
+                      <span>
+                        {props.organizationName || props.selectedCipher.organizationId.slice(0, 8)}
+                        {(props.collectionNames || []).length > 0 && ` · ${(props.collectionNames || []).join(', ')}`}
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <Folder size={13} aria-hidden="true" />
+                      <span>{props.folderName(props.selectedCipher.folderId)}</span>
+                    </>
+                  )}
                 </div>
               </div>
             </div>
