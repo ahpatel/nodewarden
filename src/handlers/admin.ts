@@ -245,6 +245,8 @@ export async function handleAdminCreateInvite(
     code: randomHex(20),
     createdBy: actorUser.id,
     usedBy: null,
+    // Admin-minted codes are intentionally generic: usable by any email.
+    email: null,
     expiresAt: expiresAt.toISOString(),
     status: 'active',
     createdAt: now.toISOString(),
@@ -443,4 +445,53 @@ export async function handleAdminDeleteUser(
   }, request);
 
   return new Response(null, { status: 204 });
+}
+
+// GET /api/admin/settings/org-self-service-registration
+export async function handleAdminGetOrgSelfServiceRegistration(
+  request: Request,
+  env: Env,
+  actorUser: User
+): Promise<Response> {
+  if (!isAdmin(actorUser)) {
+    return errorResponse('Forbidden', 403);
+  }
+  void request;
+  const storage = new StorageService(env.DB);
+  const enabled = (await storage.getConfigValue('org.selfServiceRegistration')) === 'true';
+  return jsonResponse({
+    object: 'orgSelfServiceRegistrationSettings',
+    enabled,
+  });
+}
+
+// POST /api/admin/settings/org-self-service-registration
+// Toggles whether org owners may mint registration invite codes for the
+// unregistered emails they invite. Default OFF: registration codes are
+// admin-only, so org invites create pending invitations without codes.
+export async function handleAdminSetOrgSelfServiceRegistration(
+  request: Request,
+  env: Env,
+  actorUser: User
+): Promise<Response> {
+  if (!isAdmin(actorUser)) {
+    return errorResponse('Forbidden', 403);
+  }
+  let body: Record<string, unknown>;
+  try {
+    body = await request.json() as Record<string, unknown>;
+  } catch {
+    return errorResponse('Invalid JSON', 400);
+  }
+  const passwordError = await requireMasterPasswordHash(env, actorUser, body.masterPasswordHash);
+  if (passwordError) return passwordError;
+
+  const enabled = body.enabled === true;
+  const storage = new StorageService(env.DB);
+  await storage.setConfigValue('org.selfServiceRegistration', enabled ? 'true' : 'false');
+  await writeAuditLog(storage, actorUser.id, 'admin.settings.orgSelfServiceRegistration', 'config', null, { enabled }, request);
+  return jsonResponse({
+    object: 'orgSelfServiceRegistrationSettings',
+    enabled,
+  });
 }

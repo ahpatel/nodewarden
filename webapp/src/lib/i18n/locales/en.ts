@@ -1634,7 +1634,8 @@ Object.assign(en, {
   "txt_org_editor_collection_required": "Select at least one collection for an organization item",
   "txt_org_editor_org_locked": "Organization items cannot be moved back to the personal vault here. Use export and re-import instead.",
   "txt_organizations_access_all_note": "Access to all items ignores collection assignments. Uncheck to grant access per collection.",
-
+  "txt_organizations_invite_admin_registration_note": "{count} invited user(s) are not registered. Ask your server admin to create registration invite codes for them.",
+  "txt_organizations_invite_squatter_warning": "New account",
 });
 
 export default en;

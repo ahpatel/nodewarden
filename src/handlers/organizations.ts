@@ -55,6 +55,12 @@ function wireOrganizationUserStatus(storedStatus: number): number {
 // TeamsStarter=4. We present every organization as Teams.
 const WIRE_PRODUCT_TIER_TYPE = 2;
 
+// Config key gating org-invite registration-code minting. Default OFF: org
+// owners can invite unregistered emails (pending invitations are still
+// created), but only the server admin may mint registration codes. Instance
+// admins can opt in via POST /api/admin/settings/org-self-service-registration.
+const ORG_SELF_SERVICE_REGISTRATION_CONFIG_KEY = 'org.selfServiceRegistration';
+
 const ORG_USER_TYPE = {
   OWNER: 0,
   ADMIN: 1,
@@ -253,6 +259,10 @@ function organizationUserToResponse(
     accessAll: !!organizationUser.accessAll,
     twoFactorEnabled: !!user && (!!user.totpSecret || isYubiKeyEnabled(user)),
     avatarColor: null,
+    // Squatter signal: an account created after the invitation was sent may
+    // not be the person the owner intended to invite (no email verification).
+    invitationDate: organizationUser.creationDate,
+    userCreatedAt: user?.createdAt ?? null,
     object: 'organizationUserUserDetails',
   };
 }
@@ -526,8 +536,9 @@ export async function handleInviteOrganizationUsers(request: Request, env: Env, 
     }
   }
 
+  const selfServiceRegistration = (await storage.getConfigValue(ORG_SELF_SERVICE_REGISTRATION_CONFIG_KEY)) === 'true';
   const now = new Date().toISOString();
-  const invited: Array<{ email: string; organizationUserId: string; registered: boolean; inviteCode?: string }> = [];
+  const invited: Array<{ email: string; organizationUserId: string; registered: boolean; inviteCode?: string; requiresAdminRegistration?: boolean }> = [];
   const skipped: Array<{ email: string; reason: string }> = [];
 
   for (const email of Array.from(new Set(emails))) {
@@ -566,21 +577,28 @@ export async function handleInviteOrganizationUsers(request: Request, env: Env, 
     }
 
     let inviteCode: string | undefined;
+    let requiresAdminRegistration = false;
     if (!invitedUser) {
-      // Unregistered email: mint a registration invite code so the owner can
-      // onboard the person without the server admin.
-      const expiresAt = new Date(Date.now() + ORG_INVITE_REGISTRATION_TTL_HOURS * 60 * 60 * 1000);
-      const invite: Invite = {
-        code: randomHex(20),
-        createdBy: userId,
-        usedBy: null,
-        expiresAt: expiresAt.toISOString(),
-        status: 'active',
-        createdAt: now,
-        updatedAt: now,
-      };
-      await storage.createInvite(invite);
-      inviteCode = invite.code;
+      // Unregistered email: only mint a registration code when the instance
+      // admin opted in to self-service registration. Minted codes are bound
+      // to the invited email so they cannot register arbitrary addresses.
+      if (selfServiceRegistration) {
+        const expiresAt = new Date(Date.now() + ORG_INVITE_REGISTRATION_TTL_HOURS * 60 * 60 * 1000);
+        const invite: Invite = {
+          code: randomHex(20),
+          createdBy: userId,
+          usedBy: null,
+          email,
+          expiresAt: expiresAt.toISOString(),
+          status: 'active',
+          createdAt: now,
+          updatedAt: now,
+        };
+        await storage.createInvite(invite);
+        inviteCode = invite.code;
+      } else {
+        requiresAdminRegistration = true;
+      }
     }
 
     invited.push({
@@ -588,6 +606,7 @@ export async function handleInviteOrganizationUsers(request: Request, env: Env, 
       organizationUserId: organizationUser.id,
       registered: !!invitedUser,
       ...(inviteCode ? { inviteCode } : {}),
+      ...(requiresAdminRegistration ? { requiresAdminRegistration } : {}),
     });
   }
 

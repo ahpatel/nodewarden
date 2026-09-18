@@ -1555,7 +1555,8 @@ Object.assign(sv, { "txt_password_security_show_all": "Show all", "txt_password_
   "txt_org_editor_collection_required": "Välj minst en samling för ett organisationsföremål",
   "txt_org_editor_org_locked": "Organisationsföremål kan inte flyttas tillbaka till det personliga valvet här. Använd export och återimport.",
   "txt_organizations_access_all_note": "Åtkomst till alla föremål ignorerar samlings tilldelningar. Avmarkera för att ge åtkomst per samling.",
-
+  "txt_organizations_invite_admin_registration_note": "{count} inbjuden(a) användare är inte registrerade. Be din serveradministratör att skapa registreringskoder.",
+  "txt_organizations_invite_squatter_warning": "Nytt konto",
 });
 
 export default sv;

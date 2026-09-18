@@ -1555,7 +1555,8 @@ Object.assign(fr, { "txt_password_security_show_all": "Tout afficher", "txt_pass
   "txt_org_editor_collection_required": "Sélectionnez au moins une collection pour un élément d’organisation",
   "txt_org_editor_org_locked": "Impossible de remettre ici un élément d’organisation dans le coffre personnel. Utilisez l’exportation puis la réimportation.",
   "txt_organizations_access_all_note": "L’accès à tous les éléments ignore les affectations de collections. Décochez pour un accès par collection.",
-
+  "txt_organizations_invite_admin_registration_note": "{count} utilisateur(s) invité(s) non enregistré(s). Demandez à l’administrateur du serveur de créer des codes d’invitation d’inscription.",
+  "txt_organizations_invite_squatter_warning": "Nouveau compte",
 });
 
 export default fr;

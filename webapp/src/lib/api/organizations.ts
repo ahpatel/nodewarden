@@ -26,6 +26,8 @@ export interface OrganizationMember {
   twoFactorEnabled?: boolean;
   publicKey?: string | null;
   collections?: Array<{ id: string; readOnly: boolean; hidePasswords: boolean }>;
+  invitationDate?: string | null;
+  userCreatedAt?: string | null;
   object?: string;
 }
 
@@ -49,6 +51,7 @@ export interface InviteOrganizationUsersResult {
     organizationUserId: string;
     registered: boolean;
     inviteCode?: string;
+    requiresAdminRegistration?: boolean;
   }>;
   skipped: Array<{ email: string; reason: string }>;
 }

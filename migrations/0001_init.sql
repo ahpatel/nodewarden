@@ -208,6 +208,7 @@ CREATE TABLE IF NOT EXISTS invites (
   code TEXT PRIMARY KEY,
   created_by TEXT NOT NULL,
   used_by TEXT,
+  email TEXT,
   expires_at TEXT NOT NULL,
   status TEXT NOT NULL,
   created_at TEXT NOT NULL,

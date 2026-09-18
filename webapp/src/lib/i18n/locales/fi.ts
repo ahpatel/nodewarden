@@ -1555,7 +1555,8 @@ Object.assign(fi, { "txt_password_security_show_all": "Show all", "txt_password_
   "txt_org_editor_collection_required": "Valitse vähintään yksi kokoelma organisaation kohteelle",
   "txt_org_editor_org_locked": "Organisaation kohteita ei voi siirtää takaisin henkilökohtaiseen holviin tästä. Käytä vientiä ja uudelleentuontia.",
   "txt_organizations_access_all_note": "Kaikkien kohteiden käyttö ohittaa kokoelmien määrittelyt. Poista valinta myöntääksesi käyttöoikeuden kokoelmittain.",
-
+  "txt_organizations_invite_admin_registration_note": "{count} kutsuttua käyttäjää ei ole rekisteröitynyt. Pyydä palvelimen ylläpitäjää luomaan rekisteröintikoodit.",
+  "txt_organizations_invite_squatter_warning": "Uusi tili",
 });
 
 export default fi;

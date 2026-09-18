@@ -1555,7 +1555,8 @@ Object.assign(de, { "txt_password_security_show_all": "Alle anzeigen", "txt_pass
   "txt_org_editor_collection_required": "Wählen Sie mindestens eine Sammlung für einen Organisations-Eintrag",
   "txt_org_editor_org_locked": "Organisations-Einträge können hier nicht in den persönlichen Tresor zurückverschoben werden. Nutzen Sie Export und erneuten Import.",
   "txt_organizations_access_all_note": "Zugriff auf alle Einträge ignoriert Sammlungszuweisungen. Abwählen, um Zugriff pro Sammlung zu vergeben.",
-
+  "txt_organizations_invite_admin_registration_note": "{count} eingeladene(r) Benutzer ist/sind nicht registriert. Bitten Sie Ihren Server-Admin, Registrierungscodes zu erstellen.",
+  "txt_organizations_invite_squatter_warning": "Neues Konto",
 });
 
 export default de;

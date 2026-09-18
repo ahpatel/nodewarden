@@ -128,10 +128,11 @@ const SCHEMA_STATEMENTS: readonly string[] = [
   'UPDATE refresh_tokens SET absolute_expires_at = expires_at WHERE absolute_expires_at IS NULL',
 
   'CREATE TABLE IF NOT EXISTS invites (' +
-  'code TEXT PRIMARY KEY, created_by TEXT NOT NULL, used_by TEXT, expires_at TEXT NOT NULL, status TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, ' +
+  'code TEXT PRIMARY KEY, created_by TEXT NOT NULL, used_by TEXT, email TEXT, expires_at TEXT NOT NULL, status TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, ' +
   'FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE CASCADE, ' +
   'FOREIGN KEY (used_by) REFERENCES users(id) ON DELETE SET NULL)',
   'ALTER TABLE invites ADD COLUMN used_by TEXT',
+  'ALTER TABLE invites ADD COLUMN email TEXT',
   'CREATE INDEX IF NOT EXISTS idx_invites_status_expires ON invites(status, expires_at)',
   'CREATE INDEX IF NOT EXISTS idx_invites_created_by ON invites(created_by, created_at)',
 
