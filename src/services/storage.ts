@@ -210,7 +210,7 @@ const STORAGE_SCHEMA_VERSION_KEY = 'schema.version';
 // Bump this whenever src/services/storage-schema.ts or migrations/0001_init.sql
 // changes. Existing D1 installs only rerun ensureStorageSchema() when this value
 // differs from config.schema.version.
-const STORAGE_SCHEMA_VERSION = '2026-09-18-user-key-id';
+const STORAGE_SCHEMA_VERSION = '2026-09-19-security-fixes';
 const REQUIRED_SCHEMA_TABLES = ['webauthn_credentials', 'webauthn_challenges', 'auth_requests', 'totp_login_replays'] as const;
 
 // D1-backed storage.
@@ -383,8 +383,8 @@ export class StorageService {
     return listStoredInvites(this.db, includeInactive);
   }
 
-  async markInviteUsed(code: string, userId: string): Promise<boolean> {
-    return markStoredInviteUsed(this.db, code, userId);
+  async markInviteUsed(code: string, userId: string, email?: string): Promise<boolean> {
+    return markStoredInviteUsed(this.db, code, userId, email);
   }
 
   async assignInviteUsedBy(code: string, userId: string): Promise<boolean> {

@@ -1555,7 +1555,8 @@ Object.assign(es, { "txt_password_security_show_all": "Show all", "txt_password_
   "txt_org_editor_collection_required": "Seleccione al menos una colección para un elemento de organización",
   "txt_org_editor_org_locked": "Los elementos de organización no se pueden devolver aquí a la bóveda personal. Use exportación y reimportación.",
   "txt_organizations_access_all_note": "El acceso a todos los elementos ignora las asignaciones de colecciones. Desmárquelo para conceder acceso por colección.",
-
+  "txt_organizations_invite_admin_registration_note": "{count} usuario(s) invitado(s) no están registrados. Pida al administrador del servidor que cree códigos de invitación de registro.",
+  "txt_organizations_invite_squatter_warning": "Cuenta nueva",
 });
 
 export default es;

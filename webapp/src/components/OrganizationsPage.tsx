@@ -303,11 +303,19 @@ export default function OrganizationsPage(props: OrganizationsPageProps) {
         emails,
         accessAll: inviteAccessAll,
       });
-      const registered = result.invited.filter((item) => item.registered).length;
-      const withCode = result.invited.length - registered;
-      let message = t('txt_organizations_invite_sent', { count: String(result.invited.length) });
-      if (withCode > 0) {
-        message += ' ' + t('txt_organizations_invite_codes_note', { count: String(withCode) });
+      const withCode = result.invited.filter((item) => item.inviteCode).length;
+      const needsAdmin = result.invited.filter((item) => item.requiresAdminRegistration).length;
+      let message: string;
+      if (result.invited.length > 0 && needsAdmin === result.invited.length) {
+        message = t('txt_organizations_invite_admin_registration_note', { count: String(needsAdmin) });
+      } else {
+        message = t('txt_organizations_invite_sent', { count: String(result.invited.length) });
+        if (withCode > 0) {
+          message += ' ' + t('txt_organizations_invite_codes_note', { count: String(withCode) });
+        }
+        if (needsAdmin > 0) {
+          message += ' ' + t('txt_organizations_invite_admin_registration_note', { count: String(needsAdmin) });
+        }
       }
       notify('success', message);
       setInviteEmails('');
@@ -680,7 +688,18 @@ export default function OrganizationsPage(props: OrganizationsPageProps) {
                     <tbody>
                       {members.map((member) => (
                         <tr key={member.id}>
-                          <td>{member.email}</td>
+                          <td>
+                            {member.email}
+                            {(() => {
+                              // Squatter signal: account created after the invitation
+                              if (!member.userCreatedAt || !member.invitationDate) return null;
+                              try {
+                                return Date.parse(member.userCreatedAt) > Date.parse(member.invitationDate)
+                                  ? <span className="org-item-badge org-item-badge-readonly" title={t('txt_organizations_invite_squatter_warning')}>{t('txt_organizations_invite_squatter_warning')}</span>
+                                  : null;
+                              } catch { return null; }
+                            })()}
+                          </td>
                           <td>{Number(member.type) === TYPE_OWNER ? t('txt_organizations_owner_badge') : t('txt_organizations_member_badge')}</td>
                           <td>{statusLabel(Number(member.status))}</td>
                           <td>

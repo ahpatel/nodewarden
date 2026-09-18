@@ -1584,7 +1584,8 @@ Object.assign(zhTW, {
   "txt_org_editor_collection_required": "組織項目必須至少選擇一個集合",
   "txt_org_editor_org_locked": "無法在此將組織項目移回個人密碼庫。請使用匯出並重新匯入。",
   "txt_organizations_access_all_note": "開啟後可存取全部項目並忽略集合分配。取消勾選可依集合個別授權。",
-
+  "txt_organizations_invite_admin_registration_note": "{count} 位受邀的使用者尚未註冊。請聯絡伺服器管理員為其建立註冊邀請碼。",
+  "txt_organizations_invite_squatter_warning": "新帳號",
 });
 
 export default zhTW;

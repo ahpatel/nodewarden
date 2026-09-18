@@ -389,7 +389,7 @@ export async function handleRegister(request: Request, env: Env): Promise<Respon
     return errorResponse('Invite code is required', 403);
   }
 
-  const inviteMarked = await storage.markInviteUsed(inviteCode, user.id);
+  const inviteMarked = await storage.markInviteUsed(inviteCode, user.id, email);
   if (!inviteMarked) {
     return errorResponse('Invite code is invalid or expired', 403);
   }

@@ -96,6 +96,8 @@ export interface Invite {
   code: string;
   createdBy: string;
   usedBy: string | null;
+  /** When set, the invite code only registers this email (org-minted codes). */
+  email: string | null;
   expiresAt: string;
   status: 'active' | 'used' | 'revoked' | 'expired';
   createdAt: string;
