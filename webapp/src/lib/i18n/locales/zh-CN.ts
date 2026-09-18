@@ -1583,6 +1583,7 @@ Object.assign(zhCN, {
   "txt_org_personal": "个人",
   "txt_org_editor_collection_required": "组织项目必须至少选择一个集合",
   "txt_org_editor_org_locked": "无法在此将组织项目移回个人密码库。请使用导出并重新导入。",
+  "txt_organizations_access_all_note": "开启后可访问全部项目并忽略集合分配。取消勾选可按集合单独授权。",
 
 });
 

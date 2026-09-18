@@ -1633,6 +1633,7 @@ Object.assign(en, {
   "txt_org_personal": "Personal",
   "txt_org_editor_collection_required": "Select at least one collection for an organization item",
   "txt_org_editor_org_locked": "Organization items cannot be moved back to the personal vault here. Use export and re-import instead.",
+  "txt_organizations_access_all_note": "Access to all items ignores collection assignments. Uncheck to grant access per collection.",
 
 });
 

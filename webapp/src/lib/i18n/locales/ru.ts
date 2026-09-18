@@ -1554,6 +1554,7 @@ Object.assign(ru, { "txt_password_security_show_all": "Show all", "txt_password_
   "txt_org_personal": "Личное",
   "txt_org_editor_collection_required": "Для элемента организации выберите хотя бы одну коллекцию",
   "txt_org_editor_org_locked": "Нельзя переместить элемент организации обратно в личное хранилище. Используйте экспорт и повторный импорт.",
+  "txt_organizations_access_all_note": "Доступ ко всем элементам игнорирует назначения коллекций. Снимите флажок для доступа по отдельным коллекциям.",
 
 });
 

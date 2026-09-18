@@ -92,6 +92,7 @@ export default function OrganizationsPage(props: OrganizationsPageProps) {
   const [busy, setBusy] = useState<string | null>(null);
   const [permissionsMember, setPermissionsMember] = useState<OrganizationMember | null>(null);
   const [permissionsRows, setPermissionsRows] = useState<Array<{ id: string; name: string; enabled: boolean; readOnly: boolean; hidePasswords: boolean }>>([]);
+  const [permissionsAccessAll, setPermissionsAccessAll] = useState(false);
   const [permissionsSubmitting, setPermissionsSubmitting] = useState(false);
 
   const selectedOrganization = useMemo(
@@ -411,6 +412,7 @@ export default function OrganizationsPage(props: OrganizationsPageProps) {
         };
       });
       setPermissionsRows(rows);
+      setPermissionsAccessAll(!!member.accessAll);
       setPermissionsMember(member);
     } catch (err) {
       notify('error', err instanceof Error ? err.message : t('txt_organizations_member_update_failed'));
@@ -421,11 +423,15 @@ export default function OrganizationsPage(props: OrganizationsPageProps) {
     if (!selectedOrgId || !permissionsMember) return;
     setPermissionsSubmitting(true);
     try {
-      const collectionsPayload = permissionsRows
-        .filter((row) => row.enabled)
-        .map((row) => ({ id: row.id, readOnly: row.readOnly, hidePasswords: row.hidePasswords }));
+      // Bitwarden semantics: "access all items" ignores (and clears) explicit
+      // collection assignments; without it, ONLY the checked rows grant access.
+      const collectionsPayload = permissionsAccessAll
+        ? []
+        : permissionsRows
+            .filter((row) => row.enabled)
+            .map((row) => ({ id: row.id, readOnly: row.readOnly, hidePasswords: row.hidePasswords }));
       await updateOrganizationMember(authedFetch, selectedOrgId, permissionsMember.id, {
-        accessAll: false,
+        accessAll: permissionsAccessAll,
         collections: collectionsPayload,
       });
       notify('success', t('txt_organizations_permissions_saved'));
@@ -789,47 +795,60 @@ export default function OrganizationsPage(props: OrganizationsPageProps) {
         }}
       >
         <div className="org-permissions-rows">
-          {permissionsRows.length === 0 && (
-            <p className="muted">{t('txt_organizations_no_collections')}</p>
-          )}
-          {permissionsRows.map((row) => (
-            <div key={row.id} className="org-permission-row">
-              <label className="checkbox-row org-permission-enable">
-                <input
-                  type="checkbox"
-                  checked={row.enabled}
-                  onChange={(event) => setPermissionsRows((rows) => rows.map((item) => (
-                    item.id === row.id ? { ...item, enabled: (event.target as HTMLInputElement).checked } : item
-                  )))}
-                />
-                <span className="org-permission-name">{row.name}</span>
-              </label>
-              {row.enabled && (
-                <div className="org-permission-flags">
-                  <label className="checkbox-row">
-                    <input
-                      type="checkbox"
-                      checked={row.readOnly}
-                      onChange={(event) => setPermissionsRows((rows) => rows.map((item) => (
-                        item.id === row.id ? { ...item, readOnly: (event.target as HTMLInputElement).checked } : item
-                      )))}
-                    />
-                    {t('txt_organizations_readonly_badge')}
-                  </label>
-                  <label className="checkbox-row">
-                    <input
-                      type="checkbox"
-                      checked={row.hidePasswords}
-                      onChange={(event) => setPermissionsRows((rows) => rows.map((item) => (
-                        item.id === row.id ? { ...item, hidePasswords: (event.target as HTMLInputElement).checked } : item
-                      )))}
-                    />
-                    {t('txt_organizations_hide_passwords')}
-                  </label>
-                </div>
+          <label className="checkbox-row org-permission-enable">
+            <input
+              type="checkbox"
+              checked={permissionsAccessAll}
+              onChange={(event) => setPermissionsAccessAll((event.target as HTMLInputElement).checked)}
+            />
+            <span className="org-permission-name">{t('txt_organizations_access_all')}</span>
+          </label>
+          <p className="small-note">{t('txt_organizations_access_all_note')}</p>
+          {!permissionsAccessAll && (
+            <>
+              {permissionsRows.length === 0 && (
+                <p className="muted">{t('txt_organizations_no_collections')}</p>
               )}
-            </div>
-          ))}
+              {permissionsRows.map((row) => (
+                <div key={row.id} className="org-permission-row">
+                  <label className="checkbox-row org-permission-enable">
+                    <input
+                      type="checkbox"
+                      checked={row.enabled}
+                      onChange={(event) => setPermissionsRows((rows) => rows.map((item) => (
+                        item.id === row.id ? { ...item, enabled: (event.target as HTMLInputElement).checked } : item
+                      )))}
+                    />
+                    <span className="org-permission-name">{row.name}</span>
+                  </label>
+                  {row.enabled && (
+                    <div className="org-permission-flags">
+                      <label className="checkbox-row">
+                        <input
+                          type="checkbox"
+                          checked={row.readOnly}
+                          onChange={(event) => setPermissionsRows((rows) => rows.map((item) => (
+                            item.id === row.id ? { ...item, readOnly: (event.target as HTMLInputElement).checked } : item
+                          )))}
+                        />
+                        {t('txt_organizations_readonly_badge')}
+                      </label>
+                      <label className="checkbox-row">
+                        <input
+                          type="checkbox"
+                          checked={row.hidePasswords}
+                          onChange={(event) => setPermissionsRows((rows) => rows.map((item) => (
+                            item.id === row.id ? { ...item, hidePasswords: (event.target as HTMLInputElement).checked } : item
+                          )))}
+                        />
+                        {t('txt_organizations_hide_passwords')}
+                      </label>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </>
+          )}
         </div>
       </ConfirmDialog>
     </div>

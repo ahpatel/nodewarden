@@ -1583,6 +1583,7 @@ Object.assign(zhTW, {
   "txt_org_personal": "個人",
   "txt_org_editor_collection_required": "組織項目必須至少選擇一個集合",
   "txt_org_editor_org_locked": "無法在此將組織項目移回個人密碼庫。請使用匯出並重新匯入。",
+  "txt_organizations_access_all_note": "開啟後可存取全部項目並忽略集合分配。取消勾選可依集合個別授權。",
 
 });
 
