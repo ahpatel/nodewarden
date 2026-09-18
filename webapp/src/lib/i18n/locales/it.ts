@@ -1554,6 +1554,7 @@ Object.assign(it, { "txt_password_security_show_all": "Show all", "txt_password_
   "txt_org_personal": "Personale",
   "txt_org_editor_collection_required": "Seleziona almeno una raccolta per un elemento di organizzazione",
   "txt_org_editor_org_locked": "Impossibile riportare qui gli elementi di organizzazione nella cassaforte personale. Usa esportazione e reimportazione.",
+  "txt_organizations_access_all_note": "L’accesso a tutti gli elementi ignora le assegnazioni delle raccolte. Deseleziona per concedere l’accesso per raccolta.",
 
 });
 

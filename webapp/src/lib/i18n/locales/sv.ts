@@ -1554,6 +1554,7 @@ Object.assign(sv, { "txt_password_security_show_all": "Show all", "txt_password_
   "txt_org_personal": "Personligt",
   "txt_org_editor_collection_required": "Välj minst en samling för ett organisationsföremål",
   "txt_org_editor_org_locked": "Organisationsföremål kan inte flyttas tillbaka till det personliga valvet här. Använd export och återimport.",
+  "txt_organizations_access_all_note": "Åtkomst till alla föremål ignorerar samlings tilldelningar. Avmarkera för att ge åtkomst per samling.",
 
 });
 
