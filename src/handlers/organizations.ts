@@ -703,10 +703,15 @@ export async function handleAcceptOrganizationInvitation(
     return errorResponse('This invitation was issued for a different email address', 403);
   }
 
-  organizationUser.status = ORG_USER_STATUS.ACCEPTED;
-  organizationUser.userId = userId;
-  organizationUser.revisionDate = new Date().toISOString();
-  await storage.saveOrganizationUser(organizationUser);
+  // Conditional transition: fails cleanly when the membership was removed or
+  // already accepted between the read above and this write (no resurrection).
+  const accepted = await storage.transitionOrganizationUserStatus(organizationUserId, ORG_USER_STATUS.INVITED, {
+    status: ORG_USER_STATUS.ACCEPTED,
+    userId,
+  });
+  if (!accepted) {
+    return errorResponse('Invitation is no longer pending (membership changed concurrently; retry)', 409);
+  }
 
   const revisionDate = await storage.updateRevisionDate(userId);
   notifyUserVaultSync(env, userId, revisionDate, readActingDeviceIdentifier(request));
@@ -753,10 +758,15 @@ export async function handleConfirmOrganizationUser(
     return errorResponse('User has not linked an account to this invitation', 400);
   }
 
-  organizationUser.status = ORG_USER_STATUS.CONFIRMED;
-  organizationUser.key = key;
-  organizationUser.revisionDate = new Date().toISOString();
-  await storage.saveOrganizationUser(organizationUser);
+  // Conditional transition: a concurrent remove demotes this to a no-op
+  // failure instead of resurrecting the deleted membership with the org key.
+  const confirmed = await storage.transitionOrganizationUserStatus(organizationUserId, ORG_USER_STATUS.ACCEPTED, {
+    status: ORG_USER_STATUS.CONFIRMED,
+    key,
+  });
+  if (!confirmed) {
+    return errorResponse('Membership changed concurrently (accepted state no longer present; retry)', 409);
+  }
 
   await bumpOrganizationMembers(request, env, storage, organizationId);
   await writeOrgAudit(storage, request, userId, 'organization.user.confirm', {

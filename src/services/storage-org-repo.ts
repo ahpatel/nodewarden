@@ -141,7 +141,7 @@ export async function countConfirmedOrganizationOwners(
   organizationId: string
 ): Promise<number> {
   const row = await db
-    .prepare('SELECT COUNT(*) AS count FROM organization_users WHERE organization_id = ? AND type = 0 AND status >= 2')
+    .prepare('SELECT COUNT(*) AS count FROM organization_users WHERE organization_id = ? AND type = 0 AND status = 3')
     .bind(organizationId)
     .first<{ count: number }>();
   return Number(row?.count || 0);
@@ -262,4 +262,56 @@ export async function listOrganizationsForUser(
       revision_date: row.ou_revision_date,
     }),
   }));
+}
+
+// Status-preconditioned membership transition: a plain UPDATE with an
+// expected-status guard. Returns false when the row is missing or its status
+// changed concurrently (e.g. the membership was removed between the
+// handler's read and this write), which makes delete-vs-write interleavings
+// fail cleanly instead of resurrecting deleted rows via the upsert in
+// saveOrganizationUser.
+export async function transitionOrganizationUserStatus(
+  db: D1Database,
+  organizationUserId: string,
+  expectedStatus: number,
+  fields: {
+    status?: number;
+    key?: string | null;
+    userId?: string | null;
+    type?: number;
+    accessAll?: boolean;
+  }
+): Promise<boolean> {
+  const sets: string[] = [];
+  const values: unknown[] = [];
+  if (fields.status !== undefined) {
+    sets.push('status = ?');
+    values.push(Number(fields.status));
+  }
+  if (fields.key !== undefined) {
+    sets.push('key = ?');
+    values.push(fields.key);
+  }
+  if (fields.userId !== undefined) {
+    sets.push('user_id = ?');
+    values.push(fields.userId);
+  }
+  if (fields.type !== undefined) {
+    sets.push('type = ?');
+    values.push(Number(fields.type));
+  }
+  if (fields.accessAll !== undefined) {
+    sets.push('access_all = ?');
+    values.push(fields.accessAll ? 1 : 0);
+  }
+  if (!sets.length) return false;
+  sets.push('revision_date = ?');
+  values.push(new Date().toISOString());
+  const result = await db
+    .prepare(
+      `UPDATE organization_users SET ${sets.join(', ')} WHERE id = ? AND status = ?`
+    )
+    .bind(...values, organizationUserId, Number(expectedStatus))
+    .run();
+  return (result.meta.changes ?? 0) > 0;
 }

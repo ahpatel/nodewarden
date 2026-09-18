@@ -87,6 +87,7 @@ import {
   linkOrganizationUsersByEmail as linkStoredOrganizationUsersByEmail,
   saveOrganization as saveStoredOrganization,
   saveOrganizationUser as saveStoredOrganizationUser,
+  transitionOrganizationUserStatus as transitionStoredOrganizationUserStatus,
   type UserOrganizationMembership,
 } from './storage-org-repo';
 import {
@@ -613,6 +614,16 @@ export class StorageService {
 
   async saveOrganizationUser(organizationUser: OrganizationUser): Promise<void> {
     await saveStoredOrganizationUser(this.db, organizationUser);
+  }
+
+  // Status-preconditioned membership transition (see storage-org-repo). Use
+  // for accept/confirm; returns false on concurrent state change.
+  async transitionOrganizationUserStatus(
+    organizationUserId: string,
+    expectedStatus: number,
+    fields: { status?: number; key?: string | null; userId?: string | null; type?: number; accessAll?: boolean }
+  ): Promise<boolean> {
+    return transitionStoredOrganizationUserStatus(this.db, organizationUserId, expectedStatus, fields);
   }
 
   async deleteOrganizationUser(id: string): Promise<void> {
