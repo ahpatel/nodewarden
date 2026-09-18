@@ -24,10 +24,12 @@ import {
 } from '@/lib/api/organizations';
 import {
   type OrgKeyParts,
+  decryptPrivateKeyPkcs8,
   encryptWithOrgKey,
   generateOrganizationKeyBytes,
   generateOrganizationKeyPair,
   orgKeyBytesToParts,
+  unwrapOrganizationKeyDetailed,
   wrapOrganizationKeyForUser,
 } from '@/lib/org-crypto';
 import type { OrgKeyMap } from '@/lib/vault-decrypt';
@@ -110,6 +112,37 @@ export default function OrganizationsPage(props: OrganizationsPageProps) {
     displayNamesRef.current = displayNames;
   }, [displayNames]);
 
+  // Repair legacy org-key wraps: keys wrapped with the legacy SHA-256 OAEP
+  // hash are unreadable by official Bitwarden clients. Owners re-wrap the
+  // key with the official SHA-1 hash via the (idempotent) confirm endpoint.
+  const repairedLegacyOrgKeysRef = useRef<Set<string>>(new Set());
+  const repairLegacyOrgKeys = useCallback(async (list: OrganizationSummary[]) => {
+    if (!props.session?.symEncKey || !props.session?.symMacKey || !props.profile?.privateKey) return;
+    const userEnc = base64ToBytes(props.session.symEncKey);
+    const userMac = base64ToBytes(props.session.symMacKey);
+    const pkcs8 = await decryptPrivateKeyPkcs8(props.profile.privateKey, userEnc, userMac);
+    if (!pkcs8) return;
+    for (const org of list) {
+      if (Number(org.status) !== STATUS_CONFIRMED) continue;
+      if (Number(org.type) !== TYPE_OWNER) continue;
+      if (repairedLegacyOrgKeysRef.current.has(org.id)) continue;
+      try {
+        const unwrapped = await unwrapOrganizationKeyDetailed(org.id, org.key, pkcs8);
+        if (!unwrapped) continue;
+        if (!unwrapped.legacySha256Wrap) continue;
+        const publicKey = props.profile?.publicKey;
+        if (!publicKey) continue;
+        const rewrapped = await wrapOrganizationKeyForUser(unwrapped.raw, publicKey);
+        await confirmOrganizationMember(authedFetch, org.id, org.organizationUserId, rewrapped);
+        repairedLegacyOrgKeysRef.current.add(org.id);
+        await onRefreshVault();
+      } catch {
+        // Best-effort repair; surface nothing on failure.
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authedFetch, onRefreshVault, props.profile, props.session?.symEncKey, props.session?.symMacKey]);
+
   const refreshOrganizations = useCallback(async () => {
     try {
       setError('');
@@ -127,12 +160,13 @@ export default function OrganizationsPage(props: OrganizationsPageProps) {
         }
       }
       setDisplayNames(names);
+      void repairLegacyOrgKeys(list);
     } catch (err) {
       setError(err instanceof Error ? err.message : t('txt_organizations_load_failed'));
     } finally {
       setLoading(false);
     }
-  }, [authedFetch, orgKeys]);
+  }, [authedFetch, orgKeys, repairLegacyOrgKeys]);
 
   useEffect(() => {
     void refreshOrganizations();

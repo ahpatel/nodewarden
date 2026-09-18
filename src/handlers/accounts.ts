@@ -1524,6 +1524,26 @@ export async function handleGetRevisionDate(request: Request, env: Env, userId: 
   return jsonResponse(timestamp);
 }
 
+// POST /api/accounts/key-management/user-key-id
+// Bitwarden client key-management backfill: the client reports the id of its
+// current user key. The id is client-computed hex; the server only records it.
+// Newer official clients treat a missing endpoint as a login failure.
+export async function handleSetUserKeyId(request: Request, env: Env, userId: string): Promise<Response> {
+  const storage = new StorageService(env.DB);
+  let body: { userKeyId?: unknown };
+  try {
+    body = await request.json();
+  } catch {
+    return errorResponse('Invalid JSON', 400);
+  }
+  const userKeyId = String(body?.userKeyId ?? '').trim();
+  if (!userKeyId || !/^[0-9a-f]+$/i.test(userKeyId)) {
+    return errorResponse('userKeyId must be a non-empty hex string', 400);
+  }
+  await storage.updateUserKeyId(userId, userKeyId.toLowerCase());
+  return new Response(null, { status: 200 });
+}
+
 // POST /api/accounts/verify-password
 export async function handleVerifyPassword(request: Request, env: Env, userId: string): Promise<Response> {
   const storage = new StorageService(env.DB);

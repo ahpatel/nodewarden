@@ -71,7 +71,7 @@ import { clearOfflineUnlockRecord } from '@/lib/offline-auth';
 import { clearPasswordSecurityCache } from '@/lib/password-security-cache';
 import { decryptSends, decryptVaultCore, type OrgKeyMap } from '@/lib/vault-decrypt';
 import { base64ToBytes, decryptStr } from '@/lib/crypto';
-import { importUserPrivateKey, unwrapOrganizationKey, clearUnwrappedOrgKeyCache } from '@/lib/org-crypto';
+import { decryptPrivateKeyPkcs8, unwrapOrganizationKey, clearUnwrappedOrgKeyCache } from '@/lib/org-crypto';
 import { decryptSendsInWorker, decryptVaultCoreInWorker } from '@/lib/vault-worker';
 import {
   DEMO_CIPHERS,
@@ -1348,8 +1348,8 @@ export default function App() {
     (async () => {
       const userEnc = base64ToBytes(session.symEncKey!);
       const userMac = base64ToBytes(session.symMacKey!);
-      const privateKey = await importUserPrivateKey(profile?.privateKey, userEnc, userMac);
-      if (!privateKey) {
+      const privateKeyPkcs8 = await decryptPrivateKeyPkcs8(profile?.privateKey, userEnc, userMac);
+      if (!privateKeyPkcs8) {
         if (active) {
           setOrgKeys(null);
           setDecryptedOrganizations(organizations.map((org) => ({ id: org.id, name: '', keyAvailable: false })));
@@ -1359,7 +1359,7 @@ export default function App() {
       const nextKeys: OrgKeyMap = {};
       const nextOrganizations: Array<{ id: string; name: string; keyAvailable: boolean }> = [];
       for (const org of organizations) {
-        const parts = await unwrapOrganizationKey(org.id, org.key, privateKey);
+        const parts = await unwrapOrganizationKey(org.id, org.key, privateKeyPkcs8);
         let name = '';
         if (parts) {
           try {

@@ -271,6 +271,9 @@ export async function handleListMyOrganizations(request: Request, env: Env, user
       status: Number(organizationUser.status),
       type: Number(organizationUser.type),
       organizationUserId: organizationUser.id,
+      // The org key wrapped for this member (same string the sync profile
+      // exposes). The webapp uses it to detect and re-wrap legacy OAEP hashes.
+      key: organizationUser.status === ORG_USER_STATUS.CONFIRMED ? organizationUser.key : null,
       ...(pending ? { ownerEmail } : {}),
     });
   }
@@ -662,7 +665,13 @@ export async function handleConfirmOrganizationUser(
   if (!organizationUser || organizationUser.organizationId !== organizationId) {
     return errorResponse('Organization user not found', 404);
   }
-  if (organizationUser.status !== ORG_USER_STATUS.ACCEPTED) {
+  // Re-confirming an already-confirmed member is allowed: it re-writes the
+  // org key wrapped with the member's current public key (used by the webapp
+  // to migrate legacy OAEP-hash wraps without a full re-invite).
+  if (
+    organizationUser.status !== ORG_USER_STATUS.ACCEPTED &&
+    organizationUser.status !== ORG_USER_STATUS.CONFIRMED
+  ) {
     return errorResponse('User has not accepted the invitation yet', 400);
   }
   if (!organizationUser.userId) {
