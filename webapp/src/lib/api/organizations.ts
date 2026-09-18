@@ -10,6 +10,8 @@ export interface OrganizationSummary {
   type: number;
   organizationUserId: string;
   ownerEmail?: string | null;
+  /** Org key wrapped for this member ("4." EncString, confirmed members only). */
+  key?: string | null;
   [k: string]: unknown;
 }
 
