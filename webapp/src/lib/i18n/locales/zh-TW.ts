@@ -1586,6 +1586,15 @@ Object.assign(zhTW, {
   "txt_organizations_access_all_note": "開啟後可存取全部項目並忽略集合分配。取消勾選可依集合個別授權。",
   "txt_organizations_invite_admin_registration_note": "{count} 位受邀的使用者尚未註冊。請聯絡伺服器管理員為其建立註冊邀請碼。",
   "txt_organizations_invite_squatter_warning": "新帳號",
+  "txt_admin_org_self_service_title": "組織自助註冊",
+  "txt_admin_org_self_service_on": "已啟用",
+  "txt_admin_org_self_service_off": "已停用（僅管理員可註冊）",
+  "txt_admin_org_self_service_unknown": "未知",
+  "txt_admin_org_self_service_description": "控制組織擁有者是否可以為他們邀請加入組織的未註冊人員建立註冊邀請碼。停用（預設）時，只有伺服器管理員可以建立註冊碼——組織邀請仍會建立，但受邀人需要另行向伺服器管理員取得註冊碼。",
+  "txt_admin_org_self_service_warning": "啟用後，任何已確認的使用者只要建立了組織就可以產生註冊碼——在您未同意的情況下增長實例使用者數。代碼僅綁定到受邀的電子郵件，但註冊門控不再僅限管理員。",
+  "txt_admin_org_self_service_enable": "啟用自助註冊",
+  "txt_admin_org_self_service_disable": "停用自助註冊",
+  "txt_admin_org_self_service_password_placeholder": "主密碼（確認）",
 });
 
 export default zhTW;

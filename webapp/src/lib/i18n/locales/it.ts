@@ -1557,6 +1557,15 @@ Object.assign(it, { "txt_password_security_show_all": "Show all", "txt_password_
   "txt_organizations_access_all_note": "L’accesso a tutti gli elementi ignora le assegnazioni delle raccolte. Deseleziona per concedere l’accesso per raccolta.",
   "txt_organizations_invite_admin_registration_note": "{count} utente(i) invitato(i) non registrato(i). Chiedi all’amministratore del server di creare i codici di invito per la registrazione.",
   "txt_organizations_invite_squatter_warning": "Nuovo account",
+  "txt_admin_org_self_service_title": "Registrazione self-service delle organizzazioni",
+  "txt_admin_org_self_service_on": "Abilitato",
+  "txt_admin_org_self_service_off": "Disabilitato (registrazione solo tramite amministratore)",
+  "txt_admin_org_self_service_unknown": "Sconosciuto",
+  "txt_admin_org_self_service_description": "Controlla se i proprietari di organizzazioni possono creare codici di invito per la registrazione per persone non registrate che invitano nella loro organizzazione. Quando disabilitato (predefinito), solo l’amministratore del server può creare codici di registrazione — gli inviti all’organizzazione vengono comunque creati, ma la persona deve ottenere un codice di registrazione dall’amministratore.",
+  "txt_admin_org_self_service_warning": "Quando abilitato, qualsiasi utente confermato che crea un’organizzazione può generare codici di registrazione, aumentando la popolazione della tua istanza senza il tuo consenso. I codici sono legati solo all’e-mail invitato, ma la barriera di registrazione non è più esclusiva dell’amministratore.",
+  "txt_admin_org_self_service_enable": "Abilita la registrazione self-service",
+  "txt_admin_org_self_service_disable": "Disabilita la registrazione self-service",
+  "txt_admin_org_self_service_password_placeholder": "Password principale (conferma)",
 });
 
 export default it;
