@@ -24,6 +24,9 @@ export function buildProfileResponse(
     yubikeyEnabled: isYubiKeyEnabled(user),
     key: user.key,
     privateKey: user.privateKey,
+    // Plaintext account public key (base64 SPKI). Clients need it to wrap
+    // organization keys for this user (org creation / member confirmation).
+    publicKey: user.publicKey ?? null,
     accountKeys,
     securityStamp: user.securityStamp || user.id,
     organizations,
