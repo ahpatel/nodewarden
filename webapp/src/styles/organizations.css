@@ -159,6 +159,41 @@
   gap: 10px;
 }
 
+/* Member permission editor rows */
+.org-permissions-rows {
+  display: grid;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.org-permission-row {
+  display: grid;
+  gap: 6px;
+  padding: 10px 12px;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius-md);
+  background: var(--panel-soft);
+}
+
+.org-permission-enable {
+  margin-top: 0;
+}
+
+.org-permission-name {
+  font-weight: 700;
+}
+
+.org-permission-flags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  padding-left: 24px;
+}
+
+.org-permission-flags .checkbox-row {
+  margin-top: 0;
+}
+
 @media (max-width: 640px) {
   .org-create-row {
     flex-direction: column;

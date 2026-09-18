@@ -1791,6 +1791,11 @@ export async function handleShareCipher(request: Request, env: Env, userId: stri
     updatedAt: now,
     deletedAt: null,
   };
+  // Personal per-item keys (user-key wrapped) are unreadable after the move;
+  // drop any key the client did not re-encrypt with the organization key.
+  if (cipherData.key === undefined || cipherData.key === null) {
+    shared.key = null;
+  }
   normalizeCipherForStorage(shared);
   const compatibilityError = validateCipherEncryptedFieldsForCompatibility(shared);
   if (compatibilityError) return errorResponse(compatibilityError, 400);

@@ -1583,3 +1583,26 @@ export async function bulkMoveCiphers(
     if (!resp.ok) throw new Error('Bulk move failed');
   }
 }
+
+// POST /api/ciphers/:id/share — move a personal cipher into an organization.
+// The cipher payload must already be re-encrypted with the organization key.
+export async function shareCipherToOrganization(
+  authedFetch: AuthedFetch,
+  cipherId: string,
+  payload: {
+    cipher: Record<string, unknown>;
+    organizationId: string;
+    collectionIds: string[];
+  }
+): Promise<Cipher> {
+  const resp = await authedFetch(`/api/ciphers/${encodeURIComponent(cipherId)}/share`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-NodeWarden-Web': '1',
+    },
+    body: JSON.stringify(payload),
+  });
+  if (!resp.ok) throw new Error(await parseErrorMessage(resp, 'Share failed'));
+  return (await parseJson<Cipher>(resp)) as Cipher;
+}

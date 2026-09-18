@@ -1537,6 +1537,19 @@ Object.assign(es, { "txt_password_security_show_all": "Show all", "txt_password_
   "txt_import_org_select_collection": "Seleccione una colección…",
   "txt_import_org_no_orgs": "Cree primero una organización para importarlos como elementos compartidos.",
   "txt_import_org_key_unavailable": "La clave de la organización no está disponible; vuelva a sincronizar su bóveda e inténtelo de nuevo.",
+  "txt_organizations_permissions": "Permisos",
+  "txt_organizations_permissions_title": "Permisos para {email}",
+  "txt_organizations_permissions_hint": "Elija a qué colecciones puede acceder este miembro. Al guardar se reemplaza todo su acceso a colecciones y se desactiva el acceso a todos los elementos.",
+  "txt_organizations_permissions_saved": "Permisos del miembro guardados",
+  "txt_organizations_hide_passwords": "Ocultar contraseñas",
+  "txt_organizations_no_collections": "Esta organización todavía no tiene colecciones.",
+  "txt_org_share_action": "Mover a organización",
+  "txt_org_share_dialog_title": "Mover elemento a organización",
+  "txt_org_share_hint": "El elemento se volverá a cifrar con la clave de la organización y se eliminará de su bóveda personal. Mantendrá acceso a través de su membresía en la organización.",
+  "txt_org_share_confirm": "Mover elemento",
+  "txt_org_share_select_org": "Seleccione una organización…",
+  "txt_org_share_failed": "No se pudo mover el elemento a la organización",
+  "txt_org_share_success": "Elemento movido a la organización",
 
 });
 

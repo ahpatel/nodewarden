@@ -23,6 +23,7 @@ import {
   summarizeImportResult,
 } from '@/lib/app-support';
 import { buildSendShareKey, bulkDeleteSends, createSend, deleteSend, updateSend } from '@/lib/api/send';
+import { draftFromCipher } from '@/components/vault/vault-page-helpers';
 import {
   archiveCipher,
   buildCipherImportPayload,
@@ -44,11 +45,12 @@ import {
   getCipherById,
   importCiphers,
   permanentDeleteCipher,
+  shareCipherToOrganization,
   type CiphersImportPayload,
   type ImportedCipherMapEntry,
+  unarchiveCipher,
   updateCipher,
   updateFolder,
-  unarchiveCipher,
   uploadCipherAttachment,
 } from '@/lib/api/vault';
 import { deriveLoginHash, getPreloginKdfConfig, verifyMasterPassword } from '@/lib/api/auth';
@@ -1180,6 +1182,37 @@ export default function useVaultSendActions(options: UseVaultSendActionsOptions)
         );
       },
 
+      async shareVaultItemToOrganization(
+        cipher: Cipher,
+        organizationId: string,
+        collectionIds: string[]
+      ): Promise<void> {
+        if (!session?.symEncKey || !session?.symMacKey) throw new Error(t('txt_vault_key_unavailable'));
+        requireOnlineWrite();
+        const organizationKeyMaterial = orgKeys?.[organizationId];
+        if (!organizationKeyMaterial) {
+          throw new Error(t('txt_import_org_key_unavailable'));
+        }
+        // Re-encrypt every field with the organization key by reusing the
+        // user-key encryption path with org key halves as the session key.
+        const organizationSession: SessionState = {
+          ...session,
+          symEncKey: organizationKeyMaterial.encB64,
+          symMacKey: organizationKeyMaterial.macB64,
+        };
+        const draft = draftFromCipher(cipher);
+        draft.folderId = '';
+        const payload = await buildCipherImportPayload(organizationSession, draft);
+        await shareCipherToOrganization(importAuthedFetch, cipher.id, {
+          cipher: payload,
+          organizationId,
+          collectionIds,
+        });
+        await Promise.all([refetchCiphers(), refetchFolders(), refetchSends()]);
+        await refreshVaultRevisionStamp();
+        onNotify('success', t('txt_org_share_success'));
+      },
+
       async exportVault(request: ExportRequest) {
         if (!session?.symEncKey || !session?.symMacKey) throw new Error(t('txt_vault_key_unavailable'));
         const masterPassword = String(request.masterPassword || '').trim();
@@ -1205,6 +1238,7 @@ export default function useVaultSendActions(options: UseVaultSendActionsOptions)
               ciphers: rawCiphers,
               userEncB64: session.symEncKey!,
               userMacB64: session.symMacKey!,
+              orgKeys,
             });
           }
           return plainJsonCache;
@@ -1233,7 +1267,12 @@ export default function useVaultSendActions(options: UseVaultSendActionsOptions)
           const userEnc = base64ToBytes(session.symEncKey!);
           const userMac = base64ToBytes(session.symMacKey!);
           const out: ZipAttachmentEntry[] = [];
-          const activeCiphers = rawCiphers.filter((cipher) => !cipher.deletedDate && !(cipher as { organizationId?: unknown }).organizationId);
+          // Organization ciphers are included when their org key is available.
+          const activeCiphers = rawCiphers.filter((cipher) => {
+            if (cipher.deletedDate) return false;
+            if (!cipher.organizationId) return true;
+            return !!orgKeys?.[cipher.organizationId];
+          });
 
           for (const cipher of activeCiphers) {
             const cipherId = String(cipher.id || '').trim();
@@ -1243,16 +1282,21 @@ export default function useVaultSendActions(options: UseVaultSendActionsOptions)
 
             let itemEnc = userEnc;
             let itemMac = userMac;
+            const orgKey = cipher.organizationId ? orgKeys?.[cipher.organizationId] : null;
+            if (orgKey) {
+              itemEnc = base64ToBytes(orgKey.encB64);
+              itemMac = base64ToBytes(orgKey.macB64);
+            }
             const itemKey = String(cipher.key || '').trim();
             if (itemKey && looksLikeCipherString(itemKey)) {
               try {
-                const rawItemKey = await decryptBw(itemKey, userEnc, userMac);
+                const rawItemKey = await decryptBw(itemKey, itemEnc, itemMac);
                 if (rawItemKey.length >= 64) {
                   itemEnc = rawItemKey.slice(0, 32);
                   itemMac = rawItemKey.slice(32, 64);
                 }
               } catch {
-                // fallback to user key
+                // fallback to base key
               }
             }
 

@@ -1537,6 +1537,19 @@ Object.assign(de, { "txt_password_security_show_all": "Alle anzeigen", "txt_pass
   "txt_import_org_select_collection": "Sammlung auswählen…",
   "txt_import_org_no_orgs": "Erstellen Sie zuerst eine Organisation, um diese als geteilte Einträge zu importieren.",
   "txt_import_org_key_unavailable": "Der Organisationsschlüssel ist nicht verfügbar; synchronisieren Sie Ihren Tresor und versuchen Sie es erneut.",
+  "txt_organizations_permissions": "Berechtigungen",
+  "txt_organizations_permissions_title": "Berechtigungen für {email}",
+  "txt_organizations_permissions_hint": "Wählen Sie, auf welche Sammlungen dieses Mitglied zugreifen kann. Beim Speichern wird der gesamte Sammlungszugriff ersetzt und der Zugriff auf alle Einträge deaktiviert.",
+  "txt_organizations_permissions_saved": "Mitgliederberechtigungen gespeichert",
+  "txt_organizations_hide_passwords": "Passwörter ausblenden",
+  "txt_organizations_no_collections": "Diese Organisation hat noch keine Sammlungen.",
+  "txt_org_share_action": "In Organisation verschieben",
+  "txt_org_share_dialog_title": "Eintrag in Organisation verschieben",
+  "txt_org_share_hint": "Der Eintrag wird mit dem Organisationsschlüssel neu verschlüsselt und aus Ihrem persönlichen Tresor entfernt. Sie behalten den Zugriff über Ihre Organisationsmitgliedschaft.",
+  "txt_org_share_confirm": "Eintrag verschieben",
+  "txt_org_share_select_org": "Organisation auswählen…",
+  "txt_org_share_failed": "Eintrag konnte nicht in die Organisation verschoben werden",
+  "txt_org_share_success": "Eintrag in Organisation verschoben",
 
 });
 
