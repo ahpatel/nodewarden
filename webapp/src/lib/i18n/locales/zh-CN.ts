@@ -1566,6 +1566,19 @@ Object.assign(zhCN, {
   "txt_import_org_select_collection": "选择集合…",
   "txt_import_org_no_orgs": "请先创建组织，才能将这些项目导入为共享项目。",
   "txt_import_org_key_unavailable": "组织密钥不可用；请重新同步密码库后重试。",
+  "txt_organizations_permissions": "权限",
+  "txt_organizations_permissions_title": "{email} 的权限",
+  "txt_organizations_permissions_hint": "选择该成员可以访问的集合。保存后将替换其全部集合权限，并关闭“访问全部项目”。",
+  "txt_organizations_permissions_saved": "成员权限已保存",
+  "txt_organizations_hide_passwords": "隐藏密码",
+  "txt_organizations_no_collections": "该组织还没有集合。",
+  "txt_org_share_action": "移入组织",
+  "txt_org_share_dialog_title": "将项目移入组织",
+  "txt_org_share_hint": "项目将使用组织密钥重新加密，并从您的个人密码库中移除。您仍可通过组织成员身份访问它。",
+  "txt_org_share_confirm": "移动项目",
+  "txt_org_share_select_org": "选择组织…",
+  "txt_org_share_failed": "将项目移入组织失败",
+  "txt_org_share_success": "项目已移入组织",
 
 });
 

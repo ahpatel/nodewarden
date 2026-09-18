@@ -1537,6 +1537,19 @@ Object.assign(ru, { "txt_password_security_show_all": "Show all", "txt_password_
   "txt_import_org_select_collection": "Выберите коллекцию…",
   "txt_import_org_no_orgs": "Сначала создайте организацию, чтобы импортировать их как общие элементы.",
   "txt_import_org_key_unavailable": "Ключ организации недоступен; синхронизируйте хранилище и повторите попытку.",
+  "txt_organizations_permissions": "Разрешения",
+  "txt_organizations_permissions_title": "Разрешения для {email}",
+  "txt_organizations_permissions_hint": "Выберите коллекции, доступные этому участнику. Сохранение заменит весь его доступ к коллекциям и отключит доступ ко всем элементам.",
+  "txt_organizations_permissions_saved": "Разрешения участника сохранены",
+  "txt_organizations_hide_passwords": "Скрывать пароли",
+  "txt_organizations_no_collections": "В этой организации пока нет коллекций.",
+  "txt_org_share_action": "Переместить в организацию",
+  "txt_org_share_dialog_title": "Переместить элемент в организацию",
+  "txt_org_share_hint": "Элемент будет заново зашифрован ключом организации и удалён из вашего личного хранилища. Доступ сохранится через членство в организации.",
+  "txt_org_share_confirm": "Переместить элемент",
+  "txt_org_share_select_org": "Выберите организацию…",
+  "txt_org_share_failed": "Не удалось переместить элемент в организацию",
+  "txt_org_share_success": "Элемент перемещён в организацию",
 
 });
 

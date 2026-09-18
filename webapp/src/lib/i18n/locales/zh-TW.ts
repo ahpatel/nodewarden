@@ -1566,6 +1566,19 @@ Object.assign(zhTW, {
   "txt_import_org_select_collection": "選擇集合…",
   "txt_import_org_no_orgs": "請先建立組織，才能將這些項目匯入為共用項目。",
   "txt_import_org_key_unavailable": "組織金鑰不可用；請重新同步密碼庫後再試。",
+  "txt_organizations_permissions": "權限",
+  "txt_organizations_permissions_title": "{email} 的權限",
+  "txt_organizations_permissions_hint": "選擇該成員可以存取的集合。儲存後將取代其全部集合權限，並停用「存取全部項目」。",
+  "txt_organizations_permissions_saved": "成員權限已儲存",
+  "txt_organizations_hide_passwords": "隱藏密碼",
+  "txt_organizations_no_collections": "該組織還沒有集合。",
+  "txt_org_share_action": "移入組織",
+  "txt_org_share_dialog_title": "將項目移入組織",
+  "txt_org_share_hint": "項目將使用組織金鑰重新加密，並從您的個人密碼庫中移除。您仍可透過組織成員身分存取它。",
+  "txt_org_share_confirm": "移動項目",
+  "txt_org_share_select_org": "選擇組織…",
+  "txt_org_share_failed": "將項目移入組織失敗",
+  "txt_org_share_success": "項目已移入組織",
 
 });
 

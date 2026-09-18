@@ -60,6 +60,7 @@ interface VaultPageProps {
   onBulkArchive: (ids: string[]) => Promise<void>;
   onBulkUnarchive: (ids: string[]) => Promise<void>;
   onBulkMove: (ids: string[], folderId: string | null) => Promise<void>;
+  onShareVaultItemToOrganization?: (cipher: Cipher, organizationId: string, collectionIds: string[]) => Promise<void>;
   onVerifyMasterPassword: (email: string, password: string) => Promise<void>;
   onNotify: (type: 'success' | 'error' | 'warning', text: string) => void;
   onCreateFolder: (name: string) => Promise<void>;
@@ -110,6 +111,9 @@ export default function VaultPage(props: VaultPageProps) {
   const [moveFolderId, setMoveFolderId] = useState('__none__');
   const [createFolderOpen, setCreateFolderOpen] = useState(false);
   const [newFolderName, setNewFolderName] = useState('');
+  const [shareToOrgOpen, setShareToOrgOpen] = useState(false);
+  const [shareOrgId, setShareOrgId] = useState('');
+  const [shareCollectionId, setShareCollectionId] = useState('');
   const [pendingRenameFolder, setPendingRenameFolder] = useState<Folder | null>(null);
   const [renameFolderName, setRenameFolderName] = useState('');
   const [pendingDeleteFolder, setPendingDeleteFolder] = useState<Folder | null>(null);
@@ -885,6 +889,41 @@ const folderName = useCallback((id: string | null | undefined): string => {
     }
   }
 
+  // Organization sharing is offered for personal, active items when the
+  // account has at least one confirmed organization with an available key.
+  const shareableOrganizations = useMemo(
+    () => (props.organizations || []).filter((organization) => organization.keyAvailable),
+    [props.organizations]
+  );
+  const canShareToOrganization = (cipher: Cipher): boolean =>
+    !!props.onShareVaultItemToOrganization &&
+    !cipher.organizationId &&
+    !cipher.deletedDate &&
+    !cipher.archivedDate &&
+    shareableOrganizations.length > 0;
+
+  function openShareToOrganization(): void {
+    setShareOrgId('');
+    setShareCollectionId('');
+    setShareToOrgOpen(true);
+  }
+
+  async function confirmShareToOrganization(): Promise<void> {
+    if (!selectedCipher || !props.onShareVaultItemToOrganization) return;
+    if (!shareOrgId || !shareCollectionId) return;
+    setBusy(true);
+    try {
+      await props.onShareVaultItemToOrganization(selectedCipher, shareOrgId, [shareCollectionId]);
+      setShareToOrgOpen(false);
+      setShareOrgId('');
+      setShareCollectionId('');
+    } catch {
+      // The action layer already shows the user-facing error toast.
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function handleRestoreSelected(cipher: Cipher): Promise<void> {
     setBusy(true);
     try {
@@ -1365,6 +1404,7 @@ const folderName = useCallback((id: string | null | undefined): string => {
                 onRestore={(cipher) => void handleRestoreSelected(cipher)}
                 onArchive={(cipher) => setPendingArchive(cipher)}
                 onUnarchive={(cipher) => void handleUnarchiveSelected(cipher)}
+                onShareToOrganization={canShareToOrganization(selectedCipher) ? openShareToOrganization : undefined}
               />
             </div>
           )}
@@ -1410,6 +1450,15 @@ const folderName = useCallback((id: string | null | undefined): string => {
         repromptOpen={repromptOpen}
         repromptPassword={repromptPassword}
         deletePasskeyOpen={pendingDeletePasskeyIndex != null}
+        shareToOrgOpen={shareToOrgOpen}
+        shareOrgId={shareOrgId}
+        shareCollectionId={shareCollectionId}
+        shareOrganizations={shareableOrganizations}
+        shareCollections={(props.collections || []).filter((collection) => collection.organizationId === shareOrgId)}
+        onShareOrgIdChange={setShareOrgId}
+        onShareCollectionIdChange={setShareCollectionId}
+        onConfirmShareToOrg={() => void confirmShareToOrganization()}
+        onCancelShareToOrg={() => setShareToOrgOpen(false)}
         onConfirmAddField={() => {
           if (!draft) return;
           if (!fieldLabel.trim()) {

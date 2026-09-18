@@ -1,6 +1,6 @@
 import { createPortal } from 'preact/compat';
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
-import { AlertTriangle, Archive, Clipboard, Download, Eye, EyeOff, ExternalLink, Folder, Paperclip, Pencil, RefreshCw, RotateCcw, ShieldCheck, ShieldAlert, Trash2, X } from 'lucide-preact';
+import { AlertTriangle, Archive, Clipboard, Download, Eye, EyeOff, ExternalLink, Folder, Paperclip, Pencil, RefreshCw, RotateCcw, ShieldCheck, ShieldAlert, Trash2, Users, X } from 'lucide-preact';
 import { useDialogLifecycle } from '@/components/ConfirmDialog';
 import type { TotpCodeResult } from '@/lib/crypto';
 import { checkPasswordLeaked, type PasswordBreachResult } from '@/lib/password-security';
@@ -45,6 +45,8 @@ interface VaultDetailViewProps {
   onRestore: (cipher: Cipher) => void | Promise<void>;
   onArchive: (cipher: Cipher) => void | Promise<void>;
   onUnarchive: (cipher: Cipher) => void | Promise<void>;
+  /** Present when the personal item can be moved into an organization. */
+  onShareToOrganization?: () => void;
 }
 
 function totpProgress(live: TotpCodeResult | null): number {
@@ -559,6 +561,11 @@ export default function VaultDetailView(props: VaultDetailViewProps) {
                   <button type="button" className="btn btn-secondary" onClick={props.onStartEdit}>
                     <Pencil size={14} className="btn-icon" /> {t('txt_edit')}
                   </button>
+                  {props.onShareToOrganization && !isArchived ? (
+                    <button type="button" className="btn btn-secondary" onClick={props.onShareToOrganization}>
+                      <Users size={14} className="btn-icon" /> {t('txt_org_share_action')}
+                    </button>
+                  ) : null}
                   {isArchived ? (
                     <button type="button" className="btn btn-secondary" onClick={() => void props.onUnarchive(props.selectedCipher)}>
                       <RotateCcw size={14} className="btn-icon" /> {t('txt_unarchive')}

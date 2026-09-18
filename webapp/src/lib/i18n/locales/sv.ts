@@ -1537,6 +1537,19 @@ Object.assign(sv, { "txt_password_security_show_all": "Show all", "txt_password_
   "txt_import_org_select_collection": "Välj en samling…",
   "txt_import_org_no_orgs": "Skapa en organisation först för att importera dem som delade föremål.",
   "txt_import_org_key_unavailable": "Organisationsnyckeln är inte tillgänglig; synkronisera ditt valv och försök igen.",
+  "txt_organizations_permissions": "Behörigheter",
+  "txt_organizations_permissions_title": "Behörigheter för {email}",
+  "txt_organizations_permissions_hint": "Välj vilka samlingar medlemmen kan komma åt. Spara ersätter hela medlemmens samlingsåtkomst och stänger av åtkomst till alla föremål.",
+  "txt_organizations_permissions_saved": "Medlemmens behörigheter sparades",
+  "txt_organizations_hide_passwords": "Dölj lösenord",
+  "txt_organizations_no_collections": "Den här organisationen har inga samlingar ännu.",
+  "txt_org_share_action": "Flytta till organisation",
+  "txt_org_share_dialog_title": "Flytta föremålet till organisationen",
+  "txt_org_share_hint": "Föremålet krypteras om med organisationsnyckeln och tas bort från ditt personliga valv. Du behåller åtkomsten via ditt organisationsmedlemskap.",
+  "txt_org_share_confirm": "Flytta föremål",
+  "txt_org_share_select_org": "Välj en organisation…",
+  "txt_org_share_failed": "Det gick inte att flytta föremålet till organisationen",
+  "txt_org_share_success": "Föremålet flyttades till organisationen",
 
 });
 

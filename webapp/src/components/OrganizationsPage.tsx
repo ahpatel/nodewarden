@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'preact/hooks';
-import { Plus, RefreshCw, Trash2 } from 'lucide-preact';
+import { Plus, RefreshCw, SlidersHorizontal, Trash2 } from 'lucide-preact';
+import ConfirmDialog from '@/components/ConfirmDialog';
 import { base64ToBytes, decryptStr } from '@/lib/crypto';
 import {
   type OrganizationCollection,
@@ -87,6 +88,9 @@ export default function OrganizationsPage(props: OrganizationsPageProps) {
   const [inviteAccessAll, setInviteAccessAll] = useState(true);
   const [inviteSubmitting, setInviteSubmitting] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
+  const [permissionsMember, setPermissionsMember] = useState<OrganizationMember | null>(null);
+  const [permissionsRows, setPermissionsRows] = useState<Array<{ id: string; name: string; enabled: boolean; readOnly: boolean; hidePasswords: boolean }>>([]);
+  const [permissionsSubmitting, setPermissionsSubmitting] = useState(false);
 
   const selectedOrganization = useMemo(
     () => organizations.find((org) => org.id === selectedOrgId) || null,
@@ -335,6 +339,55 @@ export default function OrganizationsPage(props: OrganizationsPageProps) {
       notify('error', err instanceof Error ? err.message : t('txt_organizations_member_update_failed'));
     } finally {
       setBusy(null);
+    }
+  }
+
+  // Per-collection permission editor: seed a row per org collection from the
+  // member's current access, then replace the whole set on save.
+  async function openMemberPermissions(member: OrganizationMember) {
+    if (!selectedOrgId || !orgKeys?.[selectedOrgId]) return;
+    try {
+      const details = await getOrganizationMember(authedFetch, selectedOrgId, member.id);
+      const assigned = new Map(
+        (details.collections || []).map((row) => [row.id, row])
+      );
+      const rows = collections.map((collection) => {
+        const existing = assigned.get(collection.id);
+        return {
+          id: collection.id,
+          name: collectionNames[collection.id] || collection.id.slice(0, 8),
+          enabled: !!existing,
+          readOnly: !!existing?.readOnly,
+          hidePasswords: !!existing?.hidePasswords,
+        };
+      });
+      setPermissionsRows(rows);
+      setPermissionsMember(member);
+    } catch (err) {
+      notify('error', err instanceof Error ? err.message : t('txt_organizations_member_update_failed'));
+    }
+  }
+
+  async function saveMemberPermissions() {
+    if (!selectedOrgId || !permissionsMember) return;
+    setPermissionsSubmitting(true);
+    try {
+      const collectionsPayload = permissionsRows
+        .filter((row) => row.enabled)
+        .map((row) => ({ id: row.id, readOnly: row.readOnly, hidePasswords: row.hidePasswords }));
+      await updateOrganizationMember(authedFetch, selectedOrgId, permissionsMember.id, {
+        accessAll: false,
+        collections: collectionsPayload,
+      });
+      notify('success', t('txt_organizations_permissions_saved'));
+      setPermissionsMember(null);
+      setPermissionsRows([]);
+      await refreshOrgDetail(selectedOrgId);
+      await onRefreshVault();
+    } catch (err) {
+      notify('error', err instanceof Error ? err.message : t('txt_organizations_member_update_failed'));
+    } finally {
+      setPermissionsSubmitting(false);
     }
   }
 
@@ -590,6 +643,17 @@ export default function OrganizationsPage(props: OrganizationsPageProps) {
                             )}
                           </td>
                           <td>
+                            {selectedIsOwner && Number(member.status) === STATUS_CONFIRMED && (
+                              <button
+                                type="button"
+                                className="btn btn-secondary small"
+                                disabled={busy === member.id}
+                                onClick={() => void openMemberPermissions(member)}
+                              >
+                                <SlidersHorizontal size={14} className="btn-icon" />
+                                {t('txt_organizations_permissions')}
+                              </button>
+                            )}
                             {selectedIsOwner && Number(member.status) === STATUS_ACCEPTED && (
                               <button
                                 type="button"
@@ -660,6 +724,65 @@ export default function OrganizationsPage(props: OrganizationsPageProps) {
           )}
         </section>
       )}
+
+      <ConfirmDialog
+        open={!!permissionsMember}
+        title={t('txt_organizations_permissions_title', { email: permissionsMember?.email || '' })}
+        message={t('txt_organizations_permissions_hint')}
+        confirmText={t('txt_save')}
+        cancelText={t('txt_cancel')}
+        confirmDisabled={permissionsSubmitting}
+        cancelDisabled={permissionsSubmitting}
+        onConfirm={() => void saveMemberPermissions()}
+        onCancel={() => {
+          setPermissionsMember(null);
+          setPermissionsRows([]);
+        }}
+      >
+        <div className="org-permissions-rows">
+          {permissionsRows.length === 0 && (
+            <p className="muted">{t('txt_organizations_no_collections')}</p>
+          )}
+          {permissionsRows.map((row) => (
+            <div key={row.id} className="org-permission-row">
+              <label className="checkbox-row org-permission-enable">
+                <input
+                  type="checkbox"
+                  checked={row.enabled}
+                  onChange={(event) => setPermissionsRows((rows) => rows.map((item) => (
+                    item.id === row.id ? { ...item, enabled: (event.target as HTMLInputElement).checked } : item
+                  )))}
+                />
+                <span className="org-permission-name">{row.name}</span>
+              </label>
+              {row.enabled && (
+                <div className="org-permission-flags">
+                  <label className="checkbox-row">
+                    <input
+                      type="checkbox"
+                      checked={row.readOnly}
+                      onChange={(event) => setPermissionsRows((rows) => rows.map((item) => (
+                        item.id === row.id ? { ...item, readOnly: (event.target as HTMLInputElement).checked } : item
+                      )))}
+                    />
+                    {t('txt_organizations_readonly_badge')}
+                  </label>
+                  <label className="checkbox-row">
+                    <input
+                      type="checkbox"
+                      checked={row.hidePasswords}
+                      onChange={(event) => setPermissionsRows((rows) => rows.map((item) => (
+                        item.id === row.id ? { ...item, hidePasswords: (event.target as HTMLInputElement).checked } : item
+                      )))}
+                    />
+                    {t('txt_organizations_hide_passwords')}
+                  </label>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      </ConfirmDialog>
     </div>
   );
 }

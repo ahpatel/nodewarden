@@ -1537,6 +1537,19 @@ Object.assign(fr, { "txt_password_security_show_all": "Tout afficher", "txt_pass
   "txt_import_org_select_collection": "Sélectionnez une collection…",
   "txt_import_org_no_orgs": "Créez d’abord une organisation pour les importer comme éléments partagés.",
   "txt_import_org_key_unavailable": "La clé de l’organisation est indisponible ; resynchronisez votre coffre et réessayez.",
+  "txt_organizations_permissions": "Autorisations",
+  "txt_organizations_permissions_title": "Autorisations pour {email}",
+  "txt_organizations_permissions_hint": "Choisissez les collections auxquelles ce membre peut accéder. L’enregistrement remplace l’ensemble de ses accès aux collections et désactive l’accès à tous les éléments.",
+  "txt_organizations_permissions_saved": "Autorisations du membre enregistrées",
+  "txt_organizations_hide_passwords": "Masquer les mots de passe",
+  "txt_organizations_no_collections": "Cette organisation n’a pas encore de collections.",
+  "txt_org_share_action": "Déplacer vers l’organisation",
+  "txt_org_share_dialog_title": "Déplacer l’élément vers l’organisation",
+  "txt_org_share_hint": "L’élément sera re-chiffré avec la clé de l’organisation et retiré de votre coffre personnel. Vous y resterez accessible via votre adhésion à l’organisation.",
+  "txt_org_share_confirm": "Déplacer l’élément",
+  "txt_org_share_select_org": "Sélectionnez une organisation…",
+  "txt_org_share_failed": "Échec du déplacement de l’élément vers l’organisation",
+  "txt_org_share_success": "Élément déplacé vers l’organisation",
 
 });
 

@@ -1537,6 +1537,19 @@ Object.assign(fi, { "txt_password_security_show_all": "Show all", "txt_password_
   "txt_import_org_select_collection": "Valitse kokoelma…",
   "txt_import_org_no_orgs": "Luo ensin organisaatio tuodaksesi ne jaettuina kohteina.",
   "txt_import_org_key_unavailable": "Organisaation avain ei ole käytettävissä; synkronoi holvisi ja yritä uudelleen.",
+  "txt_organizations_permissions": "Käyttöoikeudet",
+  "txt_organizations_permissions_title": "Käyttöoikeudet: {email}",
+  "txt_organizations_permissions_hint": "Valitse kokoelmat, joihin tämä jäsen pääsee käsiksi. Tallentaminen korvaa koko hänen kokoelmakäyttöoikeutensa ja poistaa käytön kaikkiin kohteisiin käytöstä.",
+  "txt_organizations_permissions_saved": "Jäsenen käyttöoikeudet tallennettu",
+  "txt_organizations_hide_passwords": "Piilota salasanat",
+  "txt_organizations_no_collections": "Tässä organisaatiossa ei ole vielä kokoelmia.",
+  "txt_org_share_action": "Siirrä organisaatioon",
+  "txt_org_share_dialog_title": "Siirrä kohde organisaatioon",
+  "txt_org_share_hint": "Kohde salataan uudelleen organisaatioavaimella ja poistetaan henkilökohtaisesta holvistasi. Pääsy säilyy organisaatiojäsenyytesi kautta.",
+  "txt_org_share_confirm": "Siirrä kohde",
+  "txt_org_share_select_org": "Valitse organisaatio…",
+  "txt_org_share_failed": "Kohteen siirtäminen organisaatioon epäonnistui",
+  "txt_org_share_success": "Kohde siirrettiin organisaatioon",
 
 });
 

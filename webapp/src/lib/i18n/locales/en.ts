@@ -1616,6 +1616,19 @@ Object.assign(en, {
   "txt_import_org_select_collection": "Select a collection…",
   "txt_import_org_no_orgs": "Create an organization first to import these as shared items.",
   "txt_import_org_key_unavailable": "The organization key is unavailable; resync your vault and try again.",
+  "txt_organizations_permissions": "Permissions",
+  "txt_organizations_permissions_title": "Permissions for {email}",
+  "txt_organizations_permissions_hint": "Choose which collections this member can access. Saving replaces their entire collection access and disables access to all items.",
+  "txt_organizations_permissions_saved": "Member permissions saved",
+  "txt_organizations_hide_passwords": "Hide passwords",
+  "txt_organizations_no_collections": "This organization has no collections yet.",
+  "txt_org_share_action": "Move to organization",
+  "txt_org_share_dialog_title": "Move item to organization",
+  "txt_org_share_hint": "The item will be re-encrypted with the organization key and removed from your personal vault. You will keep access through your organization membership.",
+  "txt_org_share_confirm": "Move item",
+  "txt_org_share_select_org": "Select an organization…",
+  "txt_org_share_failed": "Failed to move item to organization",
+  "txt_org_share_success": "Item moved to organization",
 
 });
 

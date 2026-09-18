@@ -1537,6 +1537,19 @@ Object.assign(it, { "txt_password_security_show_all": "Show all", "txt_password_
   "txt_import_org_select_collection": "Seleziona una raccolta…",
   "txt_import_org_no_orgs": "Crea prima un’organizzazione per importarli come elementi condivisi.",
   "txt_import_org_key_unavailable": "La chiave dell’organizzazione non è disponibile; risincronizza la cassaforte e riprova.",
+  "txt_organizations_permissions": "Permessi",
+  "txt_organizations_permissions_title": "Permessi per {email}",
+  "txt_organizations_permissions_hint": "Scegli a quali raccolte può accedere questo membro. Il salvataggio sostituisce tutto il suo accesso alle raccolte e disattiva l’accesso a tutti gli elementi.",
+  "txt_organizations_permissions_saved": "Permessi del membro salvati",
+  "txt_organizations_hide_passwords": "Nascondi password",
+  "txt_organizations_no_collections": "Questa organizzazione non ha ancora raccolte.",
+  "txt_org_share_action": "Sposta nell’organizzazione",
+  "txt_org_share_dialog_title": "Sposta l’elemento nell’organizzazione",
+  "txt_org_share_hint": "L’elemento verrà ricifrato con la chiave dell’organizzazione e rimosso dalla tua cassaforte personale. Manterrai l’accesso tramite la tua appartenenza all’organizzazione.",
+  "txt_org_share_confirm": "Sposta elemento",
+  "txt_org_share_select_org": "Seleziona un’organizzazione…",
+  "txt_org_share_failed": "Impossibile spostare l’elemento nell’organizzazione",
+  "txt_org_share_success": "Elemento spostato nell’organizzazione",
 
 });
 
