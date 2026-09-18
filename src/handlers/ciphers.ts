@@ -278,8 +278,11 @@ export function isValidEncString(value: unknown): value is string {
 
   // Bitwarden's legacy symmetric EncString variants require IV + data,
   // while the authenticated AES-CBC-HMAC variant requires IV + data + MAC.
-  if (type === 0 || type === 1 || type === 4) return parts.length >= 2;
+  // Type 4 (Rsa2048_OaepSha256_B64) carries a single base64 payload — RSA
+  // ciphertext needs no IV — as used for organization key wrapping.
+  if (type === 0 || type === 1) return parts.length >= 2;
   if (type === 2) return parts.length === 3;
+  if (type === 4) return parts.length >= 1;
 
   // Keep newer one-part formats, such as COSE Encrypt0, future-compatible.
   return parts.length >= 1;
