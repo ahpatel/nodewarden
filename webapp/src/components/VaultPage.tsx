@@ -1351,6 +1351,8 @@ const folderName = useCallback((id: string | null | undefined): string => {
                 isCreating={isCreating}
                 busy={busy}
                 folders={props.folders}
+                organizations={shareableOrganizations}
+                collections={props.collections}
                 selectedCipher={selectedCipher}
                 editExistingAttachments={editExistingAttachments}
                 removedAttachmentIds={removedAttachmentIds}
@@ -1393,6 +1395,14 @@ const folderName = useCallback((id: string | null | undefined): string => {
                 passkeyCreatedAt={firstPasskeyCreationTime(selectedCipher)}
                 hiddenFieldVisibleMap={hiddenFieldVisibleMap}
                 folderName={folderName}
+                organizationName={(() => {
+                  const orgId = selectedCipher.organizationId;
+                  if (!orgId) return '';
+                  return (props.organizations || []).find((organization) => organization.id === orgId)?.name || '';
+                })()}
+                collectionNames={(props.collections || [])
+                  .filter((collection) => (selectedCipher.collectionIds || []).includes(collection.id))
+                  .map((collection) => collection.decName || collection.name || '')}
                 onOpenReprompt={() => setRepromptOpen(true)}
                 onToggleShowPassword={() => setShowPassword((value) => !value)}
                 onToggleHiddenField={(index) => setHiddenFieldVisibleMap((prev) => ({ ...prev, [index]: !prev[index] }))}

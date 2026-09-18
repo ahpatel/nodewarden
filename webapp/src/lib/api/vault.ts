@@ -1436,6 +1436,50 @@ export async function buildCipherImportPayload(session: SessionState, draft: Vau
   return buildCipherPayload(session, draft, null);
 }
 
+// PUT /api/ciphers/:id/collections — move an organization cipher between collections.
+export async function updateCipherCollections(
+  authedFetch: AuthedFetch,
+  cipherId: string,
+  collectionIds: string[]
+): Promise<void> {
+  const resp = await authedFetch(`/api/ciphers/${encodeURIComponent(cipherId)}/collections`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-NodeWarden-Web': '1',
+    },
+    body: JSON.stringify({ collectionIds }),
+  });
+  if (!resp.ok) throw new Error(await parseErrorMessage(resp, 'Update collections failed'));
+}
+
+// POST /api/ciphers with an organization target. Payload must be encrypted with
+// the organization key (orgSession carries the org key halves).
+export async function createCipherInOrganization(
+  authedFetch: AuthedFetch,
+  orgSession: SessionState,
+  draft: VaultDraft,
+  organizationId: string,
+  collectionIds: string[]
+): Promise<Cipher> {
+  const payload = await buildCipherImportPayload(orgSession, { ...draft, folderId: '' });
+  payload.organizationId = organizationId;
+  payload.collectionIds = [...collectionIds];
+
+  const resp = await authedFetch('/api/ciphers', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-NodeWarden-Web': '1',
+    },
+    body: JSON.stringify(payload),
+  });
+  if (!resp.ok) throw new Error(await parseErrorMessage(resp, 'Create item failed'));
+  const body = await parseJson<Cipher>(resp);
+  if (!body?.id) throw new Error('Create item failed');
+  return body;
+}
+
 export async function createCipher(
   authedFetch: AuthedFetch,
   session: SessionState,

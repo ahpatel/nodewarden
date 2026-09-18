@@ -1550,6 +1550,10 @@ Object.assign(fr, { "txt_password_security_show_all": "Tout afficher", "txt_pass
   "txt_org_share_select_org": "Sélectionnez une organisation…",
   "txt_org_share_failed": "Échec du déplacement de l’élément vers l’organisation",
   "txt_org_share_success": "Élément déplacé vers l’organisation",
+  "txt_org_field_label": "Organisation",
+  "txt_org_personal": "Personnel",
+  "txt_org_editor_collection_required": "Sélectionnez au moins une collection pour un élément d’organisation",
+  "txt_org_editor_org_locked": "Impossible de remettre ici un élément d’organisation dans le coffre personnel. Utilisez l’exportation puis la réimportation.",
 
 });
 

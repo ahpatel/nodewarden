@@ -1579,6 +1579,10 @@ Object.assign(zhCN, {
   "txt_org_share_select_org": "选择组织…",
   "txt_org_share_failed": "将项目移入组织失败",
   "txt_org_share_success": "项目已移入组织",
+  "txt_org_field_label": "组织",
+  "txt_org_personal": "个人",
+  "txt_org_editor_collection_required": "组织项目必须至少选择一个集合",
+  "txt_org_editor_org_locked": "无法在此将组织项目移回个人密码库。请使用导出并重新导入。",
 
 });
 

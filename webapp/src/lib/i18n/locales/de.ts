@@ -1550,6 +1550,10 @@ Object.assign(de, { "txt_password_security_show_all": "Alle anzeigen", "txt_pass
   "txt_org_share_select_org": "Organisation auswählen…",
   "txt_org_share_failed": "Eintrag konnte nicht in die Organisation verschoben werden",
   "txt_org_share_success": "Eintrag in Organisation verschoben",
+  "txt_org_field_label": "Organisation",
+  "txt_org_personal": "Persönlich",
+  "txt_org_editor_collection_required": "Wählen Sie mindestens eine Sammlung für einen Organisations-Eintrag",
+  "txt_org_editor_org_locked": "Organisations-Einträge können hier nicht in den persönlichen Tresor zurückverschoben werden. Nutzen Sie Export und erneuten Import.",
 
 });
 
