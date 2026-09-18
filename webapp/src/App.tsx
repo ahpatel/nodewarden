@@ -34,7 +34,7 @@ import {
 import { clearAuditLogs, getAuditLogSettings, listAdminInvites, listAdminUsers, listAuditLogs, saveAuditLogSettings, type AuditLogFilters } from '@/lib/api/admin';
 import { getDomainRules, saveDomainRules } from '@/lib/api/domains';
 import { getSendById, getSends } from '@/lib/api/send';
-import { getCipherById, getFolderById, repairCipherKeyMismatches, repairCipherUriChecksums } from '@/lib/api/vault';
+import { getCipherById, getFolderById, repairCipherKeyMismatches, repairCipherUriChecksums, repairCorruptedOrgUris } from '@/lib/api/vault';
 import { getCachedVaultCoreSnapshot, invalidateVaultCoreSyncSnapshot, loadVaultCoreSyncSnapshot, saveVaultCoreSyncSnapshot } from '@/lib/api/vault-sync';
 import { silentlyRepairBackupSettingsIfNeeded } from '@/lib/backup-settings-repair';
 import {
@@ -288,6 +288,7 @@ export default function App() {
     userVerificationToken?: string | null;
   } | null>(null);
   const uriChecksumRepairAttemptRef = useRef<string>('');
+  const orgUriRepairAttemptRef = useRef<string>('');
   const pendingVaultCoreQueryRefreshRef = useRef<Promise<{ data?: VaultCoreSnapshot } | unknown> | null>(null);
   const pendingVaultCoreRefreshRef = useRef<Promise<unknown> | null>(null);
   const notificationRefreshTimerRef = useRef<number | null>(null);
@@ -1384,6 +1385,36 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orgKeyResolveKey, session?.symEncKey, session?.symMacKey, profile?.privateKey]);
 
+  // Repair org ciphers whose URIs were corrupted by earlier bugs (user-key
+  // encryption inside org items, or nested EncStrings). Runs once per org-key
+  // resolution; a ref guards against repeat passes within the same session.
+  const orgUriRepairKey = orgKeys ? `${orgKeyResolveKey}` : '';
+  useEffect(() => {
+    if (IS_DEMO_MODE || !orgKeys || !orgUriRepairKey) return;
+    if (!session?.symEncKey || !session?.symMacKey || !session?.accessToken) return;
+    if (!encryptedCiphers || encryptedCiphers.length === 0) return;
+    if (orgUriRepairAttemptRef.current === orgUriRepairKey) return;
+    orgUriRepairAttemptRef.current = orgUriRepairKey;
+
+    let active = true;
+    (async () => {
+      try {
+        const repairedCount = await repairCorruptedOrgUris(authedFetch, session, orgKeys, encryptedCiphers);
+        if (!active) return;
+        if (repairedCount > 0) {
+          await invalidateVaultCoreSyncSnapshot(vaultCacheKey);
+          void refetchVaultCoreData();
+        }
+      } catch {
+        // Best-effort data repair must never interrupt the vault.
+      }
+    })();
+    return () => {
+      active = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orgUriRepairKey, encryptedCiphers, session?.symEncKey, session?.symMacKey, session?.accessToken, vaultCacheKey]);
+
   useEffect(() => {
     if (IS_DEMO_MODE) return;
     if (!session?.symEncKey || !session?.symMacKey) {
@@ -1451,8 +1482,7 @@ export default function App() {
             .catch(() => {
               // Best-effort compatibility repair must not interrupt normal vault loading.
             });
-        }
-      } catch (error) {
+        }      } catch (error) {
         if (!active) return;
         const message = error instanceof Error ? error.message : t('txt_decrypt_failed_2');
         setVaultDecryptError(message);
