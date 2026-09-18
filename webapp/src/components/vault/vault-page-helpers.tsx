@@ -574,9 +574,12 @@ export function draftFromCipher(cipher: Cipher): VaultDraft {
     draft.loginPassword = cipher.login.decPassword || '';
     draft.loginTotp = cipher.login.decTotp || '';
     draft.loginUris = (cipher.login.uris || []).map((x) => ({
-      uri: x.decUri || x.uri || '',
+      // Never fall back to the raw encrypted string: an undecryptable URI must
+      // stay empty, otherwise saving re-encrypts the EncString itself
+      // (double-encrypted garbage).
+      uri: x.decUri || '',
       match: x.match ?? null,
-      originalUri: x.decUri || x.uri || '',
+      originalUri: x.decUri || '',
       extra: Object.fromEntries(
         Object.entries(x as Record<string, unknown>).filter(([key]) => !['uri', 'match', 'decUri'].includes(key))
       ),
