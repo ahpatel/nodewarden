@@ -1,5 +1,8 @@
 import type { Collection, CollectionUserAccess, OrganizationUserType } from '../types';
 
+// Safe chunk for bulk id-list SQL (under the D1 100-variable limit).
+const ID_LIST_CHUNK_SIZE = 90;
+
 export interface UserCollectionAccess extends Collection {
   readOnly: boolean;
   hidePasswords: boolean;
@@ -203,7 +206,7 @@ export async function listCollectionIdsForCiphers(
   const uniqueIds = Array.from(new Set(cipherIds.map((id) => String(id || '').trim()).filter(Boolean)));
   const out = new Map<string, string[]>();
   if (!uniqueIds.length) return out;
-  for (let i = 0; i < uniqueIds.length; i += 90) {
+  for (let i = 0; i < uniqueIds.length; i += ID_LIST_CHUNK_SIZE) {
     const chunk = uniqueIds.slice(i, i + 90);
     const placeholders = chunk.map(() => '?').join(',');
     const result = await db

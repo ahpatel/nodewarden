@@ -15,6 +15,7 @@ import {
 } from '../types';
 import { StorageService } from '../services/storage';
 import { bumpOrganizationMembers } from '../utils/org-notify';
+import { ORG_USER_STATUS, ORG_USER_TYPE } from './organizations';
 import type { CipherAccessInfo } from '../services/storage-collection-repo';
 import {
   notifyUserCipherCreate,
@@ -69,6 +70,15 @@ async function loadCipherForRequest(
   if (options.requireWrite && result.access && !result.access.canEdit) {
     return errorResponse('You do not have permission to modify this cipher', 403);
   }
+  // Apply per-member access flags on every cipher before it reaches a
+  // response, so all mutation handlers (delete/restore/archive/unarchive/
+  // update/partial/share/set-collections) return the same org metadata
+  // the sync endpoint produces — not just the read handlers.
+  if (result.access) {
+    result.cipher.collectionIds = result.access.accessibleCollectionIds;
+    result.cipher.edit = result.access.canEdit;
+    result.cipher.viewPassword = !result.access.hidePasswords;
+  }
   return result;
 }
 
@@ -88,15 +98,6 @@ async function finishCipherMutation(
   const revisionDate = await storage.updateRevisionDate(actingUserId);
   notifyVaultSyncForRequest(request, env, actingUserId, revisionDate);
   return revisionDate;
-}
-
-// Server-computed response fields for organization ciphers. Collection ids are
-// the member-accessible subset; edit/viewPassword follow resolved access.
-function applyOrganizationResponseFlags(loaded: AccessibleCipherForRequest): void {
-  if (!loaded.access) return;
-  loaded.cipher.collectionIds = loaded.access.accessibleCollectionIds;
-  loaded.cipher.edit = loaded.access.canEdit;
-  loaded.cipher.viewPassword = !loaded.access.hidePasswords;
 }
 
 function normalizeOptionalId(value: unknown): string | null {
@@ -138,7 +139,7 @@ function notifyVaultSyncForRequest(
 
 // Push target for cipher-change notifications: the cipher owner for personal
 // ciphers, otherwise the acting user. Organization ciphers additionally fan
-// out to all confirmed members via bumpOrganizationMemberRevisions().
+// out to all confirmed members via bumpOrganizationMembers().
 function cipherNotifyTargetUserId(cipher: Cipher, actingUserId: string): string {
   return cipher.userId ?? actingUserId;
 }
@@ -897,6 +898,22 @@ export function cipherToResponse(
   const responseAttachments = applyCipherEmbeddedAttachmentMetadata(cipher, attachments);
   const responsePermissions = buildCipherPermissions(passthrough);
 
+  // Server-side hide-passwords enforcement: when the owner marked this
+  // member's accessible collections as hide-passwords, strip the encrypted
+  // material before it leaves the server. The member holds the org key (it
+  // is wrapped to their public key), so delivering the ciphertext would let
+  // them decrypt everything the owner tried to restrict. The viewPassword
+  // flag alone is advisory — clients may ignore it.
+  const responseViewPassword = readBooleanOrFallback((passthrough as any).viewPassword, true);
+  let responseLogin = normalizedLogin;
+  let responsePasswordHistory = normalizePasswordHistoryForCompatibility((passthrough as any).passwordHistory);
+  if (!responseViewPassword) {
+    if (responseLogin) {
+      responseLogin = { ...responseLogin, password: null, totp: null };
+    }
+    responsePasswordHistory = null;
+  }
+
   return {
     // Pass through ALL stored cipher fields (known + unknown)
     ...passthrough,
@@ -910,19 +927,19 @@ export function cipherToResponse(
     deletedDate: deletedAt,
     archivedDate: archivedAt ?? null,
     edit: readBooleanOrFallback((passthrough as any).edit, true),
-    viewPassword: readBooleanOrFallback((passthrough as any).viewPassword, true),
+    viewPassword: responseViewPassword,
     permissions: responsePermissions,
     object: 'cipherDetails',
     collectionIds: Array.isArray((passthrough as any).collectionIds) ? (passthrough as any).collectionIds : [],
     attachments: formatAttachments(responseAttachments),
     name: isValidEncString(cipher.name) ? cipher.name.trim() : cipher.name,
     notes: optionalEncString(cipher.notes),
-    login: normalizedLogin,
+    login: responseLogin,
     card: normalizedCard,
     identity: normalizedIdentity,
     secureNote: normalizedSecureNote,
     fields: normalizeCipherFieldsForCompatibility((passthrough as any).fields),
-    passwordHistory: normalizePasswordHistoryForCompatibility((passthrough as any).passwordHistory),
+    passwordHistory: responsePasswordHistory,
     sshKey: normalizedSshKey,
     bankAccount: responseType === 6 ? normalizedBankAccount : null,
     driversLicense: responseType === 7 ? normalizedDriversLicense : null,
@@ -985,7 +1002,6 @@ export async function handleGetCipher(request: Request, env: Env, userId: string
   const loaded = await loadCipherForRequest(storage, userId, id);
   if (loaded instanceof Response) return loaded;
   const { cipher } = loaded;
-  applyOrganizationResponseFlags(loaded);
 
   const attachments = await storage.getAttachmentsByCipher(cipher.id);
   const responseOptions = cipherResponseOptionsForRequest(request);
@@ -1069,7 +1085,7 @@ export async function handleCreateCipher(request: Request, env: Env, userId: str
   );
   if (createOrganizationId) {
     const membership = await storage.getOrganizationUserForUser(createOrganizationId, userId);
-    if (!membership || membership.status !== 3) {
+    if (!membership || membership.status !== ORG_USER_STATUS.CONFIRMED) {
       return errorResponse('Organization not found', 404);
     }
 
@@ -1246,11 +1262,6 @@ export async function handleUpdateCipher(request: Request, env: Env, userId: str
     notifyVaultSyncForRequest(request, env, userId, revisionDate);
     notifyCipherUpdateForRequest(request, env, cipher, revisionDate, userId);
   }
-  if (loaded.access) {
-    cipher.collectionIds = loaded.access.accessibleCollectionIds;
-    cipher.edit = loaded.access.canEdit;
-    cipher.viewPassword = !loaded.access.hidePasswords;
-  }
   const attachments = await storage.getAttachmentsByCipher(cipher.id);
   const responseOptions = cipherResponseOptionsForRequest(request);
 
@@ -1398,12 +1409,6 @@ export async function handlePartialUpdateCipher(request: Request, env: Env, user
   if (!cipher.organizationId) {
     notifyCipherUpdateForRequest(request, env, cipher, revisionDate, userId);
   }
-  if (loaded.access) {
-    cipher.collectionIds = loaded.access.accessibleCollectionIds;
-    cipher.edit = loaded.access.canEdit;
-    cipher.viewPassword = !loaded.access.hidePasswords;
-  }
-
   return jsonResponse(
     cipherToResponse(cipher, [], cipherResponseOptionsForRequest(request))
   );
@@ -1448,13 +1453,19 @@ async function buildCipherListResponse(
   const attachmentsByCipher = await storage.getAttachmentsByCipherIds(loaded.map((item) => item.cipher.id));
 
   return jsonResponse({
-    data: loaded.map((item) =>
-      cipherToResponse(
+    data: loaded.map((item) => {
+      // Apply per-member org flags so the list response matches sync.
+      if (item.access) {
+        item.cipher.collectionIds = item.access.accessibleCollectionIds;
+        item.cipher.edit = item.access.canEdit;
+        item.cipher.viewPassword = !item.access.hidePasswords;
+      }
+      return cipherToResponse(
         item.cipher,
         attachmentsByCipher.get(item.cipher.id) || [],
         cipherResponseOptionsForRequest(request)
-      )
-    ),
+      );
+    }),
     object: 'list',
     continuationToken: null,
   });
@@ -1495,10 +1506,10 @@ async function verifyTargetCollectionsEditable(
   collectionIds: string[]
 ): Promise<Response | null> {
   const membership = await storage.getOrganizationUserForUser(organizationId, userId);
-  if (!membership || membership.status !== 3) {
+  if (!membership || membership.status !== ORG_USER_STATUS.CONFIRMED) {
     return errorResponse('Organization not found', 404);
   }
-  if (membership.accessAll || membership.type === 0) return null;
+  if (membership.accessAll || membership.type === ORG_USER_TYPE.OWNER) return null;
   const editableIds = new Set(
     (await storage.listCollectionUsersByOrganizationUser(membership.id))
       .filter((row) => !row.readOnly)
@@ -1762,7 +1773,7 @@ export async function handleShareCipher(request: Request, env: Env, userId: stri
   }
 
   const membership = await storage.getOrganizationUserForUser(organizationId, userId);
-  if (!membership || membership.status !== 3) {
+  if (!membership || membership.status !== ORG_USER_STATUS.CONFIRMED) {
     return errorResponse('Organization not found', 404);
   }
 
@@ -1900,10 +1911,6 @@ export async function handleSetCipherCollections(request: Request, env: Env, use
   });
 
   cipher.collectionIds = collectionIds;
-  if (loaded.access) {
-    cipher.edit = loaded.access.canEdit;
-    cipher.viewPassword = !loaded.access.hidePasswords;
-  }
 
   return jsonResponse(
     cipherToResponse(cipher, [], cipherResponseOptionsForRequest(request))
