@@ -104,23 +104,25 @@ import {
   handleAcceptOrganizationInvitation,
   handleConfirmOrganizationUser,
   handleCreateOrganization,
-  handleCreateOrganizationCollection,
   handleDeleteOrganization,
-  handleDeleteOrganizationCollection,
   handleGetOrganization,
-  handleGetOrganizationCollectionDetails,
   handleGetOrganizationUser,
   handleInviteOrganizationUsers,
   handleLeaveOrganization,
-  handleListMyCollections,
   handleListMyOrganizations,
-  handleListOrganizationCollections,
   handleListOrganizationUsers,
   handleRemoveOrganizationUser,
   handleUpdateOrganization,
-  handleUpdateOrganizationCollection,
   handleUpdateOrganizationUser,
 } from './handlers/organizations';
+import {
+  handleCreateOrganizationCollection,
+  handleDeleteOrganizationCollection,
+  handleGetOrganizationCollectionDetails,
+  handleListMyCollections,
+  handleListOrganizationCollections,
+  handleUpdateOrganizationCollection,
+} from './handlers/collections';
 
 export async function handleAuthenticatedRoute(
   request: Request,
