@@ -4,6 +4,7 @@ import { Uint8ArrayReader, Uint8ArrayWriter, ZipReader, ZipWriter, configure as 
 import type { PreloginKdfConfig } from './api/auth';
 import { base64ToBytes, bytesToBase64, decryptBw, decryptStr, encryptBw, hkdfExpand, pbkdf2 } from './crypto';
 import type { Cipher, Folder } from './types';
+import type { OrgKeyMap } from './vault-decrypt';
 
 configureZipJs({ useWebWorkers: false });
 
@@ -52,6 +53,8 @@ interface BuildPlainJsonArgs {
   ciphers: Cipher[];
   userEncB64: string;
   userMacB64: string;
+  /** Organization decryption keys by organizationId; required to export org items. */
+  orgKeys?: OrgKeyMap | null;
 }
 
 interface BuildEncryptedJsonArgs {
@@ -138,18 +141,32 @@ function randomGuid(): string {
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
 }
 
-async function getCipherKeyParts(cipher: Cipher, userEnc: Uint8Array, userMac: Uint8Array): Promise<{ enc: Uint8Array; mac: Uint8Array }> {
+async function getCipherKeyParts(
+  cipher: Cipher,
+  userEnc: Uint8Array,
+  userMac: Uint8Array,
+  orgKeys?: OrgKeyMap | null
+): Promise<{ enc: Uint8Array; mac: Uint8Array }> {
+  // Organization ciphers decrypt with the organization key (or a per-cipher
+  // key wrapped by it) instead of the user key.
+  let baseEnc = userEnc;
+  let baseMac = userMac;
+  const orgKey = orgKeys && cipher.organizationId ? orgKeys[cipher.organizationId] : null;
+  if (orgKey) {
+    baseEnc = base64ToBytes(orgKey.encB64);
+    baseMac = base64ToBytes(orgKey.macB64);
+  }
   if (cipher.key && typeof cipher.key === 'string') {
     try {
-      const raw = await decryptBw(cipher.key, userEnc, userMac);
+      const raw = await decryptBw(cipher.key, baseEnc, baseMac);
       if (raw.length >= 64) {
         return { enc: raw.slice(0, 32), mac: raw.slice(32, 64) };
       }
     } catch {
-      // Fallback to user key.
+      // Fallback to base key.
     }
   }
-  return { enc: userEnc, mac: userMac };
+  return { enc: baseEnc, mac: baseMac };
 }
 
 async function decryptMaybe(value: unknown, enc: Uint8Array, mac: Uint8Array): Promise<string | null> {
@@ -192,6 +209,10 @@ function mapCipherCommonMetadata(cipher: Cipher): Record<string, unknown> {
     revisionDate: normalizeString(cipher.revisionDate),
     collectionIds: null,
   };
+  if (cipher.organizationId) {
+    // Stamp the org GUID so imports can detect and re-map organization items.
+    out.organizationId = cipher.organizationId;
+  }
   if ((out.creationDate as string | null) === null) delete out.creationDate;
   if ((out.revisionDate as string | null) === null) delete out.revisionDate;
   if ((out.folderId as string | null) === null) delete out.folderId;
@@ -295,8 +316,13 @@ function mapCipherEncrypted(cipher: Cipher): Record<string, unknown> {
   return out;
 }
 
-async function mapCipherPlain(cipher: Cipher, userEnc: Uint8Array, userMac: Uint8Array): Promise<Record<string, unknown>> {
-  const keyParts = await getCipherKeyParts(cipher, userEnc, userMac);
+async function mapCipherPlain(
+  cipher: Cipher,
+  userEnc: Uint8Array,
+  userMac: Uint8Array,
+  orgKeys?: OrgKeyMap | null
+): Promise<Record<string, unknown>> {
+  const keyParts = await getCipherKeyParts(cipher, userEnc, userMac, orgKeys);
   const out = mapCipherCommonMetadata(cipher);
 
   out.name = await decryptMaybe(cipher.name ?? null, keyParts.enc, keyParts.mac);
@@ -398,6 +424,17 @@ function filterExportableCiphers(ciphers: Cipher[]): Cipher[] {
   return ciphers.filter((cipher) => !cipher.deletedDate && !(cipher as { organizationId?: unknown }).organizationId);
 }
 
+// Plain exports include organization items when the org key is available;
+// org items whose key is missing (e.g. not yet resynced) are skipped rather
+// than exported as garbage.
+function filterExportablePlainCiphers(ciphers: Cipher[], orgKeys: OrgKeyMap | null | undefined): Cipher[] {
+  return ciphers.filter((cipher) => {
+    if (cipher.deletedDate) return false;
+    if (!cipher.organizationId) return true;
+    return !!orgKeys?.[cipher.organizationId];
+  });
+}
+
 export async function buildPlainBitwardenJsonDocument(args: BuildPlainJsonArgs): Promise<Record<string, unknown>> {
   const userEnc = base64ToBytes(args.userEncB64);
   const userMac = base64ToBytes(args.userMacB64);
@@ -409,7 +446,9 @@ export async function buildPlainBitwardenJsonDocument(args: BuildPlainJsonArgs):
     }))
   );
 
-  const items = await Promise.all(filterExportableCiphers(args.ciphers).map((cipher) => mapCipherPlain(cipher, userEnc, userMac)));
+  const items = await Promise.all(
+    filterExportablePlainCiphers(args.ciphers, args.orgKeys).map((cipher) => mapCipherPlain(cipher, userEnc, userMac, args.orgKeys))
+  );
 
   return {
     encrypted: false,
