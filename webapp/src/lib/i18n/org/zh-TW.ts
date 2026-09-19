@@ -102,7 +102,17 @@ const orgZhTW: Record<string, string> = {
   "txt_admin_org_self_service_enable": "啟用自助註冊",
   "txt_admin_org_self_service_disable": "停用自助註冊",
   "txt_admin_org_self_service_password_placeholder": "主密碼（確認）",
-  "txt_organizations_access_per_collection": "按集合"
+  "txt_organizations_access_per_collection": "按集合",
+  "txt_organizations_folders": "資料夾",
+  "txt_organizations_folder_hint": "組織資料夾為所有成員分組共享項目。名稱使用組織金鑰加密。",
+  "txt_organizations_add_folder": "新增資料夾",
+  "txt_organizations_folder_name_placeholder": "新資料夾名稱",
+  "txt_organizations_folder_name_required": "資料夾名稱為必填欄位",
+  "txt_organizations_folder_created": "資料夾已建立",
+  "txt_organizations_folder_create_failed": "建立資料夾失敗",
+  "txt_organizations_folder_deleted": "資料夾已刪除",
+  "txt_organizations_folder_delete_failed": "刪除資料夾失敗",
+  "txt_organizations_no_folders": "該組織還沒有資料夾。"
 };
 
 export default orgZhTW;

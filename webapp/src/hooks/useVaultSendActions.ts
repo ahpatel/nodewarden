@@ -361,18 +361,52 @@ export default function useVaultSendActions(options: UseVaultSendActionsOptions)
     // Move a personal cipher into an organization, re-encrypting every field
     // with the organization key. draftOverride lets the editor transfer an item
     // with unsaved field changes in one step.
+    // Keep-my-filing: when a personal item is shared into an org, find an org
+    // folder whose decrypted name equals the source personal folder's name and
+    // file the item there. Purely client-side — the server is zero-knowledge
+    // and only validates the resulting id against the org's folders.
+    const matchOrganizationFolderByName = async (
+      organizationId: string,
+      sourceFolderId: string | null | undefined
+    ): Promise<string> => {
+      const sourceId = String(sourceFolderId || '').trim();
+      if (!sourceId || !session?.symEncKey || !session.symMacKey) return '';
+      const sourceFolder = (encryptedFolders || []).find((folder) => folder.id === sourceId && !folder.organizationId);
+      if (!sourceFolder) return '';
+      let sourceName = '';
+      try {
+        sourceName = await decryptStr(sourceFolder.name, base64ToBytes(session.symEncKey), base64ToBytes(session.symMacKey));
+      } catch {
+        return '';
+      }
+      if (!sourceName) return '';
+      const organizationKey = orgKeys?.[organizationId];
+      if (!organizationKey) return '';
+      const orgEnc = base64ToBytes(organizationKey.encB64);
+      const orgMac = base64ToBytes(organizationKey.macB64);
+      for (const folder of (encryptedFolders || []).filter((f) => f.organizationId === organizationId)) {
+        try {
+          const name = await decryptStr(folder.name, orgEnc, orgMac);
+          if (name && name === sourceName) return folder.id;
+        } catch {
+          continue;
+        }
+      }
+      return '';
+    };
+
     const performShareToOrganization = async (
       cipher: Cipher,
       organizationId: string,
       collectionIds: string[],
       draftOverride?: VaultDraft
     ): Promise<void> => {
-      if (!session?.symEncKey || !session?.symMacKey) throw new Error(t('txt_vault_key_unavailable'));
+      if (!session?.symEncKey || !session.symMacKey) throw new Error(t('txt_vault_key_unavailable'));
       requireOnlineWrite();
       const organizationSession = sessionWithOrganizationKey(organizationId);
       if (!organizationSession) throw new Error(t('txt_import_org_key_unavailable'));
       const draft = draftOverride || draftFromCipher(cipher);
-      draft.folderId = '';
+      draft.folderId = await matchOrganizationFolderByName(organizationId, cipher.folderId);
       const payload = await buildCipherImportPayload(organizationSession, draft);
       await shareCipherToOrganization(importAuthedFetch, cipher.id, {
         cipher: payload,
@@ -672,7 +706,10 @@ export default function useVaultSendActions(options: UseVaultSendActionsOptions)
           let updated: Cipher;
           if (cipher.organizationId) {
             const orgSession = sessionWithOrganizationKey(cipher.organizationId);
-            updated = await updateCipher(authedFetch, orgSession!, cipher, { ...draft, folderId: '' });
+            // draft.folderId carries the org-folder filing (the server reports
+            // org filing through the standard folderId field); sending it
+            // through preserves/updates the filing instead of clearing it.
+            updated = await updateCipher(authedFetch, orgSession!, cipher, { ...draft });
             const draftCollectionIds = Array.isArray(draft.collectionIds) ? draft.collectionIds.filter(Boolean) : [];
             const currentCollectionIds = Array.isArray(cipher.collectionIds) ? [...cipher.collectionIds] : [];
             const changed =
@@ -682,6 +719,8 @@ export default function useVaultSendActions(options: UseVaultSendActionsOptions)
               await updateCipherCollections(authedFetch, cipher.id, draftCollectionIds);
             }
           } else if (nextOrgId) {
+            // draft.folderId is replaced by the org name-match inside
+            // performShareToOrganization (keep-my-filing).
             await performShareToOrganization(cipher, nextOrgId, Array.isArray(draft.collectionIds) ? draft.collectionIds.filter(Boolean) : [], { ...draft, folderId: '' });
             updated = await getCipherById(authedFetch, cipher.id);
           } else {
@@ -963,7 +1002,16 @@ export default function useVaultSendActions(options: UseVaultSendActionsOptions)
         }
         try {
           if (!session) throw new Error(t('txt_vault_key_unavailable'));
-          const updated = await updateFolder(authedFetch, session, id, nextName);
+          // Organization folders carry org-key encrypted names; pick the key
+          // from the folder's owning organization.
+          const target = (encryptedFolders || []).find((folder) => folder.id === id);
+          const organizationKey = target?.organizationId && orgKeys?.[target.organizationId]
+            ? {
+                enc: base64ToBytes(orgKeys[target.organizationId].encB64),
+                mac: base64ToBytes(orgKeys[target.organizationId].macB64),
+              }
+            : undefined;
+          const updated = await updateFolder(authedFetch, session, id, nextName, organizationKey);
           upsertEncryptedFolder(updated);
           patchDecryptedFolders((prev) => prev.map((folder) => (
             folder.id === id

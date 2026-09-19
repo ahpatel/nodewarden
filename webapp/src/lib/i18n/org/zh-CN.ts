@@ -102,7 +102,17 @@ const orgZhCN: Record<string, string> = {
   "txt_admin_org_self_service_enable": "启用自助注册",
   "txt_admin_org_self_service_disable": "禁用自助注册",
   "txt_admin_org_self_service_password_placeholder": "主密码（确认）",
-  "txt_organizations_access_per_collection": "按集合"
+  "txt_organizations_access_per_collection": "按集合",
+  "txt_organizations_folders": "文件夹",
+  "txt_organizations_folder_hint": "组织文件夹为所有成员分组共享条目。名称使用组织密钥加密。",
+  "txt_organizations_add_folder": "添加文件夹",
+  "txt_organizations_folder_name_placeholder": "新文件夹名称",
+  "txt_organizations_folder_name_required": "文件夹名称为必填项",
+  "txt_organizations_folder_created": "文件夹已创建",
+  "txt_organizations_folder_create_failed": "创建文件夹失败",
+  "txt_organizations_folder_deleted": "文件夹已删除",
+  "txt_organizations_folder_delete_failed": "删除文件夹失败",
+  "txt_organizations_no_folders": "该组织还没有文件夹。"
 };
 
 export default orgZhCN;

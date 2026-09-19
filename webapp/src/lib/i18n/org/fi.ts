@@ -102,7 +102,17 @@ const orgFi: Record<string, string> = {
   "txt_admin_org_self_service_enable": "Ota itsepalvelurekisteröinti käyttöön",
   "txt_admin_org_self_service_disable": "Poista itsepalvelurekisteröinti käytöstä",
   "txt_admin_org_self_service_password_placeholder": "Pääsalasana (vahvista)",
-  "txt_organizations_access_per_collection": "Kokoelmittain"
+  "txt_organizations_access_per_collection": "Kokoelmittain",
+  "txt_organizations_folders": "Kansiot",
+  "txt_organizations_folder_hint": "Organisaation kansiot ryhmittelevät jaetut kohteet kaikille jäsenille. Nimet salataan organisaation avaimella.",
+  "txt_organizations_add_folder": "Lisää kansio",
+  "txt_organizations_folder_name_placeholder": "Uuden kansion nimi",
+  "txt_organizations_folder_name_required": "Kansion nimi vaaditaan",
+  "txt_organizations_folder_created": "Kansio luotu",
+  "txt_organizations_folder_create_failed": "Kansion luonti epäonnistui",
+  "txt_organizations_folder_deleted": "Kansio poistettu",
+  "txt_organizations_folder_delete_failed": "Kansion poisto epäonnistui",
+  "txt_organizations_no_folders": "Tässä organisaatiossa ei ole vielä kansioita."
 };
 
 export default orgFi;

@@ -53,6 +53,8 @@ export interface Folder {
   decName?: string;
   revisionDate?: string;
   creationDate?: string;
+  /** NodeWarden extension: set for organization folders (org-key encrypted names). */
+  organizationId?: string;
 }
 
 export interface CipherLoginUri {
