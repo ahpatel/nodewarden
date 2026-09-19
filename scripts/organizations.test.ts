@@ -261,3 +261,160 @@ test('admin toggle requires master password verification', () => {
     'toggle must write audit log'
   );
 });
+
+// ─── Organization folders ───────────────────────────────────────────────────
+// Org folders are admin-managed, org-scoped, org-key encrypted, and surfaced
+// through the standard sync folders list so official clients render filing.
+
+test('schema and backup include the organization_folders table', () => {
+  const schema = read('src/services/storage-schema.ts');
+  assert.ok(
+    schema.includes('CREATE TABLE IF NOT EXISTS organization_folders'),
+    'schema creates organization_folders'
+  );
+  assert.ok(
+    schema.includes('ALTER TABLE ciphers ADD COLUMN organization_folder_id TEXT'),
+    'ciphers gain the org filing column'
+  );
+  assert.ok(
+    /ciphers_organization_migration[\s\S]*?organization_folder_id/.test(schema),
+    'legacy rebuild carries the column'
+  );
+
+  const archive = read('src/services/backup-archive.ts');
+  assert.ok(archive.includes('FROM organization_folders'), 'export includes org folders');
+  const backupImport = read('src/services/backup-import.ts');
+  assert.ok(
+    backupImport.includes("'organization_folders'"),
+    'restore allowlist includes org folders'
+  );
+  assert.ok(
+    /DELETE FROM organization_folders/.test(backupImport),
+    'restore reset clears org folders'
+  );
+});
+
+test('org folder CRUD is gated to owners and admins', () => {
+  const orgs = read('src/handlers/organizations.ts');
+  const gate = orgs.slice(orgs.indexOf('async function requireOrganizationManager'));
+  assert.ok(
+    gate.includes('ORG_USER_TYPE.OWNER') && gate.includes('ORG_USER_TYPE.ADMIN'),
+    'owners AND admins may manage folders'
+  );
+  assert.ok(
+    gate.includes('403'),
+    'regular members are rejected'
+  );
+  assert.ok(
+    /handleCreateOrganizationFolder[\s\S]*?requireOrganizationManager/.test(orgs) &&
+    /handleUpdateOrganizationFolder[\s\S]*?requireOrganizationManager/.test(orgs) &&
+    /handleDeleteOrganizationFolder[\s\S]*?requireOrganizationManager/.test(orgs),
+    'all folder write handlers check the manager gate'
+  );
+});
+
+test('deleting an org folder unfiles affected ciphers', () => {
+  const orgs = read('src/handlers/organizations.ts');
+  const del = orgs.slice(orgs.indexOf('export async function deleteOrganizationFolderInternal'));
+  assert.ok(
+    del.includes('clearOrganizationFolderFromCiphers'),
+    'delete cascades unfiling before removing the folder'
+  );
+  assert.ok(
+    del.includes('bumpOrganizationMembers'),
+    'members are bumped so clients refetch'
+  );
+  const repo = read('src/services/storage-org-folder-repo.ts');
+  assert.ok(
+    /clearOrganizationFolderFromCiphers[\s\S]*?organization_folder_id = NULL/.test(repo),
+    'cascade nulls the filing column'
+  );
+});
+
+test('org cipher write paths resolve the payload folder against org folders', () => {
+  const ciphers = read('src/handlers/ciphers.ts');
+  assert.ok(
+    /verifyOrgFolderOwnership[\s\S]*?getOrganizationFolder/.test(ciphers),
+    'org folder ownership checks resolve against organization_folders'
+  );
+  // create-in-org
+  assert.ok(
+    /if \(cipher\.folderId\)[\s\S]*?verifyOrgFolderOwnership\(storage, cipher\.folderId, createOrganizationId\)/.test(ciphers),
+    'create-in-org validates the filing'
+  );
+  // full update
+  const update = ciphers.slice(ciphers.indexOf('export async function handleUpdateCipher'));
+  assert.ok(
+    update.includes('verifyOrgFolderOwnership(storage, requestedFolderId, existingCipher.organizationId)'),
+    'full update resolves org filing'
+  );
+  assert.ok(
+    /incomingFolderId[\s\S]*?keep the existing filing/.test(ciphers),
+    'omitted folderId preserves the existing filing'
+  );
+  // partial update
+  const partial = ciphers.slice(ciphers.indexOf('handlePartialUpdateCipher'));
+  assert.ok(
+    partial.includes('verifyOrgFolderOwnership(storage, folderId, cipher.organizationId)'),
+    'move-to-folder resolves org filing'
+  );
+  // bulk move
+  const bulk = ciphers.slice(ciphers.indexOf('handleBulkMoveCiphers'));
+  assert.ok(
+    bulk.includes('bulkSetOrganizationFolderOnCiphers') &&
+    bulk.includes('multiple organizations'),
+    'bulk move handles org items with per-org folder validation'
+  );
+  // share
+  const share = ciphers.slice(ciphers.indexOf('handleShareCipher'));
+  assert.ok(
+    share.includes('verifyOrgFolderOwnership(storage, requestedOrgFolderId, organizationId)'),
+    'share resolves the name-matched org folder'
+  );
+  // personal folders never leak onto org rows
+  assert.ok(
+    /organizationId\s*\?\s*\(cipher\.organizationFolderId \?\? null\)\s*:\s*cipher\.folderId/.test(ciphers),
+    'responses report org filing through folderId'
+  );
+  assert.ok(
+    /organizationFolderId: undefined/.test(ciphers),
+    'the internal column is never exposed on the wire'
+  );
+});
+
+test('sync injects org folders into the folders list', () => {
+  const sync = read('src/handlers/sync.ts');
+  assert.ok(
+    sync.includes('listOrganizationFoldersForUser'),
+    'sync loads org folders for confirmed memberships'
+  );
+  assert.ok(
+    /validFolderIds\.add\(organizationFolder\.id\)/.test(sync),
+    'org folder ids are valid cipher folderId targets'
+  );
+  assert.ok(
+    /folderResponses\.push\(organizationFolderToSyncFolderResponse\(organizationFolder\)\)/.test(sync),
+    'org folders ride the standard folders list'
+  );
+});
+
+test('user-folder endpoints proxy org folders with permission checks', () => {
+  const folders = read('src/handlers/folders.ts');
+  assert.ok(
+    folders.includes('getOrganizationFolderById'),
+    'folder handlers resolve org folder ids first'
+  );
+  assert.ok(
+    folders.includes('confirmedOrganizationFolderMembership'),
+    'membership is checked before serving or acting'
+  );
+  assert.ok(
+    folders.includes('Organization folders can only be managed by organization owners or admins'),
+    'non-managers get a clear 403'
+  );
+  assert.ok(
+    folders.includes('renameOrganizationFolderInternal') &&
+    folders.includes('deleteOrganizationFolderInternal'),
+    'rename/delete delegate to the same operations as the console'
+  );
+});
