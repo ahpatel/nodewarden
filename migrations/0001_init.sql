@@ -70,6 +70,7 @@ CREATE TABLE IF NOT EXISTS ciphers (
   id TEXT PRIMARY KEY,
   user_id TEXT,
   organization_id TEXT,
+  organization_folder_id TEXT,
   type INTEGER NOT NULL,
   folder_id TEXT,
   name TEXT,
@@ -140,6 +141,17 @@ CREATE TABLE IF NOT EXISTS cipher_collections (
   FOREIGN KEY (collection_id) REFERENCES collections(id) ON DELETE CASCADE
 );
 CREATE INDEX IF NOT EXISTS idx_cipher_collections_collection ON cipher_collections(collection_id);
+
+CREATE TABLE IF NOT EXISTS organization_folders (
+  id TEXT PRIMARY KEY,
+  organization_id TEXT NOT NULL,
+  name TEXT NOT NULL,
+  creation_date TEXT NOT NULL,
+  revision_date TEXT NOT NULL,
+  FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_organization_folders_org ON organization_folders(organization_id);
+CREATE INDEX IF NOT EXISTS idx_ciphers_organization_folder ON ciphers(organization_folder_id);
 
 CREATE TABLE IF NOT EXISTS folders (
   id TEXT PRIMARY KEY,

@@ -249,6 +249,8 @@ export interface Cipher {
   id: string;
   userId: string | null;
   organizationId?: string | null;
+  /** Org-cipher filing: references organization_folders.id; never a user folder. */
+  organizationFolderId?: string | null;
   type: CipherType;
   folderId: string | null;
   name: string | null;
@@ -311,6 +313,19 @@ export interface Collection {
   /** Encrypted with the organization key (EncString). */
   name: string;
   externalId: string | null;
+  creationDate: string;
+  revisionDate: string;
+}
+
+// Organization-owned folder. Like collections, names are encrypted with the
+// organization key so every confirmed member can decrypt them; management is
+// restricted to organization owners/admins. Surfaced to clients through the
+// standard sync folders list so official clients render org items filed.
+export interface OrganizationFolder {
+  id: string;
+  organizationId: string;
+  /** Encrypted with the organization key (EncString). */
+  name: string;
   creationDate: string;
   revisionDate: string;
 }

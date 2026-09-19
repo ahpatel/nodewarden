@@ -50,6 +50,7 @@ const SCHEMA_STATEMENTS: readonly string[] = [
   'FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE)',
   'ALTER TABLE ciphers ADD COLUMN archived_at TEXT',
   'ALTER TABLE ciphers ADD COLUMN organization_id TEXT',
+  'ALTER TABLE ciphers ADD COLUMN organization_folder_id TEXT',
   'CREATE INDEX IF NOT EXISTS idx_ciphers_user_updated ON ciphers(user_id, updated_at)',
   'CREATE INDEX IF NOT EXISTS idx_ciphers_user_archived ON ciphers(user_id, archived_at)',
   'CREATE INDEX IF NOT EXISTS idx_ciphers_user_deleted ON ciphers(user_id, deleted_at)',
@@ -87,6 +88,12 @@ const SCHEMA_STATEMENTS: readonly string[] = [
   'FOREIGN KEY (cipher_id) REFERENCES ciphers(id) ON DELETE CASCADE, ' +
   'FOREIGN KEY (collection_id) REFERENCES collections(id) ON DELETE CASCADE)',
   'CREATE INDEX IF NOT EXISTS idx_cipher_collections_collection ON cipher_collections(collection_id)',
+
+  'CREATE TABLE IF NOT EXISTS organization_folders (' +
+  'id TEXT PRIMARY KEY, organization_id TEXT NOT NULL, name TEXT NOT NULL, ' +
+  'creation_date TEXT NOT NULL, revision_date TEXT NOT NULL, ' +
+  'FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE)',
+  'CREATE INDEX IF NOT EXISTS idx_organization_folders_org ON organization_folders(organization_id)',
 
   'CREATE TABLE IF NOT EXISTS folders (' +
   'id TEXT PRIMARY KEY, user_id TEXT NOT NULL, name TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, ' +
@@ -255,7 +262,7 @@ async function migrateCiphersToOrganizationShape(db: D1Database): Promise<void> 
   try {
     await db.prepare(
       'CREATE TABLE ciphers_organization_migration (' +
-      'id TEXT PRIMARY KEY, user_id TEXT, organization_id TEXT, type INTEGER NOT NULL, folder_id TEXT, ' +
+      'id TEXT PRIMARY KEY, user_id TEXT, organization_id TEXT, organization_folder_id TEXT, type INTEGER NOT NULL, folder_id TEXT, ' +
       'name TEXT, notes TEXT, favorite INTEGER NOT NULL DEFAULT 0, data TEXT NOT NULL, reprompt INTEGER, ' +
       'key TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, archived_at TEXT, deleted_at TEXT, ' +
       'FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE, ' +
@@ -263,8 +270,8 @@ async function migrateCiphersToOrganizationShape(db: D1Database): Promise<void> 
     ).run();
     await db.prepare(
       'INSERT INTO ciphers_organization_migration ' +
-      '(id, user_id, organization_id, type, folder_id, name, notes, favorite, data, reprompt, key, created_at, updated_at, archived_at, deleted_at) ' +
-      'SELECT id, user_id, organization_id, type, folder_id, name, notes, favorite, data, reprompt, key, created_at, updated_at, archived_at, deleted_at FROM ciphers'
+      '(id, user_id, organization_id, organization_folder_id, type, folder_id, name, notes, favorite, data, reprompt, key, created_at, updated_at, archived_at, deleted_at) ' +
+      'SELECT id, user_id, organization_id, organization_folder_id, type, folder_id, name, notes, favorite, data, reprompt, key, created_at, updated_at, archived_at, deleted_at FROM ciphers'
     ).run();
     await db.prepare('DROP TABLE ciphers').run();
     await db.prepare('ALTER TABLE ciphers_organization_migration RENAME TO ciphers').run();
@@ -274,7 +281,8 @@ async function migrateCiphersToOrganizationShape(db: D1Database): Promise<void> 
       'CREATE INDEX IF NOT EXISTS idx_ciphers_user_deleted ON ciphers(user_id, deleted_at)',
       'CREATE INDEX IF NOT EXISTS idx_ciphers_user_deleted_updated ON ciphers(user_id, deleted_at, updated_at)',
       'CREATE INDEX IF NOT EXISTS idx_ciphers_user_folder ON ciphers(user_id, folder_id)',
-      'CREATE INDEX IF NOT EXISTS idx_ciphers_organization ON ciphers(organization_id, updated_at)',
+  'CREATE INDEX IF NOT EXISTS idx_ciphers_organization ON ciphers(organization_id, updated_at)',
+  'CREATE INDEX IF NOT EXISTS idx_ciphers_organization_folder ON ciphers(organization_folder_id)',
     ]) {
       await db.prepare(stmt).run();
     }

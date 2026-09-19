@@ -1,4 +1,4 @@
-import { User, Cipher, Folder, Attachment, Device, Invite, AuditLog, Send, TrustedDeviceTokenSummary, RefreshTokenRecord, CustomEquivalentDomain, AccountPasskeyChallenge, AccountPasskeyChallengeScope, AccountPasskeyCredential, AuthRequestRecord, Organization, OrganizationUser, Collection, CollectionUserAccess } from '../types';
+import { User, Cipher, Folder, Attachment, Device, Invite, AuditLog, Send, TrustedDeviceTokenSummary, RefreshTokenRecord, CustomEquivalentDomain, AccountPasskeyChallenge, AccountPasskeyChallengeScope, AccountPasskeyCredential, AuthRequestRecord, Organization, OrganizationUser, OrganizationFolder, Collection, CollectionUserAccess } from '../types';
 import { LIMITS } from '../config/limits';
 import { ensurePushInstallationCredentials } from './push-relay';
 import { ensureStorageSchema } from './storage-schema';
@@ -90,6 +90,16 @@ import {
   transitionOrganizationUserStatus as transitionStoredOrganizationUserStatus,
   type UserOrganizationMembership,
 } from './storage-org-repo';
+import {
+  bulkSetOrganizationFolderOnCiphers as bulkSetStoredOrganizationFolderOnCiphers,
+  clearOrganizationFolderFromCiphers as clearStoredOrganizationFolderFromCiphers,
+  deleteOrganizationFolder as deleteStoredOrganizationFolder,
+  getOrganizationFolder as findStoredOrganizationFolder,
+  getOrganizationFolderById as findStoredOrganizationFolderById,
+  listOrganizationFolders as listStoredOrganizationFolders,
+  listOrganizationFoldersForUser as listStoredOrganizationFoldersForUser,
+  saveOrganizationFolder as saveStoredOrganizationFolder,
+} from './storage-org-folder-repo';
 import {
   type CipherAccessInfo,
   type UserCollectionAccess,
@@ -211,7 +221,7 @@ const STORAGE_SCHEMA_VERSION_KEY = 'schema.version';
 // Bump this whenever src/services/storage-schema.ts or migrations/0001_init.sql
 // changes. Existing D1 installs only rerun ensureStorageSchema() when this value
 // differs from config.schema.version.
-const STORAGE_SCHEMA_VERSION = '2026-09-19-security-fixes';
+const STORAGE_SCHEMA_VERSION = '2026-09-18-organization-folders';
 const REQUIRED_SCHEMA_TABLES = ['webauthn_credentials', 'webauthn_challenges', 'auth_requests', 'totp_login_replays'] as const;
 
 // D1-backed storage.
@@ -688,6 +698,50 @@ export class StorageService {
     organizationUserId: string
   ): Promise<Array<{ collectionId: string; readOnly: boolean; hidePasswords: boolean }>> {
     return listStoredCollectionUsersByOrganizationUser(this.db, organizationUserId);
+  }
+
+  // --- Organization folders ---
+
+  async getOrganizationFolderById(id: string): Promise<OrganizationFolder | null> {
+    return findStoredOrganizationFolderById(this.db, id);
+  }
+
+  async getOrganizationFolder(organizationId: string, id: string): Promise<OrganizationFolder | null> {
+    return findStoredOrganizationFolder(this.db, organizationId, id);
+  }
+
+  async listOrganizationFolders(organizationId: string): Promise<OrganizationFolder[]> {
+    return listStoredOrganizationFolders(this.db, organizationId);
+  }
+
+  async listOrganizationFoldersForUser(userId: string): Promise<OrganizationFolder[]> {
+    return listStoredOrganizationFoldersForUser(this.db, userId);
+  }
+
+  async saveOrganizationFolder(folder: OrganizationFolder): Promise<void> {
+    await saveStoredOrganizationFolder(this.db, folder);
+  }
+
+  async deleteOrganizationFolder(id: string): Promise<void> {
+    await deleteStoredOrganizationFolder(this.db, id);
+  }
+
+  async clearOrganizationFolderFromCiphers(folderId: string, updatedAt: string): Promise<number> {
+    return clearStoredOrganizationFolderFromCiphers(this.db, folderId, updatedAt);
+  }
+
+  async bulkSetOrganizationFolderOnCiphers(
+    ids: string[],
+    organizationFolderId: string | null,
+    updatedAt: string
+  ): Promise<void> {
+    await bulkSetStoredOrganizationFolderOnCiphers(
+      this.db,
+      this.sqlChunkSize(2),
+      ids,
+      organizationFolderId,
+      updatedAt
+    );
   }
 
   async replaceCollectionUsers(
