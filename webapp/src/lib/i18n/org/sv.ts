@@ -105,7 +105,10 @@ const orgSv: Record<string, string> = {
   "txt_organizations_access_per_collection": "Per samling",
   "txt_organizations_role_admin": "Administratör",
   "txt_organizations_role_manager": "Chef",
-  "txt_organizations_role_custom": "Anpassad"
+  "txt_organizations_role_custom": "Anpassad",
+  "txt_export_org_select": "Organisation att exportera",
+  "txt_export_org_required": "Välj en organisation att exportera",
+  "txt_export_org_unassigned_skipped": "{count} post(er) utan en tillgänglig samling hoppades över (Bitwarden avvisar organisationsimporter med otilldelade poster)."
 };
 
 export default orgSv;

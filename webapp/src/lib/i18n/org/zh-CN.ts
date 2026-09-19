@@ -105,7 +105,10 @@ const orgZhCN: Record<string, string> = {
   "txt_organizations_access_per_collection": "按集合",
   "txt_organizations_role_admin": "管理员",
   "txt_organizations_role_manager": "经理",
-  "txt_organizations_role_custom": "自定义"
+  "txt_organizations_role_custom": "自定义",
+  "txt_export_org_select": "要导出的组织",
+  "txt_export_org_required": "请选择要导出的组织",
+  "txt_export_org_unassigned_skipped": "已跳过 {count} 个没有可访问集合的项目（Bitwarden 会拒绝包含未分配项目的组织导入）。"
 };
 
 export default orgZhCN;

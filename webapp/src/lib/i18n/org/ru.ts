@@ -105,7 +105,10 @@ const orgRu: Record<string, string> = {
   "txt_organizations_access_per_collection": "По коллекциям",
   "txt_organizations_role_admin": "Администратор",
   "txt_organizations_role_manager": "Менеджер",
-  "txt_organizations_role_custom": "Настраиваемая"
+  "txt_organizations_role_custom": "Настраиваемая",
+  "txt_export_org_select": "Организация для экспорта",
+  "txt_export_org_required": "Выберите организацию для экспорта",
+  "txt_export_org_unassigned_skipped": "Пропущено записей без доступной коллекции: {count} (Bitwarden отклоняет импорт в организацию с неназначенными записями)."
 };
 
 export default orgRu;

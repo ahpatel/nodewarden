@@ -105,7 +105,10 @@ const orgZhTW: Record<string, string> = {
   "txt_organizations_access_per_collection": "按集合",
   "txt_organizations_role_admin": "管理員",
   "txt_organizations_role_manager": "經理",
-  "txt_organizations_role_custom": "自訂"
+  "txt_organizations_role_custom": "自訂",
+  "txt_export_org_select": "要匯出的組織",
+  "txt_export_org_required": "請選擇要匯出的組織",
+  "txt_export_org_unassigned_skipped": "已略過 {count} 個沒有可存取集合的項目（Bitwarden 會拒絕包含未指派項目的組織匯入）。"
 };
 
 export default orgZhTW;

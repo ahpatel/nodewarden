@@ -5,6 +5,7 @@ import {
   attachNodeWardenEncryptedAttachmentPayload,
   buildAccountEncryptedBitwardenJsonString,
   buildBitwardenCsvString,
+  buildBitwardenOrgJson,
   buildBitwardenZipBytes,
   buildExportFileName,
   buildNodeWardenAttachmentRecords,
@@ -58,7 +59,7 @@ import {
 import { deriveLoginHash, getPreloginKdfConfig, verifyMasterPassword } from '@/lib/api/auth';
 import type { AuthedFetch } from '@/lib/api/shared';
 import { downloadBytesAsFile } from '@/lib/download';
-import type { Cipher, Folder as VaultFolder, Profile, Send, SendDraft, SessionState, VaultDraft } from '@/lib/types';
+import type { Cipher, Folder as VaultFolder, Profile, Send, SendDraft, SessionState, VaultCollection, VaultDraft } from '@/lib/types';
 import type { OrgKeyMap } from '@/lib/vault-decrypt';
 
 type Notify = (type: 'success' | 'error' | 'warning', text: string) => void;
@@ -71,6 +72,8 @@ interface UseVaultSendActionsOptions {
   defaultKdfIterations: number;
   encryptedCiphers: Cipher[] | undefined;
   encryptedFolders: VaultFolder[] | undefined;
+  /** Organization collections with decrypted names (org export support). */
+  collections?: VaultCollection[];
   /** Organization decryption keys by organizationId (org item import support). */
   orgKeys?: OrgKeyMap | null;
   refetchCiphers: () => Promise<{ data?: Cipher[] | undefined } | unknown>;
@@ -308,6 +311,7 @@ export default function useVaultSendActions(options: UseVaultSendActionsOptions)
     defaultKdfIterations,
     encryptedCiphers,
     encryptedFolders,
+    collections,
     orgKeys,
     refetchCiphers,
     refetchFolders,
@@ -1221,7 +1225,7 @@ export default function useVaultSendActions(options: UseVaultSendActionsOptions)
           const isOrganizationItem = !!organization && !!organizationSession && rawImportItemIsOrganizationItem(raw);
           const draft = importCipherToDraft(
             raw,
-            isOrganizationItem ? null : mode === 'target' ? targetFolderId : null
+            mode === 'target' ? targetFolderId : null
           );
           const cipherPayload = await buildCipherImportPayload(isOrganizationItem ? organizationSession! : session, draft);
           const sourceId = String(raw.id || '').trim();
@@ -1497,6 +1501,28 @@ export default function useVaultSendActions(options: UseVaultSendActionsOptions)
               bytes: new TextEncoder().encode(withAttachments),
             };
           }
+        } else if (format === 'bitwarden_org_json') {
+          const organizationId = String(request.organizationId || '').trim();
+          if (!organizationId) throw new Error(t('txt_export_org_required'));
+          const orgJson = await buildBitwardenOrgJson({
+            organizationId,
+            collections: collections || [],
+            ciphers: encryptedCiphers || [],
+            userEncB64: session.symEncKey!,
+            userMacB64: session.symMacKey!,
+            orgKeys,
+          });
+          if (orgJson.skippedUnassignedItems > 0) {
+            onNotify(
+              'warning',
+              t('txt_export_org_unassigned_skipped', { count: String(orgJson.skippedUnassignedItems) })
+            );
+          }
+          result = {
+            fileName: buildExportFileName(format),
+            mimeType: 'application/json',
+            bytes: new TextEncoder().encode(orgJson.json),
+          };
         } else if (format === 'bitwarden_json_zip' || format === 'bitwarden_encrypted_json_zip') {
           let dataJson = await getPlainJson();
           if (format === 'bitwarden_encrypted_json_zip') {
@@ -1535,6 +1561,7 @@ export default function useVaultSendActions(options: UseVaultSendActionsOptions)
     attachmentDownloadPercent,
     attachmentUploadPercent,
     authedFetch,
+    collections,
     defaultKdfIterations,
     downloadingAttachmentKey,
     encryptedCiphers,

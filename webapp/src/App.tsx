@@ -1952,6 +1952,7 @@ export default function App() {
     defaultKdfIterations,
     encryptedCiphers,
     encryptedFolders,
+    collections: decryptedCollections,
     orgKeys,
     refetchCiphers: async () => {
       const result = await refetchVaultCoreData() as { data?: VaultCoreSnapshot };

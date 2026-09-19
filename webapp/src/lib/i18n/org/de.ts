@@ -105,7 +105,10 @@ const orgDe: Record<string, string> = {
   "txt_organizations_access_per_collection": "Pro Sammlung",
   "txt_organizations_role_admin": "Admin",
   "txt_organizations_role_manager": "Manager",
-  "txt_organizations_role_custom": "Benutzerdefiniert"
+  "txt_organizations_role_custom": "Benutzerdefiniert",
+  "txt_export_org_select": "Zu exportierende Organisation",
+  "txt_export_org_required": "Wählen Sie eine Organisation zum Exportieren aus",
+  "txt_export_org_unassigned_skipped": "{count} Eintrag/Einträge ohne zugängliche Sammlung wurden übersprungen (Bitwarden verwirft Organisationsimporte mit nicht zugewiesenen Einträgen)."
 };
 
 export default orgDe;

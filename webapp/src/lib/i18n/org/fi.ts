@@ -105,7 +105,10 @@ const orgFi: Record<string, string> = {
   "txt_organizations_access_per_collection": "Kokoelmittain",
   "txt_organizations_role_admin": "Ylläpitäjä",
   "txt_organizations_role_manager": "Esimies",
-  "txt_organizations_role_custom": "Mukautettu"
+  "txt_organizations_role_custom": "Mukautettu",
+  "txt_export_org_select": "Vietävä organisaatio",
+  "txt_export_org_required": "Valitse vietävä organisaatio",
+  "txt_export_org_unassigned_skipped": "{count} kohde(tta) ilman käytettävissä olevaa kokoelmaa ohitettiin (Bitwarden hylkää organisaatioinnit, joissa on kohdistamattomia kohteita)."
 };
 
 export default orgFi;

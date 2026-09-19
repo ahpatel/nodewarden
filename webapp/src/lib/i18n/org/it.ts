@@ -105,7 +105,10 @@ const orgIt: Record<string, string> = {
   "txt_organizations_access_per_collection": "Per raccolta",
   "txt_organizations_role_admin": "Amministratore",
   "txt_organizations_role_manager": "Gestore",
-  "txt_organizations_role_custom": "Personalizzato"
+  "txt_organizations_role_custom": "Personalizzato",
+  "txt_export_org_select": "Organizzazione da esportare",
+  "txt_export_org_required": "Seleziona un'organizzazione da esportare",
+  "txt_export_org_unassigned_skipped": "{count} elemento/i senza una raccolta accessibile sono stati saltati (Bitwarden rifiuta importazioni di organizzazione con elementi non assegnati)."
 };
 
 export default orgIt;

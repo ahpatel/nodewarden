@@ -207,6 +207,11 @@ export async function handleCiphersImport(request: Request, env: Env, userId: st
   const cipherRows: Cipher[] = [];
   const cipherCollectionRows: Array<{ cipherId: string; collectionId: string }> = [];
   const cipherMapRows: Array<{ index: number; sourceId: string | null; id: string }> = [];
+  // Per-user filing of organization ciphers (mirrors the org create flow in
+  // handlers/ciphers.ts): org rows never persist a personal folder id, so the
+  // folder computed above is filed into cipher_user_folders for the acting
+  // user and overlaid by sync/list responses.
+  const orgFolderFilingRows: Array<{ cipherId: string; folderId: string }> = [];
   for (let i = 0; i < ciphers.length; i++) {
     const c = ciphers[i] && typeof ciphers[i] === 'object' ? ciphers[i] : {} as CiphersImportRequest['ciphers'][number];
     const importedFolderId = normalizeOptionalId(readAliasedImportProp<string | null>(c, ['folderId', 'FolderId']));
@@ -331,6 +336,9 @@ export async function handleCiphersImport(request: Request, env: Env, userId: st
       }
       cipher.userId = null;
       cipher.organizationId = importOrganizationId;
+      // Keep the computed personal folder as a per-user filing; the shared row
+      // itself never carries a personal folder id.
+      if (folderId) orgFolderFilingRows.push({ cipherId: cipher.id, folderId });
       cipher.folderId = null;
       for (const collectionId of importCollectionIds) {
         cipherCollectionRows.push({ cipherId: cipher.id, collectionId });
@@ -373,6 +381,19 @@ export async function handleCiphersImport(request: Request, env: Env, userId: st
         );
     });
     await runBatchInChunks(env.DB, cipherStatements, batchChunkSize);
+  }
+
+  if (orgFolderFilingRows.length > 0) {
+    const now = new Date().toISOString();
+    const filingStatements = orgFolderFilingRows.map((row) =>
+      env.DB
+        .prepare(
+          'INSERT INTO cipher_user_folders(cipher_id, user_id, folder_id, created_at, updated_at) VALUES(?, ?, ?, ?, ?) ' +
+          'ON CONFLICT(cipher_id, user_id) DO UPDATE SET folder_id=excluded.folder_id, updated_at=excluded.updated_at'
+        )
+        .bind(row.cipherId, userId, row.folderId, now, now)
+    );
+    await runBatchInChunks(env.DB, filingStatements, batchChunkSize);
   }
 
   if (cipherCollectionRows.length > 0) {
