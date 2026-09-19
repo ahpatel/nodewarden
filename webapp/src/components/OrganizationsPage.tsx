@@ -385,22 +385,6 @@ export default function OrganizationsPage(props: OrganizationsPageProps) {
     }
   }
 
-  async function handleToggleMemberAccessAll(member: OrganizationMember) {
-    if (!selectedOrgId) return;
-    setBusy(member.id);
-    try {
-      await updateOrganizationMember(authedFetch, selectedOrgId, member.id, {
-        accessAll: !member.accessAll,
-      });
-      await refreshOrgDetail(selectedOrgId);
-      await onRefreshVault();
-    } catch (err) {
-      notify('error', err instanceof Error ? err.message : t('txt_organizations_member_update_failed'));
-    } finally {
-      setBusy(null);
-    }
-  }
-
   // Per-collection permission editor: seed a row per org collection from the
   // member's current access, then replace the whole set on save.
   async function openMemberPermissions(member: OrganizationMember) {
@@ -703,19 +687,11 @@ export default function OrganizationsPage(props: OrganizationsPageProps) {
                           <td>{Number(member.type) === TYPE_OWNER ? t('txt_organizations_owner_badge') : t('txt_organizations_member_badge')}</td>
                           <td>{statusLabel(Number(member.status))}</td>
                           <td>
-                            {Number(member.status) === STATUS_CONFIRMED ? (
-                              <label className="checkbox-row">
-                                <input
-                                  type="checkbox"
-                                  checked={!!member.accessAll}
-                                  disabled={busy === member.id}
-                                  onChange={() => void handleToggleMemberAccessAll(member)}
-                                />
-                                {t('txt_organizations_access_all')}
-                              </label>
-                            ) : (
-                              '-'
-                            )}
+                            {Number(member.status) === STATUS_CONFIRMED
+                              ? member.accessAll
+                                ? t('txt_organizations_access_all')
+                                : t('txt_organizations_access_per_collection')
+                              : '-'}
                           </td>
                           <td>
                             {selectedIsOwner && Number(member.status) === STATUS_CONFIRMED && (

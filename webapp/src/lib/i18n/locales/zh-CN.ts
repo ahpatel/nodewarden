@@ -1595,6 +1595,7 @@ Object.assign(zhCN, {
   "txt_admin_org_self_service_enable": "启用自助注册",
   "txt_admin_org_self_service_disable": "禁用自助注册",
   "txt_admin_org_self_service_password_placeholder": "主密码（确认）",
+  "txt_organizations_access_per_collection": "按集合",
 });
 
 export default zhCN;

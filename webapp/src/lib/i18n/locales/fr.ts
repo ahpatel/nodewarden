@@ -1566,6 +1566,7 @@ Object.assign(fr, { "txt_password_security_show_all": "Tout afficher", "txt_pass
   "txt_admin_org_self_service_enable": "Activer l’inscription libre-service",
   "txt_admin_org_self_service_disable": "Désactiver l’inscription libre-service",
   "txt_admin_org_self_service_password_placeholder": "Mot de passe maître (confirmer)",
+  "txt_organizations_access_per_collection": "Par collection",
 });
 
 export default fr;

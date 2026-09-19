@@ -1566,6 +1566,7 @@ Object.assign(sv, { "txt_password_security_show_all": "Show all", "txt_password_
   "txt_admin_org_self_service_enable": "Aktivera självbetjäningsregistrering",
   "txt_admin_org_self_service_disable": "Inaktivera självbetjäningsregistrering",
   "txt_admin_org_self_service_password_placeholder": "Huvudlösenord (bekräfta)",
+  "txt_organizations_access_per_collection": "Per samling",
 });
 
 export default sv;

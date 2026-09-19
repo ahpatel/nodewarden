@@ -1566,6 +1566,7 @@ Object.assign(fi, { "txt_password_security_show_all": "Show all", "txt_password_
   "txt_admin_org_self_service_enable": "Ota itsepalvelurekisteröinti käyttöön",
   "txt_admin_org_self_service_disable": "Poista itsepalvelurekisteröinti käytöstä",
   "txt_admin_org_self_service_password_placeholder": "Pääsalasana (vahvista)",
+  "txt_organizations_access_per_collection": "Kokoelmittain",
 });
 
 export default fi;
