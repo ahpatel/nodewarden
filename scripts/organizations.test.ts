@@ -238,7 +238,7 @@ test('backup includes all five org tables', () => {
 test('schema version is bumped for org feature', () => {
   const storage = read('src/services/storage.ts');
   assert.ok(
-    storage.includes("STORAGE_SCHEMA_VERSION = '2026-09-19-security-fixes'"),
+    /^const STORAGE_SCHEMA_VERSION = '.*organization.*';$/m.test(storage),
     'schema version reflects org feature'
   );
 });

@@ -105,8 +105,10 @@ import {
   handleConfirmOrganizationUser,
   handleCreateOrganization,
   handleCreateOrganizationCollection,
+  handleCreateOrganizationFolder,
   handleDeleteOrganization,
   handleDeleteOrganizationCollection,
+  handleDeleteOrganizationFolder,
   handleGetOrganization,
   handleGetOrganizationCollectionDetails,
   handleGetOrganizationUser,
@@ -115,10 +117,12 @@ import {
   handleListMyCollections,
   handleListMyOrganizations,
   handleListOrganizationCollections,
+  handleListOrganizationFolders,
   handleListOrganizationUsers,
   handleRemoveOrganizationUser,
   handleUpdateOrganization,
   handleUpdateOrganizationCollection,
+  handleUpdateOrganizationFolder,
   handleUpdateOrganizationUser,
 } from './handlers/organizations';
 
@@ -500,6 +504,29 @@ export async function handleAuthenticatedRoute(
       if (method === 'GET') return handleListOrganizationCollections(request, env, userId, organizationId);
       if (method === 'POST') return handleCreateOrganizationCollection(request, env, userId, organizationId);
       return errorResponse('Method not allowed', 405);
+    }
+
+    if (orgSubPath === '/folders' || orgSubPath === '/folders/') {
+      if (method === 'GET') return handleListOrganizationFolders(request, env, userId, organizationId);
+      if (method === 'POST') return handleCreateOrganizationFolder(request, env, userId, organizationId);
+      return errorResponse('Method not allowed', 405);
+    }
+
+    const orgFolderMatch = orgSubPath.match(/^\/folders\/([a-f0-9-]+)(\/.*)?$/i);
+    if (orgFolderMatch) {
+      const folderId = orgFolderMatch[1];
+      const folderSubPath = orgFolderMatch[2] || '';
+
+      if (folderSubPath === '' || folderSubPath === '/') {
+        if (method === 'PUT') return handleUpdateOrganizationFolder(request, env, userId, organizationId, folderId);
+        if (method === 'DELETE') return handleDeleteOrganizationFolder(request, env, userId, organizationId, folderId);
+        return errorResponse('Method not allowed', 405);
+      }
+
+      if (folderSubPath === '/delete' && (method === 'POST' || method === 'PUT' || method === 'DELETE')) {
+        return handleDeleteOrganizationFolder(request, env, userId, organizationId, folderId);
+      }
+      return null;
     }
 
     const orgCollectionMatch = orgSubPath.match(/^\/collections\/([a-f0-9-]+)(\/.*)?$/i);
