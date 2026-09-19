@@ -459,7 +459,7 @@ export async function getAllCiphersIncludingOrgs(db: D1Database, userId: string)
 
   const orgResult = await db
     .prepare(
-      `SELECT c.id, c.user_id, c.organization_id, c.type, c.folder_id, c.name, c.notes, c.favorite, c.data,
+      `SELECT c.id, c.user_id, c.organization_id, c.organization_folder_id, c.type, c.folder_id, c.name, c.notes, c.favorite, c.data,
               c.reprompt, c.key, c.created_at, c.updated_at, c.archived_at, c.deleted_at,
               ou.id AS ou_id, ou.access_all AS ou_access_all
        FROM ciphers c

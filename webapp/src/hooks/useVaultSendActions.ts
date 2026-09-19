@@ -56,6 +56,8 @@ import {
   uploadCipherAttachment,
 } from '@/lib/api/vault';
 import { deriveLoginHash, getPreloginKdfConfig, verifyMasterPassword } from '@/lib/api/auth';
+import { createOrganizationFolder } from '@/lib/api/organizations';
+import { encryptWithOrgKey } from '@/lib/org-crypto';
 import type { AuthedFetch } from '@/lib/api/shared';
 import { downloadBytesAsFile } from '@/lib/download';
 import type { Cipher, Folder as VaultFolder, Profile, Send, SendDraft, SessionState, VaultDraft } from '@/lib/types';
@@ -1022,6 +1024,31 @@ export default function useVaultSendActions(options: UseVaultSendActionsOptions)
           onNotify('success', t('txt_folder_updated'));
         } catch (error) {
           onNotify('error', error instanceof Error ? error.message : t('txt_update_folder_failed'));
+          throw error;
+        }
+      },
+
+      // Create an organization folder from the vault editor's folder picker
+      // (owners/admins). Returns the new folder id so the picker can select it.
+      async createOrganizationFolderFromVault(organizationId: string, name: string): Promise<string | null> {
+        const orgId = String(organizationId || '').trim();
+        const folderName = String(name || '').trim();
+        if (!orgId || !folderName) return null;
+        const material = orgKeys?.[orgId];
+        if (!material) throw new Error(t('txt_import_org_key_unavailable'));
+        try {
+          const encName = await encryptWithOrgKey(folderName, {
+            encB64: material.encB64,
+            macB64: material.macB64,
+            encBytes: base64ToBytes(material.encB64),
+            macBytes: base64ToBytes(material.macB64),
+          });
+          const created = await createOrganizationFolder(authedFetch, orgId, encName);
+          await Promise.all([refetchFolders()]);
+          await refreshVaultRevisionStamp();
+          return created?.id || null;
+        } catch (error) {
+          onNotify('error', error instanceof Error ? error.message : t('txt_organizations_folder_create_failed'));
           throw error;
         }
       },

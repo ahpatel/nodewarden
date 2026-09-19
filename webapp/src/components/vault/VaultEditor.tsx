@@ -29,6 +29,8 @@ interface VaultEditorProps {
   selectedCipher: Cipher | null;
   /** Confirmed organizations available for create/transfer. */
   organizations?: Array<{ id: string; name: string; keyAvailable: boolean; type: number }>;
+  /** Creates an org folder from the picker (owners/admins); returns its id. */
+  onCreateOrgFolder?: (organizationId: string, name: string) => Promise<string | null>;
   /** All collections the user can see (decrypted names). */
   collections?: VaultCollection[];
   editExistingAttachments: Array<any>;
@@ -150,6 +152,39 @@ export default function VaultEditor(props: VaultEditorProps) {
   const [totpQrStatus, setTotpQrStatus] = useState('');
   const [totpQrBusy, setTotpQrBusy] = useState(false);
   useDialogLifecycle(totpQrOpen, () => setTotpQrOpen(false));
+
+  // Inline org-folder creation from the folder picker (owners/admins only).
+  const [orgFolderPromptOpen, setOrgFolderPromptOpen] = useState(false);
+  const [orgFolderPromptName, setOrgFolderPromptName] = useState('');
+  const [orgFolderPromptBusy, setOrgFolderPromptBusy] = useState(false);
+  useDialogLifecycle(orgFolderPromptOpen, () => setOrgFolderPromptOpen(false));
+
+  const selectedOrg = (props.organizations || []).find(
+    (organization) => organization.id === props.draft.organizationId
+  ) || null;
+  const canCreateOrgFolders = !!selectedOrg && (selectedOrg.type === 0 || selectedOrg.type === 1);
+  const editorOrgFolders = props.folders.filter(
+    (folder) => folder.organizationId === props.draft.organizationId
+  );
+
+  async function submitNewOrgFolder(): Promise<void> {
+    if (!props.onCreateOrgFolder || !props.draft.organizationId || orgFolderPromptBusy) return;
+    const name = orgFolderPromptName.trim();
+    if (!name) return;
+    setOrgFolderPromptBusy(true);
+    try {
+      const folderId = await props.onCreateOrgFolder(props.draft.organizationId, name);
+      if (folderId) {
+        props.onUpdateDraft({ folderId });
+        setOrgFolderPromptOpen(false);
+        setOrgFolderPromptName('');
+      }
+    } catch {
+      // The action layer already shows the error toast.
+    } finally {
+      setOrgFolderPromptBusy(false);
+    }
+  }
 
   const stopTotpQrScanner = () => {
     if (totpQrFrameRef.current != null) {
@@ -380,22 +415,39 @@ export default function VaultEditor(props: VaultEditorProps) {
           </label>
           <label className="field">
             <span>{t('txt_folder')}</span>
-            <select className="input" value={props.draft.folderId} onInput={(e) => props.onUpdateDraft({ folderId: (e.currentTarget as HTMLSelectElement).value })}>
+            <select
+              className="input"
+              value={props.draft.folderId}
+              onInput={(e) => {
+                const select = e.currentTarget as HTMLSelectElement;
+                // The inline-create sentinel opens the prompt instead of
+                // changing the filing.
+                if (select.value === '__create_org_folder__') {
+                  select.value = props.draft.folderId || '';
+                  if (canCreateOrgFolders) {
+                    setOrgFolderPromptName('');
+                    setOrgFolderPromptOpen(true);
+                  }
+                  return;
+                }
+                props.onUpdateDraft({ folderId: select.value });
+              }}
+            >
               <option value="">{t('txt_no_folder')}</option>
               {/* Org items are filed in organization folders; personal items in
                   user folders. Both namespaces travel as folderId — the
                   server resolves which one a payload references. */}
-              {props.folders
-                .filter((folder) =>
-                  props.draft.organizationId
-                    ? folder.organizationId === props.draft.organizationId
-                    : !folder.organizationId
-                )
-                .map((folder) => (
-                  <option key={folder.id} value={folder.id}>
-                    {folder.decName || folder.name || folder.id}
-                  </option>
-                ))}
+              {(props.draft.organizationId ? editorOrgFolders : props.folders.filter((folder) => !folder.organizationId)).map((folder) => (
+                <option key={folder.id} value={folder.id}>
+                  {folder.decName || folder.name || folder.id}
+                </option>
+              ))}
+              {props.draft.organizationId && canCreateOrgFolders && !!props.onCreateOrgFolder && (
+                <option value="__create_org_folder__">{t('txt_organizations_folder_create_option')}</option>
+              )}
+              {props.draft.organizationId && !canCreateOrgFolders && editorOrgFolders.length === 0 && (
+                <option value="" disabled>{t('txt_organizations_folder_empty_hint')}</option>
+              )}
             </select>
           </label>
           {(props.organizations || []).filter((organization) => organization.keyAvailable).length > 0 && (
@@ -876,6 +928,38 @@ export default function VaultEditor(props: VaultEditorProps) {
         )}
       </div>
       {props.localError && <div className="local-error">{props.localError}</div>}
+      {orgFolderPromptOpen && typeof document !== 'undefined' ? createPortal((
+        <div className="dialog-mask open" onClick={(event) => event.target === event.currentTarget && !orgFolderPromptBusy && setOrgFolderPromptOpen(false)}>
+          <section className="dialog-card open" role="dialog" aria-modal="true" aria-label={t('txt_organizations_folder_create_prompt_title')}>
+            <h3 className="dialog-title">{t('txt_organizations_folder_create_prompt_title')}</h3>
+            <p className="dialog-message">{t('txt_organizations_folder_create_prompt_hint')}</p>
+            <label className="field">
+              <span>{t('txt_folder_name')}</span>
+              <input
+                type="text"
+                className="input"
+                value={orgFolderPromptName}
+                disabled={orgFolderPromptBusy}
+                onInput={(event) => setOrgFolderPromptName((event.target as HTMLInputElement).value)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') {
+                    event.preventDefault();
+                    void submitNewOrgFolder();
+                  }
+                }}
+              />
+            </label>
+            <div className="actions">
+              <button type="button" className="btn btn-secondary dialog-btn" disabled={orgFolderPromptBusy} onClick={() => setOrgFolderPromptOpen(false)}>
+                {t('txt_cancel')}
+              </button>
+              <button type="button" className="btn btn-primary dialog-btn" disabled={orgFolderPromptBusy || !orgFolderPromptName.trim()} onClick={() => void submitNewOrgFolder()}>
+                {t('txt_create')}
+              </button>
+            </div>
+          </section>
+        </div>
+      ), document.body) : null}
       {totpQrOpen && typeof document !== 'undefined' ? createPortal((
         <div className="dialog-mask totp-scan-mask open" onClick={(event) => event.target === event.currentTarget && setTotpQrOpen(false)}>
           <section className="dialog-card totp-scan-dialog open" role="dialog" aria-modal="true" aria-label={t('txt_scan_totp_qr')}>

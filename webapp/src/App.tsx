@@ -1342,7 +1342,7 @@ export default function App() {
     if (IS_DEMO_MODE || !organizations.length || !session?.symEncKey || !session?.symMacKey || !profile?.privateKey) {
       if (!IS_DEMO_MODE) {
         setOrgKeys(null);
-        setDecryptedOrganizations(profileOrganizations.map((org) => ({ id: org.id, name: '', keyAvailable: false, type: Number(org.type) || 2 })));
+        setDecryptedOrganizations(profileOrganizations.map((org) => ({ id: org.id, name: '', keyAvailable: false, type: Number.isFinite(Number(org.type)) ? Number(org.type) : 2 })));
       }
       return;
     }
@@ -1354,7 +1354,7 @@ export default function App() {
       if (!privateKeyPkcs8) {
         if (active) {
           setOrgKeys(null);
-          setDecryptedOrganizations(organizations.map((org) => ({ id: org.id, name: '', keyAvailable: false, type: Number(org.type) || 2 })));
+          setDecryptedOrganizations(organizations.map((org) => ({ id: org.id, name: '', keyAvailable: false, type: Number.isFinite(Number(org.type)) ? Number(org.type) : 2 })));
         }
         return;
       }
@@ -1373,7 +1373,7 @@ export default function App() {
         if (parts) {
           nextKeys[org.id] = { encB64: parts.encB64, macB64: parts.macB64 };
         }
-        nextOrganizations.push({ id: org.id, name, keyAvailable: !!parts, type: Number(org.type) || 2 });
+        nextOrganizations.push({ id: org.id, name, keyAvailable: !!parts, type: Number.isFinite(Number(org.type)) ? Number(org.type) : 2 });
       }
       if (active) {
         setOrgKeys(Object.keys(nextKeys).length ? nextKeys : null);
@@ -1571,6 +1571,9 @@ export default function App() {
       ciphers: Array.isArray(snapshot?.ciphers) ? snapshot.ciphers : [],
       folders: Array.isArray(snapshot?.folders) ? snapshot.folders : [],
       sends: Array.isArray(snapshot?.sends) ? snapshot.sends : [],
+      // Org collections ride the same snapshot; dropping them would empty the
+      // editor's collection list on cache-served loads.
+      collections: Array.isArray(snapshot?.collections) ? snapshot.collections : [],
     };
   }
 
@@ -2185,6 +2188,7 @@ export default function App() {
     onBulkUnarchiveVaultItems: vaultSendActions.bulkUnarchiveVaultItems,
     onBulkMoveVaultItems: vaultSendActions.bulkMoveVaultItems,
     onShareVaultItemToOrganization: vaultSendActions.shareVaultItemToOrganization,
+    onCreateOrgFolder: vaultSendActions.createOrganizationFolderFromVault,
     onVerifyMasterPassword: vaultSendActions.verifyMasterPassword,
     onCreateFolder: vaultSendActions.createFolder,
     onRenameFolder: vaultSendActions.renameFolder,

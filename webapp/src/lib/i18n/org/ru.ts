@@ -112,7 +112,11 @@ const orgRu: Record<string, string> = {
   "txt_organizations_folder_create_failed": "Не удалось создать папку",
   "txt_organizations_folder_deleted": "Папка удалена",
   "txt_organizations_folder_delete_failed": "Не удалось удалить папку",
-  "txt_organizations_no_folders": "В этой организации пока нет папок."
+  "txt_organizations_no_folders": "В этой организации пока нет папок.",
+  "txt_organizations_folder_create_option": "Новая папка организации…",
+  "txt_organizations_folder_empty_hint": "Папок организации пока нет",
+  "txt_organizations_folder_create_prompt_title": "Новая папка организации",
+  "txt_organizations_folder_create_prompt_hint": "Папка будет доступна всем участникам организации."
 };
 
 export default orgRu;

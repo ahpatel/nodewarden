@@ -112,7 +112,11 @@ const orgDe: Record<string, string> = {
   "txt_organizations_folder_create_failed": "Ordner konnte nicht erstellt werden",
   "txt_organizations_folder_deleted": "Ordner gelöscht",
   "txt_organizations_folder_delete_failed": "Ordner konnte nicht gelöscht werden",
-  "txt_organizations_no_folders": "Diese Organisation hat noch keine Ordner."
+  "txt_organizations_no_folders": "Diese Organisation hat noch keine Ordner.",
+  "txt_organizations_folder_create_option": "Neue Organisationsordner…",
+  "txt_organizations_folder_empty_hint": "Noch keine Organisationsordner",
+  "txt_organizations_folder_create_prompt_title": "Neuer Organisationsordner",
+  "txt_organizations_folder_create_prompt_hint": "Der Ordner wird mit allen Organisationsmitgliedern geteilt."
 };
 
 export default orgDe;

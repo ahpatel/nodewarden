@@ -112,7 +112,11 @@ const orgZhCN: Record<string, string> = {
   "txt_organizations_folder_create_failed": "创建文件夹失败",
   "txt_organizations_folder_deleted": "文件夹已删除",
   "txt_organizations_folder_delete_failed": "删除文件夹失败",
-  "txt_organizations_no_folders": "该组织还没有文件夹。"
+  "txt_organizations_no_folders": "该组织还没有文件夹。",
+  "txt_organizations_folder_create_option": "新建组织文件夹…",
+  "txt_organizations_folder_empty_hint": "还没有组织文件夹",
+  "txt_organizations_folder_create_prompt_title": "新建组织文件夹",
+  "txt_organizations_folder_create_prompt_hint": "该文件夹与组织所有成员共享。"
 };
 
 export default orgZhCN;
