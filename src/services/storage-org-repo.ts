@@ -1,4 +1,5 @@
 import type { Organization, OrganizationUser, OrganizationUserStatus, OrganizationUserType, Collection } from '../types';
+import { ORG_USER_STATUS, ORG_USER_TYPE } from '../config/org';
 
 function mapOrganizationRow(row: any): Organization {
   return {
@@ -135,7 +136,7 @@ export async function deleteOrganizationForOwner(
     .prepare(
       'DELETE FROM organizations WHERE id = ? AND EXISTS (' +
         'SELECT 1 FROM organization_users ou ' +
-        'WHERE ou.organization_id = organizations.id AND ou.user_id = ? AND ou.type = 0 AND ou.status = 2' +
+        'WHERE ou.organization_id = organizations.id AND ou.user_id = ? AND ou.type = ${ORG_USER_TYPE.OWNER} AND ou.status = ${ORG_USER_STATUS.CONFIRMED}' +
       ')'
     )
     .bind(organizationId, ownerUserId)
@@ -210,9 +211,31 @@ export async function deleteOrganizationUser(db: D1Database, id: string): Promis
   await db.prepare('DELETE FROM organization_users WHERE id = ?').bind(id).run();
 }
 
+// Delete a membership in one statement that refuses to remove the last
+// confirmed Owner of the organization — the correlated count re-evaluates at
+// execution time and D1 serializes writes, so two concurrent owners demoting
+// or removing each other cannot both succeed (a check-then-act count would
+// let both through and strand an ownerless org). Returns false when the row
+// is missing or it is the last confirmed Owner.
+export async function deleteOrganizationUserGuardingLastOwner(
+  db: D1Database,
+  organizationUserId: string
+): Promise<boolean> {
+  const result = await db
+    .prepare(
+      'DELETE FROM organization_users WHERE id = ? AND (type != 0 OR (' +
+      'SELECT COUNT(*) FROM organization_users o2 ' +
+      'WHERE o2.organization_id = organization_users.organization_id AND o2.type = ' + ORG_USER_TYPE.OWNER + ' AND o2.status = ' + ORG_USER_STATUS.CONFIRMED +
+      ') > 1)'
+    )
+    .bind(organizationUserId)
+    .run();
+  return (result.meta.changes ?? 0) > 0;
+}
+
 export async function countOrganizationOwners(db: D1Database, organizationId: string): Promise<number> {
   const row = await db
-    .prepare('SELECT COUNT(*) AS count FROM organization_users WHERE organization_id = ? AND type = 0')
+    .prepare('SELECT COUNT(*) AS count FROM organization_users WHERE organization_id = ? AND type = ' + ORG_USER_TYPE.OWNER)
     .bind(organizationId)
     .first<{ count: number }>();
   return Number(row?.count || 0);
@@ -223,7 +246,7 @@ export async function countConfirmedOrganizationOwners(
   organizationId: string
 ): Promise<number> {
   const row = await db
-    .prepare('SELECT COUNT(*) AS count FROM organization_users WHERE organization_id = ? AND type = 0 AND status = 2')
+    .prepare('SELECT COUNT(*) AS count FROM organization_users WHERE organization_id = ? AND type = ${ORG_USER_TYPE.OWNER} AND status = ${ORG_USER_STATUS.CONFIRMED}')
     .bind(organizationId)
     .first<{ count: number }>();
   return Number(row?.count || 0);
@@ -235,7 +258,7 @@ export async function listConfirmedOrganizationUserIds(
 ): Promise<Array<{ id: string; userId: string }>> {
   const result = await db
     .prepare(
-      `SELECT id, user_id FROM organization_users WHERE organization_id = ? AND status = 2 AND user_id IS NOT NULL`
+      `SELECT id, user_id FROM organization_users WHERE organization_id = ? AND status = ${ORG_USER_STATUS.CONFIRMED} AND user_id IS NOT NULL`
     )
     .bind(organizationId)
     .all<{ id: string; user_id: string }>();
@@ -262,7 +285,7 @@ export async function listConfirmedOrganizationsForUser(
               ou.creation_date AS ou_creation_date, ou.revision_date AS ou_revision_date
        FROM organization_users ou
        JOIN organizations o ON o.id = ou.organization_id
-       WHERE ou.user_id = ? AND ou.status = 2
+       WHERE ou.user_id = ? AND ou.status = ${ORG_USER_STATUS.CONFIRMED}
        ORDER BY ou.creation_date ASC`
     )
     .bind(userId)
@@ -362,7 +385,8 @@ export async function transitionOrganizationUserStatus(
     userId?: string | null;
     type?: number;
     accessAll?: boolean;
-  }
+  },
+  options: { guardLastOwner?: boolean } = {}
 ): Promise<boolean> {
   const sets: string[] = [];
   const values: unknown[] = [];
@@ -389,9 +413,20 @@ export async function transitionOrganizationUserStatus(
   if (!sets.length) return false;
   sets.push('revision_date = ?');
   values.push(new Date().toISOString());
+  // Optional last-owner guard (see deleteOrganizationUserGuardingLastOwner):
+  // the write to an Owner row only commits while another confirmed Owner
+  // exists, evaluated atomically with the UPDATE. Used by the member-update
+  // path so a concurrent demote of the other owner cannot leave the org
+  // ownerless even when both requests passed the handler's upfront count.
+  const lastOwnerGuard = options.guardLastOwner
+    ? ' AND (type != 0 OR (' +
+      'SELECT COUNT(*) FROM organization_users o2 ' +
+      'WHERE o2.organization_id = organization_users.organization_id AND o2.type = ' + ORG_USER_TYPE.OWNER + ' AND o2.status = ' + ORG_USER_STATUS.CONFIRMED +
+      ') > 1)'
+    : '';
   const result = await db
     .prepare(
-      `UPDATE organization_users SET ${sets.join(', ')} WHERE id = ? AND status = ?`
+      `UPDATE organization_users SET ${sets.join(', ')} WHERE id = ? AND status = ?${lastOwnerGuard}`
     )
     .bind(...values, organizationUserId, Number(expectedStatus))
     .run();

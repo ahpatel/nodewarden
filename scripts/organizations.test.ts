@@ -1,3 +1,11 @@
+// Organization security-invariant tests.
+//
+// WHY SOURCE PATTERNS: the server handlers and storage repos import
+// Cloudflare Workers types (D1Database, Durable Object bindings) and have no
+// seams for node:test, so they cannot be imported here. The invariants below
+// are therefore asserted against the source files with regexes. Executable
+// behaviour that CAN run under tsx (org crypto, the hide-passwords strip
+// util) is covered by org-crypto.test.ts and hide-password.test.ts instead.
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { readFileSync } from 'node:fs';
@@ -14,18 +22,18 @@ function read(path: string): string {
 // (-1=Revoked, 0=Invited, 1=Accepted, 2=Confirmed) — no translation layer.
 
 test('organization user status is stored in Bitwarden wire enums natively', () => {
-  const orgs = read('src/handlers/organizations.ts');
+  const config = read('src/config/org.ts');
   assert.ok(
-    /REVOKED:\s*-1/.test(orgs) && /INVITED:\s*0/.test(orgs) && /ACCEPTED:\s*1/.test(orgs) && /CONFIRMED:\s*2/.test(orgs),
-    'stored status constants are -1/0/1/2'
+    /REVOKED:\s*-1/.test(config) && /INVITED:\s*0/.test(config) && /ACCEPTED:\s*1/.test(config) && /CONFIRMED:\s*2/.test(config),
+    'shared status constants are -1/0/1/2'
   );
   assert.ok(
-    !orgs.includes('wireOrganizationUserStatus'),
+    !read('src/handlers/organizations.ts').includes('wireOrganizationUserStatus'),
     'no translation layer: responses pass the stored value through'
   );
 });
 
-test('status SQL literals match the native enum (confirmed = 2)', () => {
+test('status SQL uses the shared enum constants, not bare literals', () => {
   for (const path of [
     'src/services/storage-org-repo.ts',
     'src/services/storage-cipher-repo.ts',
@@ -33,7 +41,8 @@ test('status SQL literals match the native enum (confirmed = 2)', () => {
   ]) {
     const src = read(path);
     assert.ok(!/status = 3/.test(src), `${path} has no pre-migration status = 3 literals`);
-    assert.ok(/status = 2/.test(src), `${path} uses the native confirmed value`);
+    assert.ok(!/status = 2\b/.test(src), `${path} has no bare confirmed literals`);
+    assert.ok(src.includes('ORG_USER_STATUS.CONFIRMED'), `${path} binds the shared confirmed constant`);
   }
 });
 
@@ -60,8 +69,9 @@ test('status migration to wire enums is race-free and one-shot', () => {
 });
 
 test('organization roles include Bitwarden Manager and Custom', () => {
+  const config = read('src/config/org.ts');
+  assert.ok(/MANAGER:\s*3/.test(config) && /CUSTOM:\s*4/.test(config), 'ORG_USER_TYPE covers Manager=3 and Custom=4');
   const orgs = read('src/handlers/organizations.ts');
-  assert.ok(/MANAGER:\s*3/.test(orgs) && /CUSTOM:\s*4/.test(orgs), 'ORG_USER_TYPE covers Manager=3 and Custom=4');
   const invite = orgs.slice(orgs.indexOf('handleInviteOrganizationUsers'));
   assert.ok(/\[0, 1, 2, 3, 4\]\.includes/.test(invite), 'invite type validation accepts the full Bitwarden range');
   const update = orgs.slice(orgs.indexOf('handleUpdateOrganizationUser'));
@@ -80,8 +90,8 @@ test('invite UI exposes Admin and Manager roles', () => {
 });
 
 test('organization type constants match client enum', () => {
-  const orgs = read('src/handlers/organizations.ts');
-  assert.ok(/OWNER:\s*0/.test(orgs) && /ADMIN:\s*1/.test(orgs) && /USER:\s*2/.test(orgs),
+  const config = read('src/config/org.ts');
+  assert.ok(/OWNER:\s*0/.test(config) && /ADMIN:\s*1/.test(config) && /USER:\s*2/.test(config),
     'ORG_USER_TYPE: Owner=0, Admin=1, User=2');
 });
 
@@ -116,7 +126,7 @@ test('org invite minting is gated by config flag', () => {
     'invite handler must check the config flag'
   );
   assert.ok(
-    orgs.includes("ORG_SELF_SERVICE_REGISTRATION_CONFIG_KEY = 'org.selfServiceRegistration'"),
+    read('src/config/org.ts').includes("ORG_SELF_SERVICE_REGISTRATION_CONFIG_KEY = 'org.selfServiceRegistration'"),
     'config key is org.selfServiceRegistration'
   );
   assert.ok(
@@ -130,7 +140,7 @@ test('org invite minting is gated by config flag', () => {
 test('confirmed org query filters by user and status', () => {
   const repo = read('src/services/storage-org-repo.ts');
   assert.ok(
-    repo.includes('WHERE ou.user_id = ? AND ou.status = 2'),
+    /WHERE ou\.user_id = \? AND ou\.status = \$\{ORG_USER_STATUS\.CONFIRMED\}/.test(repo),
     'org key distribution must be scoped to confirmed members only'
   );
 });
@@ -149,7 +159,7 @@ test('membership transitions are status-preconditioned', () => {
     'accept must transition from INVITED'
   );
   assert.ok(
-    orgs.includes('transitionOrganizationUserStatus(\n    organizationUserId,\n    isReconfirm ? ORG_USER_STATUS.CONFIRMED : ORG_USER_STATUS.ACCEPTED'),
+    /transitionOrganizationUserStatus\(\s*organizationUserId,\s*isReconfirm \? ORG_USER_STATUS\.CONFIRMED : ORG_USER_STATUS\.ACCEPTED/.test(orgs),
     'confirm must branch on re-confirm vs first-confirm'
   );
   assert.ok(
@@ -189,14 +199,15 @@ test('collection move endpoints enforce per-target editability', () => {
 // ─── hidePasswords server-side enforcement ─────────────────────────────────
 
 test('cipherToResponse strips password material when viewPassword is false', () => {
+  const util = read('src/utils/hide-password-material.ts');
+  assert.ok(util.includes('privateKey') && util.includes('accountNumber') && util.includes('HIDDEN_FIELD_TYPE'),
+    'the strip covers SSH private keys, bank account numbers, and hidden custom fields');
   const ciphers = read('src/handlers/ciphers.ts');
+  assert.ok(ciphers.includes('stripPasswordMaterial('),
+    'cipherToResponse wires the pure strip util');
   assert.ok(
-    ciphers.includes('responseLogin = { ...responseLogin, password: null, totp: null }'),
-    'hidePasswords must null login.password and login.totp server-side'
-  );
-  assert.ok(
-    ciphers.includes('responsePasswordHistory = null'),
-    'hidePasswords must null passwordHistory server-side'
+    ciphers.includes('responsePasswordHistory = responseStripped ? null : normalizedPasswordHistory'),
+    'hidePasswords nulls passwordHistory server-side'
   );
 });
 
@@ -223,7 +234,7 @@ test('attachment save upsert works for org ciphers', () => {
 test('confirmed owner count uses the native confirmed status only', () => {
   const repo = read('src/services/storage-org-repo.ts');
   assert.ok(
-    repo.includes("type = 0 AND status = 2"),
+    /type = \$\{ORG_USER_TYPE\.OWNER\} AND status = \$\{ORG_USER_STATUS\.CONFIRMED\}/.test(repo),
     'countConfirmedOrganizationOwners counts CONFIRMED owners only'
   );
 });
@@ -287,11 +298,15 @@ test('backup includes all five org tables', () => {
   }
 });
 
-test('schema version is bumped for org feature', () => {
+// The schema version is pinned exactly: the org feature ships three guarded
+// migrations (ciphers org-shape rebuild, wire-enum status shift, migration
+// marker), so a version bump must be a conscious change — update this
+// assertion in the same commit as the bump.
+test('schema version is pinned for the org feature', () => {
   const storage = read('src/services/storage.ts');
   assert.ok(
-    /^const STORAGE_SCHEMA_VERSION = '.*(organization|org|filing).*';$/m.test(storage),
-    'schema version reflects org feature'
+    storage.includes("const STORAGE_SCHEMA_VERSION = '2026-09-20-org-status-marker';"),
+    'schema version matches the shipped migrations'
   );
 });
 
@@ -441,7 +456,7 @@ test('org folder machinery is removed', () => {
   );
 });
 
-// ─── Atomic creation & preconditioned deletes (sorolaholvi review) ───────────
+// ─── Atomic creation & preconditioned deletes ───────────────────────────────
 
 test('organization creation is atomic (org + owner + default collection in one D1 batch)', () => {
   const repo = read('src/services/storage-org-repo.ts');
@@ -460,7 +475,7 @@ test('organization delete is owner-preconditioned in SQL', () => {
   const repo = read('src/services/storage-org-repo.ts');
   const del = repo.slice(repo.indexOf('export async function deleteOrganizationForOwner'));
   assert.ok(
-    /DELETE FROM organizations[\s\S]*?EXISTS \([\s\S]*?ou\.type = 0[\s\S]*?ou\.status =/.test(del),
+    /DELETE FROM organizations[\s\S]*?EXISTS \([\s\S]*?ou\.type = \$\{ORG_USER_TYPE\.OWNER\}[\s\S]*?ou\.status = \$\{ORG_USER_STATUS\.CONFIRMED\}/.test(del),
     'delete verifies confirmed owner membership inside the DELETE statement'
   );
   assert.ok(
@@ -511,4 +526,52 @@ test('collection handlers live in their own module', () => {
     router.includes("./handlers/collections'"),
     'the router dispatches to the collections module'
   );
+});
+
+// ─── Accept-invitation email binding ────────────────────────────────────────
+// The invite is an email-string record; accepting must prove the acting
+// account owns that email or invitations could be hijacked by any member.
+
+test('accepting an invitation is bound to the invited email', () => {
+  const orgs = read('src/handlers/organizations.ts');
+  const accept = orgs.slice(orgs.indexOf('handleAcceptOrganizationInvitation'));
+  assert.ok(
+    accept.includes('organizationUser.email !== user.email'),
+    'accept compares the invited email against the acting account email'
+  );
+  assert.ok(
+    /This invitation was issued for a different email address/.test(accept),
+    'a mismatched email is rejected'
+  );
+  assert.ok(
+    accept.includes('ORG_USER_STATUS.INVITED'),
+    'accept only transitions INVITED memberships'
+  );
+});
+
+// ─── Owner-gate sweep ────────────────────────────────────────────────────────
+// Every management operation must pass the single owner gate.
+
+test('all organization management handlers pass the owner gate', () => {
+  const orgs = read('src/handlers/organizations.ts');
+  const collections = read('src/handlers/collections.ts');
+  const gated: Array<[string, string]> = [
+    [orgs, 'handleUpdateOrganization'],
+    [orgs, 'handleDeleteOrganization'],
+    [orgs, 'handleInviteOrganizationUsers'],
+    [orgs, 'handleUpdateOrganizationUser'],
+    [orgs, 'handleRemoveOrganizationUser'],
+    [orgs, 'handleConfirmOrganizationUser'],
+    [collections, 'handleCreateOrganizationCollection'],
+    [collections, 'handleListOrganizationCollections'],
+    [collections, 'handleUpdateOrganizationCollection'],
+    [collections, 'handleDeleteOrganizationCollection'],
+  ];
+  for (const [src, name] of gated) {
+    const fn = src.slice(src.indexOf(`export async function ${name}`));
+    assert.ok(
+      fn.includes('requireOrganizationOwner'),
+      `${name} must pass the owner gate`
+    );
+  }
 });

@@ -1141,15 +1141,10 @@ const folderName = useCallback((id: string | null | undefined): string => {
   }
 
   async function confirmDeleteAllFolders(): Promise<void> {
-    // Only personal folders; organization folders are managed in the org
-    // console and must never be swept by this action.
-    const personalFolderIds = props.folders
-      .filter((folder) => !folder.organizationId)
-      .map((folder) => folder.id);
-    if (!personalFolderIds.length) return;
+    if (!props.folders.length) return;
     setBusy(true);
     try {
-      await props.onBulkDeleteFolders(personalFolderIds);
+      await props.onBulkDeleteFolders(props.folders.map((folder) => folder.id));
       if (sidebarFilter.kind === 'folder') {
         setSidebarFilter({ kind: 'all' });
       }

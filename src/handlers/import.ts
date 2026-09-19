@@ -6,7 +6,7 @@ import { readActingDeviceIdentifier } from '../utils/device';
 import { generateUUID } from '../utils/uuid';
 import { LIMITS } from '../config/limits';
 import { bumpOrganizationMembers } from '../utils/org-notify';
-import { ORG_USER_STATUS } from './organizations';
+import { ORG_SELF_SERVICE_REGISTRATION_CONFIG_KEY, ORG_USER_STATUS, ORG_USER_TYPE } from '../config/org';
 import { normalizeCipherLoginForStorage, normalizeCipherSshKeyForCompatibility, validateCipherEncryptedFieldsForCompatibility } from './ciphers';
 
 // Bitwarden client import request format

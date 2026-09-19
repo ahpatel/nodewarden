@@ -15,7 +15,7 @@ import {
 } from '../types';
 import { StorageService } from '../services/storage';
 import { bumpOrganizationMembers } from '../utils/org-notify';
-import { ORG_USER_STATUS, ORG_USER_TYPE } from './organizations';
+import { ORG_SELF_SERVICE_REGISTRATION_CONFIG_KEY, ORG_USER_STATUS, ORG_USER_TYPE } from '../config/org';
 import type { CipherAccessInfo } from '../services/storage-collection-repo';
 import {
   notifyUserCipherCreate,
@@ -29,6 +29,7 @@ import { generateUUID } from '../utils/uuid';
 import { deleteAllAttachmentsForCipher, deleteAllAttachmentsForCiphers } from './attachments';
 import { parsePagination, encodeContinuationToken } from '../utils/pagination';
 import { readActingDeviceIdentifier } from '../utils/device';
+import { stripPasswordMaterial } from '../utils/hide-password-material';
 import { auditRequestMetadata, writeAuditEvent } from '../services/audit-events';
 import { readNullableFullUpdateField } from './cipher-full-update';
 
@@ -909,16 +910,34 @@ export function cipherToResponse(
   // material before it leaves the server. The member holds the org key (it
   // is wrapped to their public key), so delivering the ciphertext would let
   // them decrypt everything the owner tried to restrict. The viewPassword
-  // flag alone is advisory — clients may ignore it.
+  // flag alone is advisory — clients may ignore it. The strip covers every
+  // password-bearing field across all cipher types (see the pure util — it
+  // is extracted so the behaviour is testable outside the runtime).
   const responseViewPassword = readBooleanOrFallback((passthrough as any).viewPassword, true);
-  let responseLogin = normalizedLogin;
-  let responsePasswordHistory = normalizePasswordHistoryForCompatibility((passthrough as any).passwordHistory);
-  if (!responseViewPassword) {
-    if (responseLogin) {
-      responseLogin = { ...responseLogin, password: null, totp: null };
-    }
-    responsePasswordHistory = null;
-  }
+  const normalizedFields = normalizeCipherFieldsForCompatibility((passthrough as any).fields);
+  const normalizedPasswordHistory = normalizePasswordHistoryForCompatibility((passthrough as any).passwordHistory);
+  const responseStripped = !responseViewPassword
+    ? stripPasswordMaterial({
+        login: normalizedLogin as any,
+        card: normalizedCard as any,
+        identity: normalizedIdentity as any,
+        sshKey: normalizedSshKey as any,
+        bankAccount: normalizedBankAccount as any,
+        driversLicense: normalizedDriversLicense as any,
+        passport: normalizedPassport as any,
+        fields: normalizedFields as any,
+        passwordHistory: normalizedPasswordHistory as any,
+      })
+    : null;
+  const responseLogin = (responseStripped?.login ?? normalizedLogin) as any;
+  const responseCard = responseStripped?.card ?? normalizedCard;
+  const responseIdentity = responseStripped?.identity ?? normalizedIdentity;
+  const responseFields = (responseStripped?.fields ?? normalizedFields) as any;
+  const responsePasswordHistory = responseStripped ? null : normalizedPasswordHistory;
+  const responseSshKey = responseStripped?.sshKey ?? normalizedSshKey;
+  const responseBankAccount = responseType === 6 ? (responseStripped?.bankAccount ?? normalizedBankAccount) : null;
+  const responseDriversLicense = responseType === 7 ? (responseStripped?.driversLicense ?? normalizedDriversLicense) : null;
+  const responsePassport = responseType === 8 ? (responseStripped?.passport ?? normalizedPassport) : null;
 
   return {
     // Pass through ALL stored cipher fields (known + unknown)
@@ -931,8 +950,6 @@ export function cipherToResponse(
     type: responseType,
     organizationId: normalizeOptionalId((passthrough as any).organizationId ?? null),
     organizationUseTotp: !!((passthrough as any).organizationUseTotp ?? false),
-    // Internal storage detail — never exposed on the wire (see folderId above).
-    organizationFolderId: undefined,
     creationDate: createdAt,
     revisionDate: updatedAt,
     deletedDate: deletedAt,
@@ -946,15 +963,15 @@ export function cipherToResponse(
     name: isValidEncString(cipher.name) ? cipher.name.trim() : cipher.name,
     notes: optionalEncString(cipher.notes),
     login: responseLogin,
-    card: normalizedCard,
-    identity: normalizedIdentity,
+    card: responseCard,
+    identity: responseIdentity,
     secureNote: normalizedSecureNote,
-    fields: normalizeCipherFieldsForCompatibility((passthrough as any).fields),
+    fields: responseFields,
     passwordHistory: responsePasswordHistory,
-    sshKey: normalizedSshKey,
-    bankAccount: responseType === 6 ? normalizedBankAccount : null,
-    driversLicense: responseType === 7 ? normalizedDriversLicense : null,
-    passport: responseType === 8 ? normalizedPassport : null,
+    sshKey: responseSshKey,
+    bankAccount: responseBankAccount,
+    driversLicense: responseDriversLicense,
+    passport: responsePassport,
     key: responseCipherKey,
     data: typeof (passthrough as any).data === 'string' ? (passthrough as any).data : null,
     encryptedFor: (passthrough as any).encryptedFor ?? null,
@@ -1142,7 +1159,6 @@ export async function handleCreateCipher(request: Request, env: Env, userId: str
 
     cipher.userId = null;
     cipher.organizationId = createOrganizationId;
-    cipher.organizationFolderId = null;
     cipher.folderId = createCipherFolderId;
     cipher.collectionIds = createCollectionIds;
     await storage.saveCipher(cipher);
@@ -1915,7 +1931,6 @@ export async function handleShareCipher(request: Request, env: Env, userId: stri
     id: cipher.id,
     userId: null,
     organizationId,
-    organizationFolderId: null,
     folderId: requestedFolderId,
     favorite: !!cipherData.favorite,
     reprompt: Number(cipherData.reprompt) || 0,

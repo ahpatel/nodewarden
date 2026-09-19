@@ -75,9 +75,8 @@ import {
   countConfirmedOrganizationOwners as countStoredConfirmedOrgOwners,
   createOrganizationWithOwner as createStoredOrganizationWithOwner,
   deleteOrganizationForOwner as deleteStoredOrganizationForOwner,
-  countOrganizationOwners as countStoredOrgOwners,
-  deleteOrganization as deleteStoredOrganization,
   deleteOrganizationUser as deleteStoredOrganizationUser,
+  deleteOrganizationUserGuardingLastOwner as deleteStoredOrganizationUserGuardingLastOwner,
   getOrganization as findStoredOrganization,
   getOrganizationUser as findStoredOrganizationUser,
   getOrganizationUserByEmail as findStoredOrganizationUserByEmail,
@@ -101,7 +100,6 @@ import {
 import {
   type CipherAccessInfo,
   type UserCollectionAccess,
-  deleteCollection as deleteStoredCollection,
   deleteCollectionForOwner as deleteStoredCollectionForOwner,
   getCollectionsByIds as listStoredCollectionsByIds,
   getCollection as findStoredCollection,
@@ -614,10 +612,6 @@ export class StorageService {
     await saveStoredOrganization(this.db, organization);
   }
 
-  async deleteOrganization(id: string): Promise<void> {
-    await deleteStoredOrganization(this.db, id);
-  }
-
   // Atomic org + owner (+ default collection) creation; see storage-org-repo.
   async createOrganizationWithOwner(
     organization: Organization,
@@ -658,17 +652,20 @@ export class StorageService {
   async transitionOrganizationUserStatus(
     organizationUserId: string,
     expectedStatus: number,
-    fields: { status?: number; key?: string | null; userId?: string | null; type?: number; accessAll?: boolean }
+    fields: { status?: number; key?: string | null; userId?: string | null; type?: number; accessAll?: boolean },
+    options?: { guardLastOwner?: boolean }
   ): Promise<boolean> {
-    return transitionStoredOrganizationUserStatus(this.db, organizationUserId, expectedStatus, fields);
+    return transitionStoredOrganizationUserStatus(this.db, organizationUserId, expectedStatus, fields, options);
   }
 
   async deleteOrganizationUser(id: string): Promise<void> {
     await deleteStoredOrganizationUser(this.db, id);
   }
 
-  async countOrganizationOwners(organizationId: string): Promise<number> {
-    return countStoredOrgOwners(this.db, organizationId);
+  // Race-free last-owner-guarded membership delete; returns false when the
+  // row is missing or is the last confirmed Owner of its organization.
+  async deleteOrganizationUserGuardingLastOwner(organizationUserId: string): Promise<boolean> {
+    return deleteStoredOrganizationUserGuardingLastOwner(this.db, organizationUserId);
   }
 
   async countConfirmedOrganizationOwners(organizationId: string): Promise<number> {
@@ -703,10 +700,6 @@ export class StorageService {
 
   async saveCollection(collection: Collection): Promise<void> {
     await saveStoredCollection(this.db, collection);
-  }
-
-  async deleteCollection(id: string): Promise<void> {
-    await deleteStoredCollection(this.db, id);
   }
 
   // Single-statement owner-preconditioned collection delete; returns false

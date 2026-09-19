@@ -8,6 +8,8 @@ import {
 // Safe chunk for bulk id-list SQL (under the D1 100-variable limit).
 const ID_LIST_CHUNK_SIZE = 90;
 
+import { ORG_USER_STATUS } from '../config/org';
+
 function normalizeOptionalId(value: unknown): string | null {
   if (value == null) return null;
   const normalized = String(value).trim();
@@ -22,7 +24,6 @@ interface CipherRow {
   id: string;
   user_id: string | null;
   organization_id: string | null;
-  organization_folder_id: string | null;
   type: number | null;
   folder_id: string | null;
   name: string | null;
@@ -99,7 +100,6 @@ function parseCipherRow(row: CipherRow | null | undefined): Cipher | null {
       id: row.id,
       userId: row.user_id ?? null,
       organizationId: normalizeOptionalId(row.organization_id ?? null),
-      organizationFolderId: normalizeOptionalId(row.organization_folder_id ?? null),
       type: Number(row.type) || Number(parsed.type) || 1,
       folderId,
       name: row.name ?? parsed.name ?? null,
@@ -119,7 +119,7 @@ function parseCipherRow(row: CipherRow | null | undefined): Cipher | null {
 }
 
 function selectCipherColumns(): string {
-  return 'id, user_id, organization_id, organization_folder_id, type, folder_id, name, notes, favorite, data, reprompt, key, created_at, updated_at, archived_at, deleted_at';
+  return 'id, user_id, organization_id, type, folder_id, name, notes, favorite, data, reprompt, key, created_at, updated_at, archived_at, deleted_at';
 }
 
 export async function getCipher(db: D1Database, id: string): Promise<Cipher | null> {
@@ -145,10 +145,10 @@ export async function saveCipher(db: D1Database, safeBind: SafeBind, cipher: Cip
   const folderId = cipher.organizationId ? null : normalizeOptionalId(cipher.folderId);
   const data = buildCipherData(cipher, folderId);
   const stmt = db.prepare(
-    'INSERT INTO ciphers(id, user_id, organization_id, organization_folder_id, type, folder_id, name, notes, favorite, data, reprompt, key, created_at, updated_at, archived_at, deleted_at) ' +
-    'VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ' +
+    'INSERT INTO ciphers(id, user_id, organization_id, type, folder_id, name, notes, favorite, data, reprompt, key, created_at, updated_at, archived_at, deleted_at) ' +
+    'VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ' +
     'ON CONFLICT(id) DO UPDATE SET ' +
-    'type=excluded.type, folder_id=excluded.folder_id, name=excluded.name, notes=excluded.notes, favorite=excluded.favorite, data=excluded.data, reprompt=excluded.reprompt, key=excluded.key, updated_at=excluded.updated_at, archived_at=excluded.archived_at, deleted_at=excluded.deleted_at, organization_folder_id=excluded.organization_folder_id ' +
+    'type=excluded.type, folder_id=excluded.folder_id, name=excluded.name, notes=excluded.notes, favorite=excluded.favorite, data=excluded.data, reprompt=excluded.reprompt, key=excluded.key, updated_at=excluded.updated_at, archived_at=excluded.archived_at, deleted_at=excluded.deleted_at ' +
     // IS comparison so organization ciphers (user_id NULL) can update.
     'WHERE user_id IS excluded.user_id'
   );
@@ -157,7 +157,6 @@ export async function saveCipher(db: D1Database, safeBind: SafeBind, cipher: Cip
     cipher.id,
     cipher.userId ?? null,
     normalizeOptionalId(cipher.organizationId),
-    cipher.organizationId ? normalizeOptionalId(cipher.organizationFolderId) : null,
     Number(cipher.type) || 1,
     folderId,
     cipher.name,
@@ -462,12 +461,12 @@ export async function getAllCiphersIncludingOrgs(db: D1Database, userId: string)
 
   const orgResult = await db
     .prepare(
-      `SELECT c.id, c.user_id, c.organization_id, c.organization_folder_id, c.type, c.folder_id, c.name, c.notes, c.favorite, c.data,
+      `SELECT c.id, c.user_id, c.organization_id, c.type, c.folder_id, c.name, c.notes, c.favorite, c.data,
               c.reprompt, c.key, c.created_at, c.updated_at, c.archived_at, c.deleted_at,
               ou.id AS ou_id, ou.access_all AS ou_access_all
        FROM ciphers c
        JOIN organization_users ou
-         ON ou.organization_id = c.organization_id AND ou.user_id = ? AND ou.status = 2
+         ON ou.organization_id = c.organization_id AND ou.user_id = ? AND ou.status = ${ORG_USER_STATUS.CONFIRMED}
        WHERE c.organization_id IS NOT NULL
          AND (ou.access_all = 1 OR EXISTS (
            SELECT 1 FROM cipher_collections cc
@@ -655,7 +654,6 @@ export async function listCipherIdsByOrganization(db: D1Database, organizationId
 // Move a personally-owned cipher into an organization. The user_id guard
 // proves the caller still owns the row at write time; the transfer nulls the
 // personal owner, sets the organization, and clears the personal folder (the
-// org filing lives in organization_folder_id).
 // saveCipher's upsert cannot express this because its conflict guard requires
 // user_id equality.
 export async function transferCipherToOrganization(
@@ -668,14 +666,13 @@ export async function transferCipherToOrganization(
   const data = buildCipherData(cipher, folderId);
   const stmt = db.prepare(
     'UPDATE ciphers SET ' +
-    'user_id = NULL, organization_id = ?, organization_folder_id = ?, folder_id = NULL, type = ?, name = ?, notes = ?, favorite = ?, ' +
+    'user_id = NULL, organization_id = ?, folder_id = NULL, type = ?, name = ?, notes = ?, favorite = ?, ' +
     'data = ?, reprompt = ?, key = ?, updated_at = ?, archived_at = ?, deleted_at = ? ' +
     'WHERE id = ? AND user_id = ?'
   );
   const result = await safeBind(
     stmt,
     normalizeOptionalId(cipher.organizationId),
-    cipher.organizationFolderId ?? null,
     Number(cipher.type) || 1,
     cipher.name,
     cipher.notes,

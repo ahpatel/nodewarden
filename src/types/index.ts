@@ -249,8 +249,6 @@ export interface Cipher {
   id: string;
   userId: string | null;
   organizationId?: string | null;
-  /** Org-cipher filing: references organization_folders.id; never a user folder. */
-  organizationFolderId?: string | null;
   type: CipherType;
   folderId: string | null;
   name: string | null;
@@ -303,6 +301,16 @@ export interface OrganizationUser {
   status: OrganizationUserStatus;
   type: OrganizationUserType;
   accessAll: boolean;
+  creationDate: string;
+  revisionDate: string;
+}
+
+export interface Collection {
+  id: string;
+  organizationId: string;
+  /** Encrypted with the organization key (EncString). */
+  name: string;
+  externalId: string | null;
   creationDate: string;
   revisionDate: string;
 }
@@ -704,10 +712,6 @@ export interface FolderResponse {
   revisionDate: string;
   creationDate: string;
   object: string;
-  /** NodeWarden extension: set for organization folders injected into the
-   *  folders list so the webapp can pick the decryption key; official clients
-   *  ignore the extra field. */
-  organizationId?: string;
 }
 
 export interface SyncResponse {
