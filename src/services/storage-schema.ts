@@ -89,11 +89,18 @@ const SCHEMA_STATEMENTS: readonly string[] = [
   'FOREIGN KEY (collection_id) REFERENCES collections(id) ON DELETE CASCADE)',
   'CREATE INDEX IF NOT EXISTS idx_cipher_collections_collection ON cipher_collections(collection_id)',
 
-  'CREATE TABLE IF NOT EXISTS organization_folders (' +
-  'id TEXT PRIMARY KEY, organization_id TEXT NOT NULL, name TEXT NOT NULL, ' +
-  'creation_date TEXT NOT NULL, revision_date TEXT NOT NULL, ' +
-  'FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE)',
-  'CREATE INDEX IF NOT EXISTS idx_organization_folders_org ON organization_folders(organization_id)',
+  // Per-user filing of organization ciphers: each member files shared items
+  // into their own personal folders (folder names are user-key encrypted, so
+  // a shared filing cannot cross members). Cascades unfile when the cipher,
+  // folder, or user is deleted.
+  'CREATE TABLE IF NOT EXISTS cipher_user_folders (' +
+  'cipher_id TEXT NOT NULL, user_id TEXT NOT NULL, folder_id TEXT NOT NULL, ' +
+  'created_at TEXT NOT NULL, updated_at TEXT NOT NULL, ' +
+  'PRIMARY KEY (cipher_id, user_id), ' +
+  'FOREIGN KEY (cipher_id) REFERENCES ciphers(id) ON DELETE CASCADE, ' +
+  'FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE, ' +
+  'FOREIGN KEY (folder_id) REFERENCES folders(id) ON DELETE CASCADE)',
+  'CREATE INDEX IF NOT EXISTS idx_cipher_user_folders_user ON cipher_user_folders(user_id)',
 
   'CREATE TABLE IF NOT EXISTS folders (' +
   'id TEXT PRIMARY KEY, user_id TEXT NOT NULL, name TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, ' +

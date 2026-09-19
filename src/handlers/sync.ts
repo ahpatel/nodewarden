@@ -11,7 +11,7 @@ import {
 import { buildDomainsResponse } from '../services/domain-rules';
 import { buildWebAuthnPrfOption } from '../utils/account-passkeys';
 import { buildProfileResponse } from '../utils/profile-response';
-import { profileOrganizationResponse, collectionToResponse, organizationFolderToSyncFolderResponse } from './organizations';
+import { profileOrganizationResponse, collectionToResponse } from './organizations';
 
 // CONTRACT:
 // /api/sync reuses cipherToResponse() as the single cipher response shaper.
@@ -78,13 +78,13 @@ export async function handleSync(request: Request, env: Env, userId: string): Pr
     return cachedResponse;
   }
 
-  const [folders, sends, domainSettings, organizations, collections, organizationFolders] = await Promise.all([
+  const [folders, sends, domainSettings, organizations, collections, cipherFolderAssignments] = await Promise.all([
     storage.getAllFolders(userId),
     excludeSends ? Promise.resolve([]) : storage.getAllSends(userId),
     excludeDomains ? Promise.resolve(null) : storage.getUserDomainSettings(userId),
     storage.listConfirmedOrganizationsForUser(userId),
     storage.listCollectionsForUser(userId),
-    storage.listOrganizationFoldersForUser(userId),
+    storage.listCipherUserFolders(userId),
   ]);
   const ciphers = await storage.getAllCiphersIncludingOrgs(userId);
   const attachmentsByCipher = await storage.getAttachmentsByCipherIds(
@@ -95,11 +95,16 @@ export async function handleSync(request: Request, env: Env, userId: string): Pr
     .filter((option): option is NonNullable<typeof option> => !!option);
   const userDecryptionOptions = buildUserDecryptionOptions(user, webAuthnPrfOptions[0] || null);
   const validFolderIds = new Set(folders.map((folder) => folder.id));
-  // Org folders surface through the same folders list so official clients
-  // render org items filed; their ids are valid folderId targets in cipher
-  // responses.
-  for (const organizationFolder of organizationFolders) {
-    validFolderIds.add(organizationFolder.id);
+  // Per-user filing of org ciphers: overlay the acting user's personal folder
+  // assignment before responses are built. The mapping always references the
+  // user's own folders, so validFolderIds masking passes.
+  const folderAssignmentByCipher = new Map(
+    cipherFolderAssignments.map((row) => [row.cipherId, row.folderId])
+  );
+  for (const cipher of ciphers) {
+    if (cipher.organizationId) {
+      cipher.folderId = folderAssignmentByCipher.get(cipher.id) ?? null;
+    }
   }
 
   const profile: ProfileResponse = buildProfileResponse(
@@ -127,9 +132,6 @@ export async function handleSync(request: Request, env: Env, userId: string): Pr
       creationDate: folder.createdAt,
       object: 'folder',
     });
-  }
-  for (const organizationFolder of organizationFolders) {
-    folderResponses.push(organizationFolderToSyncFolderResponse(organizationFolder));
   }
 
   const sendResponses = sends.map(sendToResponse);

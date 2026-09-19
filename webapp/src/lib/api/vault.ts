@@ -91,16 +91,13 @@ export async function updateFolder(
   authedFetch: AuthedFetch,
   session: SessionState,
   folderId: string,
-  name: string,
-  organizationKey?: { enc: Uint8Array; mac: Uint8Array }
+  name: string
 ): Promise<Folder> {
   const id = String(folderId || '').trim();
   if (!id) throw new Error('Folder id is required');
   if (!session.symEncKey || !session.symMacKey) throw new Error('Vault key unavailable');
-  // Organization folders are named with the organization key; the server
-  // proxy routes the update to the org-folder operation.
-  const enc = organizationKey?.enc ?? base64ToBytes(session.symEncKey);
-  const mac = organizationKey?.mac ?? base64ToBytes(session.symMacKey);
+  const enc = base64ToBytes(session.symEncKey);
+  const mac = base64ToBytes(session.symMacKey);
   const encryptedName = await encryptBw(new TextEncoder().encode(name), enc, mac);
   const resp = await authedFetch(`/api/folders/${encodeURIComponent(id)}`, {
     method: 'PUT',
@@ -1470,8 +1467,8 @@ export async function createCipherInOrganization(
   organizationId: string,
   collectionIds: string[]
 ): Promise<Cipher> {
-  // draft.folderId may reference an organization folder of this org; the
-  // server resolves it against organization_folders on create.
+  // draft.folderId may reference one of the user's own folders; the server
+  // stores it as the acting user's per-user filing on the shared item.
   const payload = await buildCipherImportPayload(orgSession, { ...draft });
   payload.organizationId = organizationId;
   payload.collectionIds = [...collectionIds];

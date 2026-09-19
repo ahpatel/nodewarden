@@ -146,18 +146,10 @@ export async function decryptVaultCore(args: DecryptVaultCoreArgs): Promise<Decr
   }
 
   const folders = await Promise.all(
-    args.folders.map(async (folder) => {
-      // Organization folders carry names encrypted with the organization key;
-      // without the key (should not happen for confirmed members) the name
-      // stays masked rather than misdecrypting with the user key.
-      const orgKey = folder.organizationId ? orgKeyBytes.get(folder.organizationId) : undefined;
-      const decName = orgKey
-        ? await decryptField(folder.name, orgKey.enc, orgKey.mac)
-        : folder.organizationId
-          ? ''
-          : await decryptField(folder.name, userEnc, userMac);
-      return { ...folder, decName };
-    })
+    args.folders.map(async (folder) => ({
+      ...folder,
+      decName: await decryptField(folder.name, userEnc, userMac),
+    }))
   );
 
   const ciphers = await Promise.all(

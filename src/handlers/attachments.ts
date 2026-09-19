@@ -90,6 +90,11 @@ async function loadCipherContext(
   if (options.requireWrite && loaded.access && !loaded.access.canEdit) {
     return errorResponse('You do not have permission to modify this cipher', 403);
   }
+  // Overlay the acting user's per-user filing for org ciphers (matches sync
+  // and loadCipherForRequest; saveCipher guards the column).
+  if (loaded.cipher.organizationId) {
+    loaded.cipher.folderId = await storage.getCipherUserFolder(userId, cipherId);
+  }
   return { cipher: loaded.cipher };
 }
 

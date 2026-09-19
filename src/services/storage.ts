@@ -1,4 +1,4 @@
-import { User, Cipher, Folder, Attachment, Device, Invite, AuditLog, Send, TrustedDeviceTokenSummary, RefreshTokenRecord, CustomEquivalentDomain, AccountPasskeyChallenge, AccountPasskeyChallengeScope, AccountPasskeyCredential, AuthRequestRecord, Organization, OrganizationUser, OrganizationFolder, Collection, CollectionUserAccess } from '../types';
+import { User, Cipher, Folder, Attachment, Device, Invite, AuditLog, Send, TrustedDeviceTokenSummary, RefreshTokenRecord, CustomEquivalentDomain, AccountPasskeyChallenge, AccountPasskeyChallengeScope, AccountPasskeyCredential, AuthRequestRecord, Organization, OrganizationUser, Collection, CollectionUserAccess } from '../types';
 import { LIMITS } from '../config/limits';
 import { ensurePushInstallationCredentials } from './push-relay';
 import { ensureStorageSchema } from './storage-schema';
@@ -91,15 +91,11 @@ import {
   type UserOrganizationMembership,
 } from './storage-org-repo';
 import {
-  bulkSetOrganizationFolderOnCiphers as bulkSetStoredOrganizationFolderOnCiphers,
-  clearOrganizationFolderFromCiphers as clearStoredOrganizationFolderFromCiphers,
-  deleteOrganizationFolder as deleteStoredOrganizationFolder,
-  getOrganizationFolder as findStoredOrganizationFolder,
-  getOrganizationFolderById as findStoredOrganizationFolderById,
-  listOrganizationFolders as listStoredOrganizationFolders,
-  listOrganizationFoldersForUser as listStoredOrganizationFoldersForUser,
-  saveOrganizationFolder as saveStoredOrganizationFolder,
-} from './storage-org-folder-repo';
+  bulkSetCipherUserFolders as bulkSetStoredCipherUserFolders,
+  getCipherUserFolder as getStoredCipherUserFolder,
+  listCipherUserFolders as listStoredCipherUserFolders,
+  setCipherUserFolder as setStoredCipherUserFolder,
+} from './storage-cipher-folder-repo';
 import {
   type CipherAccessInfo,
   type UserCollectionAccess,
@@ -221,7 +217,7 @@ const STORAGE_SCHEMA_VERSION_KEY = 'schema.version';
 // Bump this whenever src/services/storage-schema.ts or migrations/0001_init.sql
 // changes. Existing D1 installs only rerun ensureStorageSchema() when this value
 // differs from config.schema.version.
-const STORAGE_SCHEMA_VERSION = '2026-09-18-organization-folders';
+const STORAGE_SCHEMA_VERSION = '2026-09-19-personal-org-filing';
 const REQUIRED_SCHEMA_TABLES = ['webauthn_credentials', 'webauthn_challenges', 'auth_requests', 'totp_login_replays'] as const;
 
 // D1-backed storage.
@@ -700,48 +696,26 @@ export class StorageService {
     return listStoredCollectionUsersByOrganizationUser(this.db, organizationUserId);
   }
 
-  // --- Organization folders ---
+  // --- Per-user filing of organization ciphers ---
 
-  async getOrganizationFolderById(id: string): Promise<OrganizationFolder | null> {
-    return findStoredOrganizationFolderById(this.db, id);
+  async listCipherUserFolders(userId: string): Promise<Array<{ cipherId: string; folderId: string }>> {
+    return listStoredCipherUserFolders(this.db, userId);
   }
 
-  async getOrganizationFolder(organizationId: string, id: string): Promise<OrganizationFolder | null> {
-    return findStoredOrganizationFolder(this.db, organizationId, id);
+  async getCipherUserFolder(userId: string, cipherId: string): Promise<string | null> {
+    return getStoredCipherUserFolder(this.db, userId, cipherId);
   }
 
-  async listOrganizationFolders(organizationId: string): Promise<OrganizationFolder[]> {
-    return listStoredOrganizationFolders(this.db, organizationId);
+  async setCipherUserFolder(userId: string, cipherId: string, folderId: string | null): Promise<void> {
+    await setStoredCipherUserFolder(this.db, userId, cipherId, folderId);
   }
 
-  async listOrganizationFoldersForUser(userId: string): Promise<OrganizationFolder[]> {
-    return listStoredOrganizationFoldersForUser(this.db, userId);
-  }
-
-  async saveOrganizationFolder(folder: OrganizationFolder): Promise<void> {
-    await saveStoredOrganizationFolder(this.db, folder);
-  }
-
-  async deleteOrganizationFolder(id: string): Promise<void> {
-    await deleteStoredOrganizationFolder(this.db, id);
-  }
-
-  async clearOrganizationFolderFromCiphers(folderId: string, updatedAt: string): Promise<number> {
-    return clearStoredOrganizationFolderFromCiphers(this.db, folderId, updatedAt);
-  }
-
-  async bulkSetOrganizationFolderOnCiphers(
-    ids: string[],
-    organizationFolderId: string | null,
-    updatedAt: string
+  async bulkSetCipherUserFolders(
+    userId: string,
+    cipherIds: string[],
+    folderId: string | null
   ): Promise<void> {
-    await bulkSetStoredOrganizationFolderOnCiphers(
-      this.db,
-      this.sqlChunkSize(2),
-      ids,
-      organizationFolderId,
-      updatedAt
-    );
+    await bulkSetStoredCipherUserFolders(this.db, this.sqlChunkSize(2), userId, cipherIds, folderId);
   }
 
   async replaceCollectionUsers(

@@ -4,23 +4,19 @@ import ConfirmDialog from '@/components/ConfirmDialog';
 import { base64ToBytes, decryptStr } from '@/lib/crypto';
 import {
   type OrganizationCollection,
-  type OrganizationFolderRecord,
   type OrganizationMember,
   type OrganizationSummary,
   acceptOrganizationInvitation,
   confirmOrganizationMember,
   createOrganization,
   createOrganizationCollection,
-  createOrganizationFolder,
   deleteOrganization,
   deleteOrganizationCollection,
-  deleteOrganizationFolder,
   getOrganizationMember,
   inviteOrganizationMembers,
   leaveOrganization,
   listMyOrganizations,
   listOrganizationCollections,
-  listOrganizationFolders,
   listOrganizationMembers,
   removeOrganizationMember,
   updateOrganization,
@@ -87,10 +83,6 @@ export default function OrganizationsPage(props: OrganizationsPageProps) {
   const [members, setMembers] = useState<OrganizationMember[]>([]);
   const [collections, setCollections] = useState<OrganizationCollection[]>([]);
   const [collectionNames, setCollectionNames] = useState<Record<string, string>>({});
-  const [orgFolders, setOrgFolders] = useState<OrganizationFolderRecord[]>([]);
-  const [orgFolderNames, setOrgFolderNames] = useState<Record<string, string>>({});
-  const [canManageFolders, setCanManageFolders] = useState(false);
-  const [newFolderName, setNewFolderName] = useState('');
   const [detailLoading, setDetailLoading] = useState(false);
   const [createName, setCreateName] = useState('');
   const [creating, setCreating] = useState(false);
@@ -201,28 +193,6 @@ export default function OrganizationsPage(props: OrganizationsPageProps) {
         }
       }
       setCollectionNames(names);
-
-      // Folders are manageable by owners/admins; a 403 means the member sees
-      // org folders only through their vault (sync), so the section stays
-      // hidden for them.
-      try {
-        const folderList = await listOrganizationFolders(authedFetch, organizationId);
-        setCanManageFolders(true);
-        setOrgFolders(folderList);
-        const folderNames: Record<string, string> = {};
-        for (const folder of folderList) {
-          try {
-            folderNames[folder.id] = await decryptStr(folder.name, base64ToBytes(orgKeys[organizationId]?.encB64 || ''), base64ToBytes(orgKeys[organizationId]?.macB64 || ''));
-          } catch {
-            folderNames[folder.id] = '';
-          }
-        }
-        setOrgFolderNames(folderNames);
-      } catch {
-        setCanManageFolders(false);
-        setOrgFolders([]);
-        setOrgFolderNames({});
-      }
     } catch (err) {
       notify('error', err instanceof Error ? err.message : t('txt_organizations_load_failed'));
     } finally {
@@ -410,49 +380,6 @@ export default function OrganizationsPage(props: OrganizationsPageProps) {
       await onRefreshVault();
     } catch (err) {
       notify('error', err instanceof Error ? err.message : t('txt_organizations_collection_delete_failed'));
-    } finally {
-      setBusy(null);
-    }
-  }
-
-  async function handleCreateFolder() {
-    if (!selectedOrgId || !orgKeys?.[selectedOrgId]) return;
-    const name = newFolderName.trim();
-    if (!name) {
-      notify('warning', t('txt_organizations_folder_name_required'));
-      return;
-    }
-    setBusy('new-org-folder');
-    try {
-      const material = orgKeys[selectedOrgId];
-      const encName = await encryptWithOrgKey(name, {
-        encB64: material.encB64,
-        macB64: material.macB64,
-        encBytes: base64ToBytes(material.encB64),
-        macBytes: base64ToBytes(material.macB64),
-      });
-      await createOrganizationFolder(authedFetch, selectedOrgId, encName);
-      setNewFolderName('');
-      notify('success', t('txt_organizations_folder_created'));
-      await refreshOrgDetail(selectedOrgId);
-      await onRefreshVault();
-    } catch (err) {
-      notify('error', err instanceof Error ? err.message : t('txt_organizations_folder_create_failed'));
-    } finally {
-      setBusy(null);
-    }
-  }
-
-  async function handleDeleteFolder(folder: OrganizationFolderRecord) {
-    if (!selectedOrgId) return;
-    setBusy(folder.id);
-    try {
-      await deleteOrganizationFolder(authedFetch, selectedOrgId, folder.id);
-      notify('success', t('txt_organizations_folder_deleted'));
-      await refreshOrgDetail(selectedOrgId);
-      await onRefreshVault();
-    } catch (err) {
-      notify('error', err instanceof Error ? err.message : t('txt_organizations_folder_delete_failed'));
     } finally {
       setBusy(null);
     }
@@ -844,49 +771,6 @@ export default function OrganizationsPage(props: OrganizationsPageProps) {
                   </ul>
                 )}
               </div>
-
-              {canManageFolders && (
-                <div className="org-section">
-                  <h4>{t('txt_organizations_folders')}</h4>
-                  <p className="muted">{t('txt_organizations_folder_hint')}</p>
-                  <div className="org-create-row">
-                    <input
-                      type="text"
-                      className="input"
-                      placeholder={t('txt_organizations_folder_name_placeholder')}
-                      value={newFolderName}
-                      onInput={(event) => setNewFolderName((event.target as HTMLInputElement).value)}
-                    />
-                    <button type="button" className="btn btn-primary" disabled={busy === 'new-org-folder'} onClick={() => void handleCreateFolder()}>
-                      <Plus size={14} className="btn-icon" />
-                      {t('txt_organizations_add_folder')}
-                    </button>
-                  </div>
-                  {detailLoading ? (
-                    <p className="muted">{t('txt_loading')}</p>
-                  ) : (
-                    <ul className="org-collections">
-                      {orgFolders.length === 0 && (
-                        <li className="org-collection-row"><span className="muted">{t('txt_organizations_no_folders')}</span></li>
-                      )}
-                      {orgFolders.map((folder) => (
-                        <li key={folder.id} className="org-collection-row">
-                          <span>{orgFolderNames[folder.id] || folder.id.slice(0, 8)}</span>
-                          <button
-                            type="button"
-                            className="btn btn-danger small"
-                            disabled={busy === folder.id}
-                            onClick={() => void handleDeleteFolder(folder)}
-                          >
-                            <Trash2 size={14} className="btn-icon" />
-                            {t('txt_delete')}
-                          </button>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </div>
-              )}
             </>
           )}
         </section>

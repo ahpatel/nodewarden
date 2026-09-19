@@ -74,7 +74,7 @@ export interface BackupPayload {
     webauthn_credentials?: SqlRow[];
     organizations?: SqlRow[];
     organization_users?: SqlRow[];
-    organization_folders?: SqlRow[];
+    cipher_user_folders?: SqlRow[];
     collections?: SqlRow[];
     collection_users?: SqlRow[];
     cipher_collections?: SqlRow[];
@@ -390,13 +390,13 @@ export function validateBackupPayloadContents(
   const accountPasskeyRows = ensureRowArray(payload.db.webauthn_credentials || [], 'webauthn_credentials');
   const organizationRows = ensureRowArray(payload.db.organizations || [], 'organizations');
   const organizationUserRows = ensureRowArray(payload.db.organization_users || [], 'organization_users');
-  const organizationFolderRows = ensureRowArray(payload.db.organization_folders || [], 'organization_folders');
+  const cipherUserFolderRows = ensureRowArray(payload.db.cipher_user_folders || [], 'cipher_user_folders');
   const collectionRows = ensureRowArray(payload.db.collections || [], 'collections');
   const collectionUserRows = ensureRowArray(payload.db.collection_users || [], 'collection_users');
   const cipherCollectionRows = ensureRowArray(payload.db.cipher_collections || [], 'cipher_collections');
   void organizationRows;
   void organizationUserRows;
-  void organizationFolderRows;
+  void cipherUserFolderRows;
   void collectionRows;
   void collectionUserRows;
   void cipherCollectionRows;
@@ -508,7 +508,7 @@ export async function buildBackupArchive(
     includeAttachments,
   });
   const encoder = new TextEncoder();
-  const [configRows, userRows, domainSettingsRows, revisionRows, folderRows, cipherRows, attachmentRows, accountPasskeyRows, organizationRows, organizationUserRows, organizationFolderRows, collectionRows, collectionUserRows, cipherCollectionRows] = await Promise.all([
+  const [configRows, userRows, domainSettingsRows, revisionRows, folderRows, cipherRows, attachmentRows, accountPasskeyRows, organizationRows, organizationUserRows, cipherUserFolderRows, collectionRows, collectionUserRows, cipherCollectionRows] = await Promise.all([
     queryRows(env.DB, 'SELECT key, value FROM config ORDER BY key ASC'),
     queryRows(env.DB, 'SELECT id, email, name, master_password_hint, master_password_hash, key, private_key, public_key, kdf_type, kdf_iterations, kdf_memory, kdf_parallelism, security_stamp, role, status, verify_devices, totp_secret, totp_recovery_code, yubikey_key1, yubikey_key2, yubikey_key3, yubikey_key4, yubikey_key5, yubikey_nfc, created_at, updated_at FROM users ORDER BY created_at ASC'),
     queryRows(env.DB, 'SELECT user_id, equivalent_domains, custom_equivalent_domains, excluded_global_equivalent_domains, updated_at FROM domain_settings ORDER BY user_id ASC'),
@@ -519,7 +519,7 @@ export async function buildBackupArchive(
     queryRows(env.DB, 'SELECT id, user_id, purpose, name, public_key, credential_id, counter, type, aa_guid, transports, encrypted_user_key, encrypted_public_key, encrypted_private_key, supports_prf, created_at, updated_at FROM webauthn_credentials ORDER BY created_at ASC'),
     queryRows(env.DB, 'SELECT id, name, private_key, public_key, billing_email, creation_date, revision_date FROM organizations ORDER BY creation_date ASC'),
     queryRows(env.DB, 'SELECT id, organization_id, user_id, email, key, status, type, access_all, creation_date, revision_date FROM organization_users ORDER BY creation_date ASC'),
-    queryRows(env.DB, 'SELECT id, organization_id, name, creation_date, revision_date FROM organization_folders ORDER BY creation_date ASC'),
+    queryRows(env.DB, 'SELECT cipher_id, user_id, folder_id, created_at, updated_at FROM cipher_user_folders ORDER BY cipher_id ASC'),
     queryRows(env.DB, 'SELECT id, organization_id, name, external_id, creation_date, revision_date FROM collections ORDER BY creation_date ASC'),
     queryRows(env.DB, 'SELECT collection_id, organization_user_id, read_only, hide_passwords FROM collection_users ORDER BY collection_id ASC'),
     queryRows(env.DB, 'SELECT cipher_id, collection_id FROM cipher_collections ORDER BY cipher_id ASC'),
@@ -553,7 +553,7 @@ export async function buildBackupArchive(
       webauthn_credentials: accountPasskeyRows.length,
       organizations: organizationRows.length,
       organization_users: organizationUserRows.length,
-      organization_folders: organizationFolderRows.length,
+      cipher_user_folders: cipherUserFolderRows.length,
       collections: collectionRows.length,
       collection_users: collectionUserRows.length,
       cipher_collections: cipherCollectionRows.length,
@@ -582,7 +582,7 @@ export async function buildBackupArchive(
       webauthn_credentials: accountPasskeyRows,
       organizations: organizationRows,
       organization_users: organizationUserRows,
-      organization_folders: organizationFolderRows,
+      cipher_user_folders: cipherUserFolderRows,
       collections: collectionRows,
       collection_users: collectionUserRows,
       cipher_collections: cipherCollectionRows,
