@@ -60,7 +60,7 @@ const SCHEMA_STATEMENTS: readonly string[] = [
 
   'CREATE TABLE IF NOT EXISTS organization_users (' +
   'id TEXT PRIMARY KEY, organization_id TEXT NOT NULL, user_id TEXT, email TEXT NOT NULL, key TEXT, ' +
-  'status INTEGER NOT NULL DEFAULT 1, type INTEGER NOT NULL DEFAULT 2, access_all INTEGER NOT NULL DEFAULT 0, ' +
+  'status INTEGER NOT NULL DEFAULT 0, type INTEGER NOT NULL DEFAULT 2, access_all INTEGER NOT NULL DEFAULT 0, ' +
   'creation_date TEXT NOT NULL, revision_date TEXT NOT NULL, ' +
   'FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE, ' +
   'FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE)',
@@ -298,6 +298,21 @@ async function migrateCiphersToOrganizationShape(db: D1Database): Promise<void> 
   }
 }
 
+// One-time data migration: organization_users.status originally stored
+// 0=Revoked, 1=Invited, 2=Accepted, 3=Confirmed, and handlers translated to
+// Bitwarden's wire enum at the response edge. The stored values are now the
+// wire enum itself (-1=Revoked, 0=Invited, 1=Accepted, 2=Confirmed), removing
+// the translation layer. The sentinel for unmigrated data is status = 3 —
+// only the pre-migration scale contains it, so a single guarded UPDATE shifts
+// every row (including Revoked 0 -> -1) exactly once.
+async function migrateOrganizationUserStatusToWire(db: D1Database): Promise<void> {
+  const sentinel = await db
+    .prepare('SELECT 1 FROM organization_users WHERE status = 3 LIMIT 1')
+    .first();
+  if (!sentinel) return;
+  await db.prepare('UPDATE organization_users SET status = status - 1').run();
+}
+
 export async function ensureStorageSchema(db: D1Database): Promise<void> {
   await db.prepare('PRAGMA foreign_keys = ON').run();
   await db.prepare('CREATE TABLE IF NOT EXISTS config (key TEXT PRIMARY KEY, value TEXT NOT NULL)').run();
@@ -305,5 +320,6 @@ export async function ensureStorageSchema(db: D1Database): Promise<void> {
     await executeSchemaStatement(db, stmt);
   }
   await migrateCiphersToOrganizationShape(db);
+  await migrateOrganizationUserStatusToWire(db);
   await ensureAdminUserExists(db);
 }

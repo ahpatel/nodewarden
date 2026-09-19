@@ -116,7 +116,10 @@ const orgEn: Record<string, string> = {
   "txt_organizations_folder_create_option": "New organization folder…",
   "txt_organizations_folder_empty_hint": "No organization folders yet",
   "txt_organizations_folder_create_prompt_title": "New organization folder",
-  "txt_organizations_folder_create_prompt_hint": "The folder is shared with all organization members."
+  "txt_organizations_folder_create_prompt_hint": "The folder is shared with all organization members.",
+  "txt_organizations_role_admin": "Admin",
+  "txt_organizations_role_manager": "Manager",
+  "txt_organizations_role_custom": "Custom"
 };
 
 export default orgEn;

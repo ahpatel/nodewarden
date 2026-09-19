@@ -6,6 +6,7 @@ import { readActingDeviceIdentifier } from '../utils/device';
 import { generateUUID } from '../utils/uuid';
 import { LIMITS } from '../config/limits';
 import { bumpOrganizationMembers } from '../utils/org-notify';
+import { ORG_USER_STATUS } from './organizations';
 import { normalizeCipherLoginForStorage, normalizeCipherSshKeyForCompatibility, validateCipherEncryptedFieldsForCompatibility } from './ciphers';
 
 // Bitwarden client import request format
@@ -187,7 +188,7 @@ export async function handleCiphersImport(request: Request, env: Env, userId: st
   const organizationMemberships = new Map<string, { accessAll: boolean; editableCollectionIds: Set<string>; validCollectionIds: Set<string> }>();
   for (const organizationId of requestedOrganizationIds) {
     const membership = await storage.getOrganizationUserForUser(organizationId, userId);
-    if (!membership || membership.status !== 3) {
+    if (!membership || membership.status !== ORG_USER_STATUS.CONFIRMED) {
       return errorResponse(`Organization ${organizationId} not found`, 404);
     }
     const orgCollections = await storage.listCollectionsForOrganization(organizationId);

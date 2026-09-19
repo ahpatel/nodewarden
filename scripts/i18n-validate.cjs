@@ -14,6 +14,9 @@ const baseKeys = Object.keys(base).sort();
 const placeholderRe = /\{\w+\}/g;
 const errors = [];
 const intentionallyEnglishKeys = new Set([
+  // "Admin" and "Manager" are legitimate German words.
+  'txt_organizations_role_admin',
+  'txt_organizations_role_manager',
   'txt_backup_destination_detail_note',
   'txt_backup_protocol_webdav',
   'txt_backup_protocol_s3',

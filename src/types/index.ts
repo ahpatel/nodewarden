@@ -277,8 +277,8 @@ export interface Cipher {
 }
 
 // Organization model (Bitwarden-compatible sharing)
-export type OrganizationUserStatus = 0 | 1 | 2 | 3; // 0=Revoked 1=Invited 2=Accepted 3=Confirmed
-export type OrganizationUserType = 0 | 1 | 2; // 0=Owner 1=Admin 2=User
+export type OrganizationUserStatus = -1 | 0 | 1 | 2; // Bitwarden OrganizationUserStatusType: -1=Revoked 0=Invited 1=Accepted 2=Confirmed
+export type OrganizationUserType = 0 | 1 | 2 | 3 | 4; // Bitwarden OrganizationUserType: 0=Owner 1=Admin 2=User 3=Manager 4=Custom
 
 export interface Organization {
   id: string;

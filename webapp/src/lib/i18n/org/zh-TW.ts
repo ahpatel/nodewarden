@@ -116,7 +116,10 @@ const orgZhTW: Record<string, string> = {
   "txt_organizations_folder_create_option": "新增組織資料夾…",
   "txt_organizations_folder_empty_hint": "還沒有組織資料夾",
   "txt_organizations_folder_create_prompt_title": "新增組織資料夾",
-  "txt_organizations_folder_create_prompt_hint": "該資料夾與組織所有成員共享。"
+  "txt_organizations_folder_create_prompt_hint": "該資料夾與組織所有成員共享。",
+  "txt_organizations_role_admin": "管理員",
+  "txt_organizations_role_manager": "經理",
+  "txt_organizations_role_custom": "自訂"
 };
 
 export default orgZhTW;

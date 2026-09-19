@@ -116,7 +116,10 @@ const orgRu: Record<string, string> = {
   "txt_organizations_folder_create_option": "Новая папка организации…",
   "txt_organizations_folder_empty_hint": "Папок организации пока нет",
   "txt_organizations_folder_create_prompt_title": "Новая папка организации",
-  "txt_organizations_folder_create_prompt_hint": "Папка будет доступна всем участникам организации."
+  "txt_organizations_folder_create_prompt_hint": "Папка будет доступна всем участникам организации.",
+  "txt_organizations_role_admin": "Администратор",
+  "txt_organizations_role_manager": "Менеджер",
+  "txt_organizations_role_custom": "Настраиваемая"
 };
 
 export default orgRu;

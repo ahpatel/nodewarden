@@ -116,7 +116,10 @@ const orgSv: Record<string, string> = {
   "txt_organizations_folder_create_option": "Ny organisationsmapp…",
   "txt_organizations_folder_empty_hint": "Inga organisationsmappar än",
   "txt_organizations_folder_create_prompt_title": "Ny organisationsmapp",
-  "txt_organizations_folder_create_prompt_hint": "Mappen delas med alla organisationsmedlemmar."
+  "txt_organizations_folder_create_prompt_hint": "Mappen delas med alla organisationsmedlemmar.",
+  "txt_organizations_role_admin": "Administratör",
+  "txt_organizations_role_manager": "Chef",
+  "txt_organizations_role_custom": "Anpassad"
 };
 
 export default orgSv;

@@ -35,23 +35,15 @@ import { deleteAllAttachmentsForCiphers } from './attachments';
 // email also mints a registration invite code so the owner can onboard the
 // person without the server admin.
 
-// Wire status values (Bitwarden OrganizationUserStatusType). Shared with
+// Bitwarden OrganizationUserStatusType, stored natively (no translation
+// layer): Revoked=-1, Invited=0, Accepted=1, Confirmed=2. Shared with
 // src/handlers/ciphers.ts.
 export const ORG_USER_STATUS = {
-  REVOKED: 0,
-  INVITED: 1,
-  ACCEPTED: 2,
-  CONFIRMED: 3,
+  REVOKED: -1,
+  INVITED: 0,
+  ACCEPTED: 1,
+  CONFIRMED: 2,
 } as const;
-
-// Wire translation: Bitwarden clients use OrganizationUserStatusType
-// (Invited=0, Accepted=1, Confirmed=2, Revoked=-1). Our storage offsets by one
-// (1=Invited, 2=Accepted, 3=Confirmed); clients receiving an out-of-enum
-// status drop the organization from their state, which breaks org item
-// rendering.
-function wireOrganizationUserStatus(storedStatus: number): number {
-  return Math.max(-1, storedStatus - 1);
-}
 
 // ProductTierType on the wire: Free=0, Families=1, Teams=2, Enterprise=3,
 // TeamsStarter=4. We present every organization as Teams.
@@ -70,6 +62,11 @@ export const ORG_USER_TYPE = {
   OWNER: 0,
   ADMIN: 1,
   USER: 2,
+  // Bitwarden parity. Stored and surfaced on the wire, but management
+  // operations stay owner-gated until a permissions editor exists; access
+  // is driven by accessAll + collection grants like a regular User.
+  MANAGER: 3,
+  CUSTOM: 4,
 } as const;
 
 const ORG_INVITE_REGISTRATION_TTL_HOURS = 24 * 7;
@@ -167,7 +164,7 @@ export function profileOrganizationResponse(
   organization: Organization,
   organizationUser: OrganizationUser
 ): Record<string, unknown> {
-  const wireStatus = wireOrganizationUserStatus(Number(organizationUser.status));
+  const wireStatus = Number(organizationUser.status);
   return {
     id: organization.id,
     name: organization.name,
@@ -260,7 +257,7 @@ function organizationUserToResponse(
     name: user?.name ?? null,
     email: organizationUser.email,
     type: Number(organizationUser.type),
-    status: wireOrganizationUserStatus(Number(organizationUser.status)),
+    status: Number(organizationUser.status),
     accessAll: !!organizationUser.accessAll,
     twoFactorEnabled: !!user && (!!user.totpSecret || isYubiKeyEnabled(user)),
     avatarColor: null,
@@ -331,7 +328,7 @@ export async function handleListMyOrganizations(request: Request, env: Env, user
     }
     data.push({
       ...organizationToResponse(organization),
-      status: wireOrganizationUserStatus(Number(organizationUser.status)),
+      status: Number(organizationUser.status),
       type: Number(organizationUser.type),
       organizationUserId: organizationUser.id,
       // The org key wrapped for this member (same string the sync profile
@@ -523,7 +520,7 @@ export async function handleInviteOrganizationUsers(request: Request, env: Env, 
     : [];
   if (!emails.length) return errorResponse('emails array is required', 400);
 
-  const type: OrganizationUserType = Number(body.type) === ORG_USER_TYPE.OWNER ? ORG_USER_TYPE.OWNER : ORG_USER_TYPE.USER;
+  const type: OrganizationUserType = [0, 1, 2, 3, 4].includes(Number(body.type)) ? Number(body.type) as OrganizationUserType : ORG_USER_TYPE.USER;
   const accessAll = !!body.accessAll;
   const collectionAccess = readCollectionAccessInput(body.collections) || [];
 

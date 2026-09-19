@@ -9,21 +9,56 @@ function read(path: string): string {
   return readFileSync(resolve(root, path), 'utf-8');
 }
 
-// ─── Wire status mapping ──────────────────────────────────────────────────
-// The server stores 1=Invited, 2=Accepted, 3=Confirmed. Official clients use
-// OrganizationUserStatusType: Invited=0, Accepted=1, Confirmed=2, Revoked=-1.
-// The wire translation is stored − 1.
+// ─── Native Bitwarden status enums ─────────────────────────────────────────
+// organization_users.status stores Bitwarden's own OrganizationUserStatusType
+// (-1=Revoked, 0=Invited, 1=Accepted, 2=Confirmed) — no translation layer.
 
-test('wire status mapping constants match client enum offset', () => {
+test('organization user status is stored in Bitwarden wire enums natively', () => {
   const orgs = read('src/handlers/organizations.ts');
-
   assert.ok(
-    /REVOKED:\s*0/.test(orgs) && /INVITED:\s*1/.test(orgs) && /ACCEPTED:\s*2/.test(orgs) && /CONFIRMED:\s*3/.test(orgs),
-    'stored status constants are 0/1/2/3'
+    /REVOKED:\s*-1/.test(orgs) && /INVITED:\s*0/.test(orgs) && /ACCEPTED:\s*1/.test(orgs) && /CONFIRMED:\s*2/.test(orgs),
+    'stored status constants are -1/0/1/2'
   );
   assert.ok(
-    /wireOrganizationUserStatus[\s\S]*?storedStatus\s*-\s*1/.test(orgs),
-    'wire status = stored − 1 (Bitwarden client enum)'
+    !orgs.includes('wireOrganizationUserStatus'),
+    'no translation layer: responses pass the stored value through'
+  );
+});
+
+test('status SQL literals match the native enum (confirmed = 2)', () => {
+  for (const path of [
+    'src/services/storage-org-repo.ts',
+    'src/services/storage-cipher-repo.ts',
+    'src/services/storage-collection-repo.ts',
+  ]) {
+    const src = read(path);
+    assert.ok(!/status = 3/.test(src), `${path} has no pre-migration status = 3 literals`);
+    assert.ok(/status = 2/.test(src), `${path} uses the native confirmed value`);
+  }
+});
+
+test('status migration to wire enums is guarded by a sentinel', () => {
+  const schema = read('src/services/storage-schema.ts');
+  const fn = schema.slice(schema.indexOf('migrateOrganizationUserStatusToWire'));
+  assert.ok(/status = 3/.test(fn), 'the sentinel is the unmigrated confirmed value');
+  assert.ok(/SET status = status - 1/.test(fn), 'shifts stored values onto the wire scale');
+  assert.ok(/await migrateOrganizationUserStatusToWire\(db\);/.test(schema), 'wired into ensureStorageSchema');
+  const storage = read('src/services/storage.ts');
+  assert.ok(/native-org-status/.test(storage), 'schema version bumped for the data migration');
+});
+
+test('organization roles include Bitwarden Manager and Custom', () => {
+  const orgs = read('src/handlers/organizations.ts');
+  assert.ok(/MANAGER:\s*3/.test(orgs) && /CUSTOM:\s*4/.test(orgs), 'ORG_USER_TYPE covers Manager=3 and Custom=4');
+  const invite = orgs.slice(orgs.indexOf('handleInviteOrganizationUsers'));
+  assert.ok(/\[0, 1, 2, 3, 4\]\.includes/.test(invite), 'invite type validation accepts the full Bitwarden range');
+});
+
+test('invite UI exposes Admin and Manager roles', () => {
+  const page = read('webapp/src/components/OrganizationsPage.tsx');
+  assert.ok(
+    page.includes('ORG_ROLE.ADMIN') && page.includes('ORG_ROLE.MANAGER'),
+    'the role select offers Admin and Manager'
   );
 });
 
@@ -78,7 +113,7 @@ test('org invite minting is gated by config flag', () => {
 test('confirmed org query filters by user and status', () => {
   const repo = read('src/services/storage-org-repo.ts');
   assert.ok(
-    repo.includes('WHERE ou.user_id = ? AND ou.status = 3'),
+    repo.includes('WHERE ou.user_id = ? AND ou.status = 2'),
     'org key distribution must be scoped to confirmed members only'
   );
 });
@@ -168,10 +203,10 @@ test('attachment save upsert works for org ciphers', () => {
 
 // ─── Ownerless org guard ────────────────────────────────────────────────────
 
-test('confirmed owner count uses status=3 only', () => {
+test('confirmed owner count uses the native confirmed status only', () => {
   const repo = read('src/services/storage-org-repo.ts');
   assert.ok(
-    repo.includes("type = 0 AND status = 3"),
+    repo.includes("type = 0 AND status = 2"),
     'countConfirmedOrganizationOwners counts CONFIRMED owners only'
   );
 });
