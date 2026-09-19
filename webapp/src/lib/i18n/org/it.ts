@@ -116,7 +116,10 @@ const orgIt: Record<string, string> = {
   "txt_organizations_folder_create_option": "Nuova cartella dell’organizzazione…",
   "txt_organizations_folder_empty_hint": "Ancora nessuna cartella dell’organizzazione",
   "txt_organizations_folder_create_prompt_title": "Nuova cartella dell’organizzazione",
-  "txt_organizations_folder_create_prompt_hint": "La cartella è condivisa con tutti i membri dell’organizzazione."
+  "txt_organizations_folder_create_prompt_hint": "La cartella è condivisa con tutti i membri dell’organizzazione.",
+  "txt_organizations_role_admin": "Amministratore",
+  "txt_organizations_role_manager": "Gestore",
+  "txt_organizations_role_custom": "Personalizzato"
 };
 
 export default orgIt;

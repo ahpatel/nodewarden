@@ -52,6 +52,22 @@ const STATUS_INVITED = 0;
 const STATUS_ACCEPTED = 1;
 const STATUS_CONFIRMED = 2;
 const TYPE_OWNER = 0;
+// Bitwarden OrganizationUserType (0=Owner 1=Admin 2=User 3=Manager 4=Custom).
+const ORG_ROLE = {
+  OWNER: 0,
+  ADMIN: 1,
+  USER: 2,
+  MANAGER: 3,
+  CUSTOM: 4,
+} as const;
+
+function roleLabel(type: number): string {
+  if (type === ORG_ROLE.OWNER) return t('txt_organizations_owner_badge');
+  if (type === ORG_ROLE.ADMIN) return t('txt_organizations_role_admin');
+  if (type === ORG_ROLE.MANAGER) return t('txt_organizations_role_manager');
+  if (type === ORG_ROLE.CUSTOM) return t('txt_organizations_role_custom');
+  return t('txt_organizations_member_badge');
+}
 
 function orgKeyMaterialFromMap(orgKeys: OrgKeyMap | null, organizationId: string): OrgKeyParts | null {
   const material = orgKeys?.[organizationId];
@@ -89,6 +105,7 @@ export default function OrganizationsPage(props: OrganizationsPageProps) {
   const [newCollectionName, setNewCollectionName] = useState('');
   const [inviteEmails, setInviteEmails] = useState('');
   const [inviteAccessAll, setInviteAccessAll] = useState(true);
+  const [inviteRole, setInviteRole] = useState<number>(ORG_ROLE.USER);
   const [inviteSubmitting, setInviteSubmitting] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [permissionsMember, setPermissionsMember] = useState<OrganizationMember | null>(null);
@@ -301,6 +318,7 @@ export default function OrganizationsPage(props: OrganizationsPageProps) {
     try {
       const result = await inviteOrganizationMembers(authedFetch, selectedOrgId, {
         emails,
+        type: inviteRole,
         accessAll: inviteAccessAll,
       });
       const withCode = result.invited.filter((item) => item.inviteCode).length;
@@ -643,6 +661,21 @@ export default function OrganizationsPage(props: OrganizationsPageProps) {
                       {inviteSubmitting ? t('txt_sending') : t('txt_organizations_invite')}
                     </button>
                   </div>
+                  <label className="field">
+                    <span>{t('txt_organizations_role')}</span>
+                    <select
+                      className="input"
+                      value={String(inviteRole)}
+                      disabled={inviteSubmitting}
+                      onChange={(event) => setInviteRole(Number((event.target as HTMLSelectElement).value))}
+                    >
+                      <option value={String(ORG_ROLE.OWNER)}>{t('txt_organizations_owner_badge')}</option>
+                      <option value={String(ORG_ROLE.ADMIN)}>{t('txt_organizations_role_admin')}</option>
+                      <option value={String(ORG_ROLE.MANAGER)}>{t('txt_organizations_role_manager')}</option>
+                      <option value={String(ORG_ROLE.USER)}>{t('txt_organizations_member_badge')}</option>
+                      <option value={String(ORG_ROLE.CUSTOM)}>{t('txt_organizations_role_custom')}</option>
+                    </select>
+                  </label>
                   <label className="checkbox-row">
                     <input
                       type="checkbox"
@@ -684,7 +717,7 @@ export default function OrganizationsPage(props: OrganizationsPageProps) {
                               } catch { return null; }
                             })()}
                           </td>
-                          <td>{Number(member.type) === TYPE_OWNER ? t('txt_organizations_owner_badge') : t('txt_organizations_member_badge')}</td>
+                          <td>{roleLabel(Number(member.type))}</td>
                           <td>{statusLabel(Number(member.status))}</td>
                           <td>
                             {Number(member.status) === STATUS_CONFIRMED

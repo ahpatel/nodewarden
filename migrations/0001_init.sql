@@ -99,7 +99,7 @@ CREATE TABLE IF NOT EXISTS organization_users (
   user_id TEXT,
   email TEXT NOT NULL,
   key TEXT,
-  status INTEGER NOT NULL DEFAULT 1,
+  status INTEGER NOT NULL DEFAULT 0,
   type INTEGER NOT NULL DEFAULT 2,
   access_all INTEGER NOT NULL DEFAULT 0,
   creation_date TEXT NOT NULL,

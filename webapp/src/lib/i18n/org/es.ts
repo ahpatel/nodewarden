@@ -116,7 +116,10 @@ const orgEs: Record<string, string> = {
   "txt_organizations_folder_create_option": "Nueva carpeta de organización…",
   "txt_organizations_folder_empty_hint": "Aún no hay carpetas de organización",
   "txt_organizations_folder_create_prompt_title": "Nueva carpeta de organización",
-  "txt_organizations_folder_create_prompt_hint": "La carpeta se comparte con todos los miembros de la organización."
+  "txt_organizations_folder_create_prompt_hint": "La carpeta se comparte con todos los miembros de la organización.",
+  "txt_organizations_role_admin": "Administrador",
+  "txt_organizations_role_manager": "Gerente",
+  "txt_organizations_role_custom": "Personalizado"
 };
 
 export default orgEs;

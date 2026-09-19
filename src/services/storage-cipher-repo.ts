@@ -467,7 +467,7 @@ export async function getAllCiphersIncludingOrgs(db: D1Database, userId: string)
               ou.id AS ou_id, ou.access_all AS ou_access_all
        FROM ciphers c
        JOIN organization_users ou
-         ON ou.organization_id = c.organization_id AND ou.user_id = ? AND ou.status = 3
+         ON ou.organization_id = c.organization_id AND ou.user_id = ? AND ou.status = 2
        WHERE c.organization_id IS NOT NULL
          AND (ou.access_all = 1 OR EXISTS (
            SELECT 1 FROM cipher_collections cc

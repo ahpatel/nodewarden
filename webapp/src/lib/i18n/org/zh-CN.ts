@@ -116,7 +116,10 @@ const orgZhCN: Record<string, string> = {
   "txt_organizations_folder_create_option": "新建组织文件夹…",
   "txt_organizations_folder_empty_hint": "还没有组织文件夹",
   "txt_organizations_folder_create_prompt_title": "新建组织文件夹",
-  "txt_organizations_folder_create_prompt_hint": "该文件夹与组织所有成员共享。"
+  "txt_organizations_folder_create_prompt_hint": "该文件夹与组织所有成员共享。",
+  "txt_organizations_role_admin": "管理员",
+  "txt_organizations_role_manager": "经理",
+  "txt_organizations_role_custom": "自定义"
 };
 
 export default orgZhCN;

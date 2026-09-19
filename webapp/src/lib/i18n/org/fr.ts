@@ -116,7 +116,10 @@ const orgFr: Record<string, string> = {
   "txt_organizations_folder_create_option": "Nouveau dossier d’organisation…",
   "txt_organizations_folder_empty_hint": "Aucun dossier d’organisation pour le moment",
   "txt_organizations_folder_create_prompt_title": "Nouveau dossier d’organisation",
-  "txt_organizations_folder_create_prompt_hint": "Le dossier est partagé avec tous les membres de l’organisation."
+  "txt_organizations_folder_create_prompt_hint": "Le dossier est partagé avec tous les membres de l’organisation.",
+  "txt_organizations_role_admin": "Administrateur",
+  "txt_organizations_role_manager": "Gestionnaire",
+  "txt_organizations_role_custom": "Personnalisé"
 };
 
 export default orgFr;

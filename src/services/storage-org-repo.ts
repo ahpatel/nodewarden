@@ -135,7 +135,7 @@ export async function deleteOrganizationForOwner(
     .prepare(
       'DELETE FROM organizations WHERE id = ? AND EXISTS (' +
         'SELECT 1 FROM organization_users ou ' +
-        'WHERE ou.organization_id = organizations.id AND ou.user_id = ? AND ou.type = 0 AND ou.status = 3' +
+        'WHERE ou.organization_id = organizations.id AND ou.user_id = ? AND ou.type = 0 AND ou.status = 2' +
       ')'
     )
     .bind(organizationId, ownerUserId)
@@ -223,7 +223,7 @@ export async function countConfirmedOrganizationOwners(
   organizationId: string
 ): Promise<number> {
   const row = await db
-    .prepare('SELECT COUNT(*) AS count FROM organization_users WHERE organization_id = ? AND type = 0 AND status = 3')
+    .prepare('SELECT COUNT(*) AS count FROM organization_users WHERE organization_id = ? AND type = 0 AND status = 2')
     .bind(organizationId)
     .first<{ count: number }>();
   return Number(row?.count || 0);
@@ -235,7 +235,7 @@ export async function listConfirmedOrganizationUserIds(
 ): Promise<Array<{ id: string; userId: string }>> {
   const result = await db
     .prepare(
-      `SELECT id, user_id FROM organization_users WHERE organization_id = ? AND status = 3 AND user_id IS NOT NULL`
+      `SELECT id, user_id FROM organization_users WHERE organization_id = ? AND status = 2 AND user_id IS NOT NULL`
     )
     .bind(organizationId)
     .all<{ id: string; user_id: string }>();
@@ -262,7 +262,7 @@ export async function listConfirmedOrganizationsForUser(
               ou.creation_date AS ou_creation_date, ou.revision_date AS ou_revision_date
        FROM organization_users ou
        JOIN organizations o ON o.id = ou.organization_id
-       WHERE ou.user_id = ? AND ou.status = 3
+       WHERE ou.user_id = ? AND ou.status = 2
        ORDER BY ou.creation_date ASC`
     )
     .bind(userId)

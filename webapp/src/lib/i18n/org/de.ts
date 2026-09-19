@@ -116,7 +116,10 @@ const orgDe: Record<string, string> = {
   "txt_organizations_folder_create_option": "Neue Organisationsordner…",
   "txt_organizations_folder_empty_hint": "Noch keine Organisationsordner",
   "txt_organizations_folder_create_prompt_title": "Neuer Organisationsordner",
-  "txt_organizations_folder_create_prompt_hint": "Der Ordner wird mit allen Organisationsmitgliedern geteilt."
+  "txt_organizations_folder_create_prompt_hint": "Der Ordner wird mit allen Organisationsmitgliedern geteilt.",
+  "txt_organizations_role_admin": "Admin",
+  "txt_organizations_role_manager": "Manager",
+  "txt_organizations_role_custom": "Benutzerdefiniert"
 };
 
 export default orgDe;
