@@ -61,6 +61,8 @@ interface VaultPageProps {
   onBulkUnarchive: (ids: string[]) => Promise<void>;
   onBulkMove: (ids: string[], folderId: string | null) => Promise<void>;
   onShareVaultItemToOrganization?: (cipher: Cipher, organizationId: string, collectionIds: string[]) => Promise<void>;
+  /** Creates an org folder from the editor picker (owners/admins); returns its id. */
+  onCreateOrgFolder?: (organizationId: string, name: string) => Promise<string | null>;
   onVerifyMasterPassword: (email: string, password: string) => Promise<void>;
   onNotify: (type: 'success' | 'error' | 'warning', text: string) => void;
   onCreateFolder: (name: string) => Promise<void>;
@@ -1357,6 +1359,7 @@ const folderName = useCallback((id: string | null | undefined): string => {
                 busy={busy}
                 folders={props.folders}
                 organizations={shareableOrganizations}
+                onCreateOrgFolder={props.onCreateOrgFolder}
                 collections={props.collections}
                 selectedCipher={selectedCipher}
                 editExistingAttachments={editExistingAttachments}

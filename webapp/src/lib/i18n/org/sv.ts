@@ -112,7 +112,11 @@ const orgSv: Record<string, string> = {
   "txt_organizations_folder_create_failed": "Det gick inte att skapa mappen",
   "txt_organizations_folder_deleted": "Mapp borttagen",
   "txt_organizations_folder_delete_failed": "Det gick inte att ta bort mappen",
-  "txt_organizations_no_folders": "Denna organisation har inga mappar än."
+  "txt_organizations_no_folders": "Denna organisation har inga mappar än.",
+  "txt_organizations_folder_create_option": "Ny organisationsmapp…",
+  "txt_organizations_folder_empty_hint": "Inga organisationsmappar än",
+  "txt_organizations_folder_create_prompt_title": "Ny organisationsmapp",
+  "txt_organizations_folder_create_prompt_hint": "Mappen delas med alla organisationsmedlemmar."
 };
 
 export default orgSv;

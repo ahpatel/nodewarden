@@ -112,7 +112,11 @@ const orgEs: Record<string, string> = {
   "txt_organizations_folder_create_failed": "No se pudo crear la carpeta",
   "txt_organizations_folder_deleted": "Carpeta eliminada",
   "txt_organizations_folder_delete_failed": "No se pudo eliminar la carpeta",
-  "txt_organizations_no_folders": "Esta organización todavía no tiene carpetas."
+  "txt_organizations_no_folders": "Esta organización todavía no tiene carpetas.",
+  "txt_organizations_folder_create_option": "Nueva carpeta de organización…",
+  "txt_organizations_folder_empty_hint": "Aún no hay carpetas de organización",
+  "txt_organizations_folder_create_prompt_title": "Nueva carpeta de organización",
+  "txt_organizations_folder_create_prompt_hint": "La carpeta se comparte con todos los miembros de la organización."
 };
 
 export default orgEs;

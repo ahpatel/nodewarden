@@ -112,7 +112,11 @@ const orgFi: Record<string, string> = {
   "txt_organizations_folder_create_failed": "Kansion luonti epäonnistui",
   "txt_organizations_folder_deleted": "Kansio poistettu",
   "txt_organizations_folder_delete_failed": "Kansion poisto epäonnistui",
-  "txt_organizations_no_folders": "Tässä organisaatiossa ei ole vielä kansioita."
+  "txt_organizations_no_folders": "Tässä organisaatiossa ei ole vielä kansioita.",
+  "txt_organizations_folder_create_option": "Uusi organisaation kansio…",
+  "txt_organizations_folder_empty_hint": "Organisaation kansioita ei vielä ole",
+  "txt_organizations_folder_create_prompt_title": "Uusi organisaation kansio",
+  "txt_organizations_folder_create_prompt_hint": "Kansio jaetaan kaikille organisaation jäsenille."
 };
 
 export default orgFi;

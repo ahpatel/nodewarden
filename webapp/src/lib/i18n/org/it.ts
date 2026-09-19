@@ -112,7 +112,11 @@ const orgIt: Record<string, string> = {
   "txt_organizations_folder_create_failed": "Impossibile creare la cartella",
   "txt_organizations_folder_deleted": "Cartella eliminata",
   "txt_organizations_folder_delete_failed": "Impossibile eliminare la cartella",
-  "txt_organizations_no_folders": "Questa organizzazione non ha ancora cartelle."
+  "txt_organizations_no_folders": "Questa organizzazione non ha ancora cartelle.",
+  "txt_organizations_folder_create_option": "Nuova cartella dell’organizzazione…",
+  "txt_organizations_folder_empty_hint": "Ancora nessuna cartella dell’organizzazione",
+  "txt_organizations_folder_create_prompt_title": "Nuova cartella dell’organizzazione",
+  "txt_organizations_folder_create_prompt_hint": "La cartella è condivisa con tutti i membri dell’organizzazione."
 };
 
 export default orgIt;

@@ -112,7 +112,11 @@ const orgEn: Record<string, string> = {
   "txt_organizations_folder_create_failed": "Failed to create folder",
   "txt_organizations_folder_deleted": "Folder deleted",
   "txt_organizations_folder_delete_failed": "Failed to delete folder",
-  "txt_organizations_no_folders": "This organization has no folders yet."
+  "txt_organizations_no_folders": "This organization has no folders yet.",
+  "txt_organizations_folder_create_option": "New organization folder…",
+  "txt_organizations_folder_empty_hint": "No organization folders yet",
+  "txt_organizations_folder_create_prompt_title": "New organization folder",
+  "txt_organizations_folder_create_prompt_hint": "The folder is shared with all organization members."
 };
 
 export default orgEn;

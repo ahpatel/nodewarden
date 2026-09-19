@@ -112,7 +112,11 @@ const orgFr: Record<string, string> = {
   "txt_organizations_folder_create_failed": "Échec de la création du dossier",
   "txt_organizations_folder_deleted": "Dossier supprimé",
   "txt_organizations_folder_delete_failed": "Échec de la suppression du dossier",
-  "txt_organizations_no_folders": "Cette organisation n'a pas encore de dossiers."
+  "txt_organizations_no_folders": "Cette organisation n'a pas encore de dossiers.",
+  "txt_organizations_folder_create_option": "Nouveau dossier d’organisation…",
+  "txt_organizations_folder_empty_hint": "Aucun dossier d’organisation pour le moment",
+  "txt_organizations_folder_create_prompt_title": "Nouveau dossier d’organisation",
+  "txt_organizations_folder_create_prompt_hint": "Le dossier est partagé avec tous les membres de l’organisation."
 };
 
 export default orgFr;
