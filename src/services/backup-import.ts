@@ -31,6 +31,7 @@ type BackupTableName =
   | 'user_revisions'
   | 'webauthn_credentials'
   | 'organization_users'
+  | 'organization_folders'
   | 'folders'
   | 'collections'
   | 'ciphers'
@@ -47,6 +48,7 @@ const BACKUP_TABLES: BackupTableName[] = [
   'user_revisions',
   'webauthn_credentials',
   'organization_users',
+  'organization_folders',
   'folders',
   'collections',
   'ciphers',
@@ -72,6 +74,7 @@ export interface BackupImportResultBody {
     attachments: number;
     attachmentFiles: number;
     organizations: number;
+    organization_folders: number;
     organizationUsers: number;
     collections: number;
     collectionUsers: number;
@@ -195,6 +198,7 @@ function buildResetImportTargetStatements(db: D1Database): D1PreparedStatement[]
     'DELETE FROM ciphers',
     'DELETE FROM collections',
     'DELETE FROM folders',
+    'DELETE FROM organization_folders',
     'DELETE FROM organization_users',
     'DELETE FROM webauthn_credentials',
     'DELETE FROM user_revisions',
@@ -342,6 +346,7 @@ async function importPreparedBackupRows(db: D1Database, payload: BackupPayload['
     attachments: cloneRows(payload.attachments || []),
     organizations: cloneRows(payload.organizations || []),
     organization_users: cloneRows(payload.organization_users || []),
+    organization_folders: cloneRows(payload.organization_folders || []),
     collections: cloneRows(payload.collections || []),
     collection_users: cloneRows(payload.collection_users || []),
     cipher_collections: cloneRows(payload.cipher_collections || []),
@@ -708,7 +713,7 @@ async function importBackupRows(db: D1Database, payload: BackupPayload['db'], us
     buildInsertStatements(
       db,
       tableName('ciphers'),
-      ['id', 'user_id', 'organization_id', 'type', 'folder_id', 'name', 'notes', 'favorite', 'data', 'reprompt', 'key', 'created_at', 'updated_at', 'archived_at', 'deleted_at'],
+      ['id', 'user_id', 'organization_id', 'organization_folder_id', 'type', 'folder_id', 'name', 'notes', 'favorite', 'data', 'reprompt', 'key', 'created_at', 'updated_at', 'archived_at', 'deleted_at'],
       payload.ciphers || []
     )
   );
@@ -726,6 +731,11 @@ async function importBackupRows(db: D1Database, payload: BackupPayload['db'], us
     db,
     tableName('organization_users'),
     buildInsertStatements(db, tableName('organization_users'), ['id', 'organization_id', 'user_id', 'email', 'key', 'status', 'type', 'access_all', 'creation_date', 'revision_date'], payload.organization_users || [])
+  );
+  await runInsertBatch(
+    db,
+    tableName('organization_folders'),
+    buildInsertStatements(db, tableName('organization_folders'), ['id', 'organization_id', 'name', 'creation_date', 'revision_date'], payload.organization_folders || [])
   );
   await runInsertBatch(
     db,
@@ -818,6 +828,7 @@ export async function importBackupArchiveBytes(
       ciphers: (db.ciphers || []).length,
       attachments: restored.restoredAttachments.length,
       organizations: (db.organizations || []).length,
+      organization_folders: (db.organization_folders || []).length,
       organization_users: (db.organization_users || []).length,
       collections: (db.collections || []).length,
       collection_users: (db.collection_users || []).length,
@@ -865,6 +876,7 @@ export async function importBackupArchiveBytes(
           attachments: restored.restoredAttachments.length,
           attachmentFiles: restored.imported,
           organizations: (db.organizations || []).length,
+      organization_folders: (db.organization_folders || []).length,
           organizationUsers: (db.organization_users || []).length,
           collections: (db.collections || []).length,
           collectionUsers: (db.collection_users || []).length,
@@ -946,6 +958,7 @@ export async function importRemoteBackupArchiveBytes(
       ciphers: (db.ciphers || []).length,
       attachments: (db.attachments || []).length,
       organizations: (db.organizations || []).length,
+      organization_folders: (db.organization_folders || []).length,
       organization_users: (db.organization_users || []).length,
       collections: (db.collections || []).length,
       collection_users: (db.collection_users || []).length,
@@ -974,6 +987,7 @@ export async function importRemoteBackupArchiveBytes(
       ciphers: (db.ciphers || []).length,
       attachments: restored.restoredAttachments.length,
       organizations: (db.organizations || []).length,
+      organization_folders: (db.organization_folders || []).length,
       organization_users: (db.organization_users || []).length,
       collections: (db.collections || []).length,
       collection_users: (db.collection_users || []).length,
@@ -1027,6 +1041,7 @@ export async function importRemoteBackupArchiveBytes(
           attachments: restored.restoredAttachments.length,
           attachmentFiles: restored.imported,
           organizations: (db.organizations || []).length,
+      organization_folders: (db.organization_folders || []).length,
           organizationUsers: (db.organization_users || []).length,
           collections: (db.collections || []).length,
           collectionUsers: (db.collection_users || []).length,
