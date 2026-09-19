@@ -37,14 +37,26 @@ test('status SQL literals match the native enum (confirmed = 2)', () => {
   }
 });
 
-test('status migration to wire enums is guarded by a sentinel', () => {
+test('status migration to wire enums is race-free and one-shot', () => {
   const schema = read('src/services/storage-schema.ts');
   const fn = schema.slice(schema.indexOf('migrateOrganizationUserStatusToWire'));
-  assert.ok(/status = 3/.test(fn), 'the sentinel is the unmigrated confirmed value');
-  assert.ok(/SET status = status - 1/.test(fn), 'shifts stored values onto the wire scale');
+  // Single-statement guard: the WHERE re-evaluates at execution time, so
+  // concurrent isolates cannot double-shift (a SELECT-then-UPDATE could).
+  assert.ok(
+    /UPDATE organization_users SET status = status - 1\s*'\s*\+\s*\n\s*'WHERE EXISTS \(SELECT 1 FROM organization_users WHERE status = 3\)/.test(fn),
+    'the shift is guarded inside the UPDATE statement itself'
+  );
+  assert.ok(
+    !/SELECT 1 FROM organization_users WHERE status = 3 LIMIT 1/.test(fn),
+    'no check-then-act sentinel SELECT remains'
+  );
+  assert.ok(
+    /migration\.org_status_wire/.test(fn),
+    'a config marker makes the migration one-shot across rollback windows'
+  );
   assert.ok(/await migrateOrganizationUserStatusToWire\(db\);/.test(schema), 'wired into ensureStorageSchema');
   const storage = read('src/services/storage.ts');
-  assert.ok(/native-org-status/.test(storage), 'schema version bumped for the data migration');
+  assert.ok(/org-status/.test(storage), 'schema version bumped for the data migration');
 });
 
 test('organization roles include Bitwarden Manager and Custom', () => {
@@ -52,6 +64,11 @@ test('organization roles include Bitwarden Manager and Custom', () => {
   assert.ok(/MANAGER:\s*3/.test(orgs) && /CUSTOM:\s*4/.test(orgs), 'ORG_USER_TYPE covers Manager=3 and Custom=4');
   const invite = orgs.slice(orgs.indexOf('handleInviteOrganizationUsers'));
   assert.ok(/\[0, 1, 2, 3, 4\]\.includes/.test(invite), 'invite type validation accepts the full Bitwarden range');
+  const update = orgs.slice(orgs.indexOf('handleUpdateOrganizationUser'));
+  assert.ok(
+    /nextType < ORG_USER_TYPE\.OWNER \|\| nextType > ORG_USER_TYPE\.CUSTOM/.test(update),
+    'member updates accept the same range (editing a Manager/Custom member must not 400)'
+  );
 });
 
 test('invite UI exposes Admin and Manager roles', () => {

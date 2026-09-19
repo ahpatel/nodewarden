@@ -303,14 +303,32 @@ async function migrateCiphersToOrganizationShape(db: D1Database): Promise<void> 
 // Bitwarden's wire enum at the response edge. The stored values are now the
 // wire enum itself (-1=Revoked, 0=Invited, 1=Accepted, 2=Confirmed), removing
 // the translation layer. The sentinel for unmigrated data is status = 3 —
-// only the pre-migration scale contains it, so a single guarded UPDATE shifts
-// every row (including Revoked 0 -> -1) exactly once.
+// only the pre-migration scale contains it.
+//
+// Race safety: the shift is a single statement whose WHERE re-evaluates at
+// execution time; D1 serializes writes, so the second of two concurrent
+// isolates finds no status = 3 rows and no-ops — a check-then-SELECT-then-
+// UPDATE pattern would double-shift instead. The config marker makes the
+// migration one-shot across rollback windows: an old build can re-introduce
+// status = 3 rows while rolled back, and without the marker a redeploy would
+// shift every row again, demoting already-migrated members.
 async function migrateOrganizationUserStatusToWire(db: D1Database): Promise<void> {
-  const sentinel = await db
-    .prepare('SELECT 1 FROM organization_users WHERE status = 3 LIMIT 1')
+  const done = await db
+    .prepare("SELECT 1 FROM config WHERE key = 'migration.org_status_wire'")
     .first();
-  if (!sentinel) return;
-  await db.prepare('UPDATE organization_users SET status = status - 1').run();
+  if (done) return;
+  await db
+    .prepare(
+      'UPDATE organization_users SET status = status - 1 ' +
+      'WHERE EXISTS (SELECT 1 FROM organization_users WHERE status = 3)'
+    )
+    .run();
+  await db
+    .prepare(
+      "INSERT INTO config(key, value) VALUES('migration.org_status_wire', 'done') " +
+      'ON CONFLICT(key) DO NOTHING'
+    )
+    .run();
 }
 
 export async function ensureStorageSchema(db: D1Database): Promise<void> {
