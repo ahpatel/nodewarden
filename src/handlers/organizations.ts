@@ -4,8 +4,6 @@ import {
   OrganizationUser,
   OrganizationUserStatus,
   OrganizationUserType,
-  Collection,
-  Cipher,
   User,
   Invite,
 } from '../types';
@@ -442,13 +440,16 @@ export async function handleDeleteOrganization(request: Request, env: Env, userI
   const members = await storage.listConfirmedOrganizationUserIds(organizationId);
   const orgCipherIds = await storage.listCipherIdsByOrganization(organizationId);
 
-  await deleteAllAttachmentsForCiphers(env, orgCipherIds);
   // Single-statement owner-preconditioned delete: authorization and deletion
-  // cannot drift apart (a concurrent demotion yields false -> 404).
+  // cannot drift apart (a concurrent demotion yields false -> 404). Attachment
+  // cleanup runs only after the delete is proven, using the ids captured
+  // before the cascade removed the rows — a failed delete leaves the org and
+  // its attachments intact.
   const deleted = await storage.deleteOrganizationForOwner(organizationId, userId);
   if (!deleted) {
     return errorResponse('Organization not found', 404);
   }
+  await deleteAllAttachmentsForCiphers(env, orgCipherIds);
 
   const contextId = readActingDeviceIdentifier(request);
   for (const member of members) {
@@ -791,7 +792,10 @@ export async function handleUpdateOrganizationUser(
 
   if (body.type !== undefined) {
     const nextType = Number(body.type);
-    if (nextType !== ORG_USER_TYPE.OWNER && nextType !== ORG_USER_TYPE.USER) {
+    // Same range the invite endpoint accepts — rejecting Manager/Custom here
+    // would make any role edit on such a member (including official clients
+    // re-sending the unchanged type) fail with a 400.
+    if (nextType < ORG_USER_TYPE.OWNER || nextType > ORG_USER_TYPE.CUSTOM) {
       return errorResponse('Unsupported member type', 400);
     }
     if (organizationUser.type === ORG_USER_TYPE.OWNER && nextType !== ORG_USER_TYPE.OWNER) {
