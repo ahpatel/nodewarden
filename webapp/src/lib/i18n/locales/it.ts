@@ -1566,6 +1566,7 @@ Object.assign(it, { "txt_password_security_show_all": "Show all", "txt_password_
   "txt_admin_org_self_service_enable": "Abilita la registrazione self-service",
   "txt_admin_org_self_service_disable": "Disabilita la registrazione self-service",
   "txt_admin_org_self_service_password_placeholder": "Password principale (conferma)",
+  "txt_organizations_access_per_collection": "Per raccolta",
 });
 
 export default it;

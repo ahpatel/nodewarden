@@ -1645,6 +1645,7 @@ Object.assign(en, {
   "txt_admin_org_self_service_enable": "Enable self-service registration",
   "txt_admin_org_self_service_disable": "Disable self-service registration",
   "txt_admin_org_self_service_password_placeholder": "Master password (confirm)",
+  "txt_organizations_access_per_collection": "Per collection",
 });
 
 export default en;

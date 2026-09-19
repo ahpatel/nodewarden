@@ -1595,6 +1595,7 @@ Object.assign(zhTW, {
   "txt_admin_org_self_service_enable": "啟用自助註冊",
   "txt_admin_org_self_service_disable": "停用自助註冊",
   "txt_admin_org_self_service_password_placeholder": "主密碼（確認）",
+  "txt_organizations_access_per_collection": "按集合",
 });
 
 export default zhTW;

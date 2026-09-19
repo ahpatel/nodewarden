@@ -1566,6 +1566,7 @@ Object.assign(ru, { "txt_password_security_show_all": "Show all", "txt_password_
   "txt_admin_org_self_service_enable": "Включить самостоятельную регистрацию",
   "txt_admin_org_self_service_disable": "Отключить самостоятельную регистрацию",
   "txt_admin_org_self_service_password_placeholder": "Мастер-пароль (подтверждение)",
+  "txt_organizations_access_per_collection": "По коллекциям",
 });
 
 export default ru;

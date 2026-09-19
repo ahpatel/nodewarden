@@ -1566,6 +1566,7 @@ Object.assign(es, { "txt_password_security_show_all": "Show all", "txt_password_
   "txt_admin_org_self_service_enable": "Habilitar registro de autoservicio",
   "txt_admin_org_self_service_disable": "Deshabilitar registro de autoservicio",
   "txt_admin_org_self_service_password_placeholder": "Contraseña maestra (confirmar)",
+  "txt_organizations_access_per_collection": "Por colección",
 });
 
 export default es;
