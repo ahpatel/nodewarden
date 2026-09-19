@@ -102,7 +102,17 @@ const orgFr: Record<string, string> = {
   "txt_admin_org_self_service_enable": "Activer l’inscription libre-service",
   "txt_admin_org_self_service_disable": "Désactiver l’inscription libre-service",
   "txt_admin_org_self_service_password_placeholder": "Mot de passe maître (confirmer)",
-  "txt_organizations_access_per_collection": "Par collection"
+  "txt_organizations_access_per_collection": "Par collection",
+  "txt_organizations_folders": "Dossiers",
+  "txt_organizations_folder_hint": "Les dossiers de l'organisation regroupent les éléments partagés pour tous les membres. Les noms sont chiffrés avec la clé de l'organisation.",
+  "txt_organizations_add_folder": "Ajouter un dossier",
+  "txt_organizations_folder_name_placeholder": "Nom du nouveau dossier",
+  "txt_organizations_folder_name_required": "Le nom du dossier est requis",
+  "txt_organizations_folder_created": "Dossier créé",
+  "txt_organizations_folder_create_failed": "Échec de la création du dossier",
+  "txt_organizations_folder_deleted": "Dossier supprimé",
+  "txt_organizations_folder_delete_failed": "Échec de la suppression du dossier",
+  "txt_organizations_no_folders": "Cette organisation n'a pas encore de dossiers."
 };
 
 export default orgFr;

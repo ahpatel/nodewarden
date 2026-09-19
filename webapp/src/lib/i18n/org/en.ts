@@ -102,7 +102,17 @@ const orgEn: Record<string, string> = {
   "txt_admin_org_self_service_enable": "Enable self-service registration",
   "txt_admin_org_self_service_disable": "Disable self-service registration",
   "txt_admin_org_self_service_password_placeholder": "Master password (confirm)",
-  "txt_organizations_access_per_collection": "Per collection"
+  "txt_organizations_access_per_collection": "Per collection",
+  "txt_organizations_folders": "Folders",
+  "txt_organizations_folder_hint": "Organization folders group shared items for every member. Names are encrypted with the organization key.",
+  "txt_organizations_add_folder": "Add folder",
+  "txt_organizations_folder_name_placeholder": "New folder name",
+  "txt_organizations_folder_name_required": "Folder name is required",
+  "txt_organizations_folder_created": "Folder created",
+  "txt_organizations_folder_create_failed": "Failed to create folder",
+  "txt_organizations_folder_deleted": "Folder deleted",
+  "txt_organizations_folder_delete_failed": "Failed to delete folder",
+  "txt_organizations_no_folders": "This organization has no folders yet."
 };
 
 export default orgEn;

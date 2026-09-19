@@ -28,7 +28,7 @@ interface VaultEditorProps {
   folders: Folder[];
   selectedCipher: Cipher | null;
   /** Confirmed organizations available for create/transfer. */
-  organizations?: Array<{ id: string; name: string; keyAvailable: boolean }>;
+  organizations?: Array<{ id: string; name: string; keyAvailable: boolean; type: number }>;
   /** All collections the user can see (decrypted names). */
   collections?: VaultCollection[];
   editExistingAttachments: Array<any>;
@@ -380,13 +380,22 @@ export default function VaultEditor(props: VaultEditorProps) {
           </label>
           <label className="field">
             <span>{t('txt_folder')}</span>
-            <select className="input" value={props.draft.folderId} onInput={(e) => props.onUpdateDraft({ folderId: (e.currentTarget as HTMLSelectElement).value })} disabled={!!props.draft.organizationId}>
+            <select className="input" value={props.draft.folderId} onInput={(e) => props.onUpdateDraft({ folderId: (e.currentTarget as HTMLSelectElement).value })}>
               <option value="">{t('txt_no_folder')}</option>
-              {props.folders.map((folder) => (
-                <option key={folder.id} value={folder.id}>
-                  {folder.decName || folder.name || folder.id}
-                </option>
-              ))}
+              {/* Org items are filed in organization folders; personal items in
+                  user folders. Both namespaces travel as folderId — the
+                  server resolves which one a payload references. */}
+              {props.folders
+                .filter((folder) =>
+                  props.draft.organizationId
+                    ? folder.organizationId === props.draft.organizationId
+                    : !folder.organizationId
+                )
+                .map((folder) => (
+                  <option key={folder.id} value={folder.id}>
+                    {folder.decName || folder.name || folder.id}
+                  </option>
+                ))}
             </select>
           </label>
           {(props.organizations || []).filter((organization) => organization.keyAvailable).length > 0 && (
@@ -398,7 +407,9 @@ export default function VaultEditor(props: VaultEditorProps) {
                 disabled={!!props.selectedCipher?.organizationId}
                 onInput={(e) => {
                   const value = (e.currentTarget as HTMLSelectElement).value;
-                  props.onUpdateDraft({ organizationId: value || null, collectionIds: [] });
+                  // Folder namespaces differ per ownership target; a switch
+                  // always starts unfiled.
+                  props.onUpdateDraft({ organizationId: value || null, collectionIds: [], folderId: '' });
                 }}
               >
                 <option value="">{t('txt_org_personal')}</option>

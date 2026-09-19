@@ -18,6 +18,8 @@ interface VaultDialogsProps {
   moveOpen: boolean;
   moveFolderId: string;
   folders: Folder[];
+  /** For labeling organization folders in the move dialog. */
+  organizations?: Array<{ id: string; name: string }>;
   createFolderOpen: boolean;
   newFolderName: string;
   renameFolderOpen: boolean;
@@ -182,11 +184,16 @@ export default function VaultDialogs(props: VaultDialogsProps) {
           <span>{t('txt_folder')}</span>
           <select className="input" value={props.moveFolderId} onInput={(e) => props.onMoveFolderIdChange((e.currentTarget as HTMLSelectElement).value)}>
             <option value="__none__">{t('txt_no_folder')}</option>
-            {props.folders.map((folder) => (
-              <option key={folder.id} value={folder.id}>
-                {folder.decName || folder.name || folder.id}
-              </option>
-            ))}
+            {props.folders.map((folder) => {
+              const owningOrg = folder.organizationId
+                ? (props.organizations || []).find((organization) => organization.id === folder.organizationId)
+                : undefined;
+              return (
+                <option key={folder.id} value={folder.id}>
+                  {`${folder.decName || folder.name || folder.id}${owningOrg ? ` — ${owningOrg.name}` : ''}`}
+                </option>
+              );
+            })}
           </select>
         </label>
       </ConfirmDialog>

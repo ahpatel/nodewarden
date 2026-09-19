@@ -102,7 +102,17 @@ const orgDe: Record<string, string> = {
   "txt_admin_org_self_service_enable": "Self-Service-Registrierung aktivieren",
   "txt_admin_org_self_service_disable": "Self-Service-Registrierung deaktivieren",
   "txt_admin_org_self_service_password_placeholder": "Master-Passwort (bestätigen)",
-  "txt_organizations_access_per_collection": "Pro Sammlung"
+  "txt_organizations_access_per_collection": "Pro Sammlung",
+  "txt_organizations_folders": "Ordner",
+  "txt_organizations_folder_hint": "Organisationsordner gruppieren geteilte Einträge für alle Mitglieder. Namen sind mit dem Organisationsschlüssel verschlüsselt.",
+  "txt_organizations_add_folder": "Ordner hinzufügen",
+  "txt_organizations_folder_name_placeholder": "Neuer Ordnername",
+  "txt_organizations_folder_name_required": "Ordnername ist erforderlich",
+  "txt_organizations_folder_created": "Ordner erstellt",
+  "txt_organizations_folder_create_failed": "Ordner konnte nicht erstellt werden",
+  "txt_organizations_folder_deleted": "Ordner gelöscht",
+  "txt_organizations_folder_delete_failed": "Ordner konnte nicht gelöscht werden",
+  "txt_organizations_no_folders": "Diese Organisation hat noch keine Ordner."
 };
 
 export default orgDe;

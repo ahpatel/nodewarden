@@ -102,7 +102,17 @@ const orgSv: Record<string, string> = {
   "txt_admin_org_self_service_enable": "Aktivera självbetjäningsregistrering",
   "txt_admin_org_self_service_disable": "Inaktivera självbetjäningsregistrering",
   "txt_admin_org_self_service_password_placeholder": "Huvudlösenord (bekräfta)",
-  "txt_organizations_access_per_collection": "Per samling"
+  "txt_organizations_access_per_collection": "Per samling",
+  "txt_organizations_folders": "Mappar",
+  "txt_organizations_folder_hint": "Organisationens mappar grupperar delade objekt för alla medlemmar. Namnen krypteras med organisationens nyckel.",
+  "txt_organizations_add_folder": "Lägg till mapp",
+  "txt_organizations_folder_name_placeholder": "Nytt mappnamn",
+  "txt_organizations_folder_name_required": "Mappnamn krävs",
+  "txt_organizations_folder_created": "Mapp skapad",
+  "txt_organizations_folder_create_failed": "Det gick inte att skapa mappen",
+  "txt_organizations_folder_deleted": "Mapp borttagen",
+  "txt_organizations_folder_delete_failed": "Det gick inte att ta bort mappen",
+  "txt_organizations_no_folders": "Denna organisation har inga mappar än."
 };
 
 export default orgSv;

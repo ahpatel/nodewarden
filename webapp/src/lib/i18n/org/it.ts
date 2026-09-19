@@ -102,7 +102,17 @@ const orgIt: Record<string, string> = {
   "txt_admin_org_self_service_enable": "Abilita la registrazione self-service",
   "txt_admin_org_self_service_disable": "Disabilita la registrazione self-service",
   "txt_admin_org_self_service_password_placeholder": "Password principale (conferma)",
-  "txt_organizations_access_per_collection": "Per raccolta"
+  "txt_organizations_access_per_collection": "Per raccolta",
+  "txt_organizations_folders": "Cartelle",
+  "txt_organizations_folder_hint": "Le cartelle dell'organizzazione raggruppano gli elementi condivisi per tutti i membri. I nomi sono cifrati con la chiave dell'organizzazione.",
+  "txt_organizations_add_folder": "Aggiungi cartella",
+  "txt_organizations_folder_name_placeholder": "Nome della nuova cartella",
+  "txt_organizations_folder_name_required": "Il nome della cartella è obbligatorio",
+  "txt_organizations_folder_created": "Cartella creata",
+  "txt_organizations_folder_create_failed": "Impossibile creare la cartella",
+  "txt_organizations_folder_deleted": "Cartella eliminata",
+  "txt_organizations_folder_delete_failed": "Impossibile eliminare la cartella",
+  "txt_organizations_no_folders": "Questa organizzazione non ha ancora cartelle."
 };
 
 export default orgIt;

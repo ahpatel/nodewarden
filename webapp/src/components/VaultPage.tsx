@@ -42,8 +42,8 @@ interface VaultPageProps {
   folders: Folder[];
   /** Organization collections with decrypted names. */
   collections?: VaultCollection[];
-  /** Confirmed organizations with decrypted names. */
-  organizations?: Array<{ id: string; name: string; keyAvailable: boolean }>;
+  /** Confirmed organizations with decrypted names. type: 0=Owner 1=Admin 2=User. */
+  organizations?: Array<{ id: string; name: string; keyAvailable: boolean; type: number }>;
   loading: boolean;
   error: string;
   emailForReprompt: string;
@@ -1141,10 +1141,15 @@ const folderName = useCallback((id: string | null | undefined): string => {
   }
 
   async function confirmDeleteAllFolders(): Promise<void> {
-    if (!props.folders.length) return;
+    // Only personal folders; organization folders are managed in the org
+    // console and must never be swept by this action.
+    const personalFolderIds = props.folders
+      .filter((folder) => !folder.organizationId)
+      .map((folder) => folder.id);
+    if (!personalFolderIds.length) return;
     setBusy(true);
     try {
-      await props.onBulkDeleteFolders(props.folders.map((folder) => folder.id));
+      await props.onBulkDeleteFolders(personalFolderIds);
       if (sidebarFilter.kind === 'folder') {
         setSidebarFilter({ kind: 'all' });
       }
@@ -1451,6 +1456,7 @@ const folderName = useCallback((id: string | null | undefined): string => {
         moveOpen={moveOpen}
         moveFolderId={moveFolderId}
         folders={props.folders}
+        organizations={props.organizations}
         createFolderOpen={createFolderOpen}
         newFolderName={newFolderName}
         renameFolderOpen={!!pendingRenameFolder}

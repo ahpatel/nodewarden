@@ -302,3 +302,75 @@ export async function deleteOrganizationCollection(
     { method: 'DELETE' }
   );
 }
+
+// ─── Organization folders ──────────────────────────────────────────────────
+// Folders are org-scoped: names are EncStrings encrypted with the organization
+// key (the webapp encrypts/decrypts locally via org-crypto helpers). Only
+// owners/admins may create/rename/delete; every confirmed member sees them
+// through the sync folders list.
+
+export interface OrganizationFolderRecord {
+  id: string;
+  organizationId: string;
+  /** Org-key encrypted name (EncString). */
+  name: string;
+  creationDate?: string;
+  revisionDate?: string;
+  [k: string]: unknown;
+}
+
+export async function listOrganizationFolders(
+  authedFetch: AuthedFetch,
+  organizationId: string
+): Promise<OrganizationFolderRecord[]> {
+  const body = await requestJson<{ data?: OrganizationFolderRecord[] }>(
+    authedFetch,
+    `/api/organizations/${organizationId}/folders`
+  );
+  return Array.isArray(body?.data) ? body.data : [];
+}
+
+export async function createOrganizationFolder(
+  authedFetch: AuthedFetch,
+  organizationId: string,
+  name: string
+): Promise<OrganizationFolderRecord> {
+  return requestJson<OrganizationFolderRecord>(
+    authedFetch,
+    `/api/organizations/${organizationId}/folders`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name }),
+    }
+  );
+}
+
+export async function updateOrganizationFolder(
+  authedFetch: AuthedFetch,
+  organizationId: string,
+  folderId: string,
+  name: string
+): Promise<OrganizationFolderRecord> {
+  return requestJson<OrganizationFolderRecord>(
+    authedFetch,
+    `/api/organizations/${organizationId}/folders/${folderId}`,
+    {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name }),
+    }
+  );
+}
+
+export async function deleteOrganizationFolder(
+  authedFetch: AuthedFetch,
+  organizationId: string,
+  folderId: string
+): Promise<void> {
+  await requestJson<unknown>(
+    authedFetch,
+    `/api/organizations/${organizationId}/folders/${folderId}`,
+    { method: 'DELETE' }
+  );
+}

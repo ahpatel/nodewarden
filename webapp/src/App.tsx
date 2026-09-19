@@ -267,7 +267,7 @@ export default function App() {
   const [decryptedSends, setDecryptedSends] = useState<Send[]>([]);
   const [orgKeys, setOrgKeys] = useState<OrgKeyMap | null>(null);
   const [decryptedCollections, setDecryptedCollections] = useState<VaultCollection[]>([]);
-  const [decryptedOrganizations, setDecryptedOrganizations] = useState<Array<{ id: string; name: string; keyAvailable: boolean }>>([]);
+  const [decryptedOrganizations, setDecryptedOrganizations] = useState<Array<{ id: string; name: string; keyAvailable: boolean; type: number }>>([]);
   const [demoUsers, setDemoUsers] = useState<AdminUser[]>(() => DEMO_ADMIN_USERS.map((user) => ({ ...user })));
   const [demoInvites, setDemoInvites] = useState<AdminInvite[]>(() => DEMO_ADMIN_INVITES.map((invite) => ({ ...invite })));
   const [demoAuthorizedDevices, setDemoAuthorizedDevices] = useState<AuthorizedDevice[]>(() => DEMO_AUTHORIZED_DEVICES.map((device) => ({ ...device })));
@@ -1332,7 +1332,7 @@ export default function App() {
   // Resolve organization decryption keys: each confirmed org's key arrives in
   // the profile encrypted with this user's RSA public key. Unwrapping needs
   // the user's private key (itself encrypted with the user symmetric key).
-  const profileOrganizations = (profile?.organizations || []) as Array<{ id: string; name: string; key: string | null; status: number }>;
+  const profileOrganizations = (profile?.organizations || []) as Array<{ id: string; name: string; key: string | null; status: number; type: number }>;
   const orgKeyResolveKey = profileOrganizations
     .map((org) => `${org.id}:${org.key || ''}:${org.status}`)
     .join('|');
@@ -1342,7 +1342,7 @@ export default function App() {
     if (IS_DEMO_MODE || !organizations.length || !session?.symEncKey || !session?.symMacKey || !profile?.privateKey) {
       if (!IS_DEMO_MODE) {
         setOrgKeys(null);
-        setDecryptedOrganizations(profileOrganizations.map((org) => ({ id: org.id, name: '', keyAvailable: false })));
+        setDecryptedOrganizations(profileOrganizations.map((org) => ({ id: org.id, name: '', keyAvailable: false, type: Number(org.type) || 2 })));
       }
       return;
     }
@@ -1354,12 +1354,12 @@ export default function App() {
       if (!privateKeyPkcs8) {
         if (active) {
           setOrgKeys(null);
-          setDecryptedOrganizations(organizations.map((org) => ({ id: org.id, name: '', keyAvailable: false })));
+          setDecryptedOrganizations(organizations.map((org) => ({ id: org.id, name: '', keyAvailable: false, type: Number(org.type) || 2 })));
         }
         return;
       }
       const nextKeys: OrgKeyMap = {};
-      const nextOrganizations: Array<{ id: string; name: string; keyAvailable: boolean }> = [];
+      const nextOrganizations: Array<{ id: string; name: string; keyAvailable: boolean; type: number }> = [];
       for (const org of organizations) {
         const parts = await unwrapOrganizationKey(org.id, org.key, privateKeyPkcs8);
         let name = '';
@@ -1373,7 +1373,7 @@ export default function App() {
         if (parts) {
           nextKeys[org.id] = { encB64: parts.encB64, macB64: parts.macB64 };
         }
-        nextOrganizations.push({ id: org.id, name, keyAvailable: !!parts });
+        nextOrganizations.push({ id: org.id, name, keyAvailable: !!parts, type: Number(org.type) || 2 });
       }
       if (active) {
         setOrgKeys(Object.keys(nextKeys).length ? nextKeys : null);

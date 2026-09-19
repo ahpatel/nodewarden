@@ -54,7 +54,7 @@ export interface AppMainRoutesProps {
   /** Organization collections with decrypted names. */
   decryptedCollections: VaultCollection[];
   /** Confirmed organizations with decrypted names (empty when none). */
-  decryptedOrganizations: Array<{ id: string; name: string; keyAvailable: boolean }>;
+  decryptedOrganizations: Array<{ id: string; name: string; keyAvailable: boolean; type: number }>;
   /** Organization decryption keys by organizationId (null when none). */
   orgKeys: OrgKeyMap | null;
   /** Authenticated fetch for organization management endpoints. */
