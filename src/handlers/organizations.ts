@@ -395,20 +395,20 @@ export async function handleCreateOrganization(request: Request, env: Env, userI
     revisionDate: now,
   };
 
-  await storage.saveOrganization(organization);
-  await storage.saveOrganizationUser(organizationUser);
+  // Default collection, as the official clients create during org setup — part
+  // of the same atomic batch as the org and owner membership.
+  const defaultCollection = collectionName
+    ? {
+        id: generateUUID(),
+        organizationId: organization.id,
+        name: collectionName,
+        externalId: null,
+        creationDate: now,
+        revisionDate: now,
+      }
+    : null;
 
-  // Default collection, as the official clients create during org setup.
-  if (collectionName) {
-    await storage.saveCollection({
-      id: generateUUID(),
-      organizationId: organization.id,
-      name: collectionName,
-      externalId: null,
-      creationDate: now,
-      revisionDate: now,
-    });
-  }
+  await storage.createOrganizationWithOwner(organization, organizationUser, defaultCollection);
 
   const revisionDate = await storage.updateRevisionDate(userId);
   notifyUserVaultSync(env, userId, revisionDate, readActingDeviceIdentifier(request));
@@ -461,7 +461,12 @@ export async function handleDeleteOrganization(request: Request, env: Env, userI
   const orgCipherIds = await storage.listCipherIdsByOrganization(organizationId);
 
   await deleteAllAttachmentsForCiphers(env, orgCipherIds);
-  await storage.deleteOrganization(organizationId);
+  // Single-statement owner-preconditioned delete: authorization and deletion
+  // cannot drift apart (a concurrent demotion yields false -> 404).
+  const deleted = await storage.deleteOrganizationForOwner(organizationId, userId);
+  if (!deleted) {
+    return errorResponse('Organization not found', 404);
+  }
 
   const contextId = readActingDeviceIdentifier(request);
   for (const member of members) {
@@ -1077,12 +1082,13 @@ export async function handleDeleteOrganizationCollection(
   const owner = await requireOrganizationOwner(storage, organizationId, userId);
   if (owner instanceof Response) return owner;
 
-  const collection = await storage.getCollection(collectionId);
-  if (!collection || collection.organizationId !== organizationId) {
+  // Single-statement org-scoped, owner-preconditioned delete: a concurrent
+  // demotion or an id collision cannot authorize the wrong delete.
+  const deleted = await storage.deleteCollectionForOwner(collectionId, organizationId, userId);
+  if (!deleted) {
     return errorResponse('Collection not found', 404);
   }
 
-  await storage.deleteCollection(collectionId);
   await bumpOrganizationMembers(request, env, storage, organizationId);
   await writeOrgAudit(storage, request, userId, 'organization.collection.delete', {
     organizationId,

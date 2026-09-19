@@ -73,6 +73,8 @@ import {
 } from './storage-cipher-repo';
 import {
   countConfirmedOrganizationOwners as countStoredConfirmedOrgOwners,
+  createOrganizationWithOwner as createStoredOrganizationWithOwner,
+  deleteOrganizationForOwner as deleteStoredOrganizationForOwner,
   countOrganizationOwners as countStoredOrgOwners,
   deleteOrganization as deleteStoredOrganization,
   deleteOrganizationUser as deleteStoredOrganizationUser,
@@ -100,6 +102,7 @@ import {
   type CipherAccessInfo,
   type UserCollectionAccess,
   deleteCollection as deleteStoredCollection,
+  deleteCollectionForOwner as deleteStoredCollectionForOwner,
   getCollectionsByIds as listStoredCollectionsByIds,
   getCollection as findStoredCollection,
   listCollectionIdsForCipher as listStoredCollectionIdsForCipher,
@@ -218,7 +221,20 @@ const STORAGE_SCHEMA_VERSION_KEY = 'schema.version';
 // changes. Existing D1 installs only rerun ensureStorageSchema() when this value
 // differs from config.schema.version.
 const STORAGE_SCHEMA_VERSION = '2026-09-19-personal-org-filing';
-const REQUIRED_SCHEMA_TABLES = ['webauthn_credentials', 'webauthn_challenges', 'auth_requests', 'totp_login_replays'] as const;
+const REQUIRED_SCHEMA_TABLES = [
+  'webauthn_credentials',
+  'webauthn_challenges',
+  'auth_requests',
+  'totp_login_replays',
+  // Org tables: a partially-failed earlier ensure gets repaired on the next
+  // boot even when the schema version matches.
+  'organizations',
+  'organization_users',
+  'collections',
+  'collection_users',
+  'cipher_collections',
+  'cipher_user_folders',
+] as const;
 
 // D1-backed storage.
 // Contract:
@@ -602,6 +618,21 @@ export class StorageService {
     await deleteStoredOrganization(this.db, id);
   }
 
+  // Atomic org + owner (+ default collection) creation; see storage-org-repo.
+  async createOrganizationWithOwner(
+    organization: Organization,
+    organizationUser: OrganizationUser,
+    defaultCollection?: Collection | null
+  ): Promise<void> {
+    await createStoredOrganizationWithOwner(this.db, organization, organizationUser, defaultCollection);
+  }
+
+  // Single-statement owner-preconditioned delete; returns false when the
+  // caller is not a confirmed owner of the organization.
+  async deleteOrganizationForOwner(organizationId: string, ownerUserId: string): Promise<boolean> {
+    return deleteStoredOrganizationForOwner(this.db, organizationId, ownerUserId);
+  }
+
   async getOrganizationUser(id: string): Promise<OrganizationUser | null> {
     return findStoredOrganizationUser(this.db, id);
   }
@@ -676,6 +707,17 @@ export class StorageService {
 
   async deleteCollection(id: string): Promise<void> {
     await deleteStoredCollection(this.db, id);
+  }
+
+  // Single-statement owner-preconditioned collection delete; returns false
+  // when the collection does not belong to the org or the caller is not a
+  // confirmed owner of it.
+  async deleteCollectionForOwner(
+    collectionId: string,
+    organizationId: string,
+    ownerUserId: string
+  ): Promise<boolean> {
+    return deleteStoredCollectionForOwner(this.db, collectionId, organizationId, ownerUserId);
   }
 
   async listCollectionsForOrganization(organizationId: string): Promise<Collection[]> {

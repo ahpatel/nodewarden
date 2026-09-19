@@ -65,6 +65,28 @@ export async function deleteCollection(db: D1Database, id: string): Promise<void
   await db.prepare('DELETE FROM collections WHERE id = ?').bind(id).run();
 }
 
+// Delete a collection in a single statement that simultaneously proves the
+// collection belongs to the named organization and the caller is a confirmed
+// Owner of that organization — authorization and deletion cannot drift apart.
+// Returns false when no such combination exists.
+export async function deleteCollectionForOwner(
+  db: D1Database,
+  collectionId: string,
+  organizationId: string,
+  ownerUserId: string
+): Promise<boolean> {
+  const result = await db
+    .prepare(
+      'DELETE FROM collections WHERE id = ? AND organization_id = ? AND EXISTS (' +
+        'SELECT 1 FROM organization_users ou ' +
+        'WHERE ou.organization_id = ? AND ou.user_id = ? AND ou.type = 0 AND ou.status = 3' +
+      ')'
+    )
+    .bind(collectionId, organizationId, organizationId, ownerUserId)
+    .run();
+  return (result.meta.changes ?? 0) > 0;
+}
+
 export async function listCollectionsForOrganization(db: D1Database, organizationId: string): Promise<Collection[]> {
   const result = await db
     .prepare(`SELECT ${COLLECTION_COLUMNS} FROM collections WHERE organization_id = ? ORDER BY creation_date ASC`)
