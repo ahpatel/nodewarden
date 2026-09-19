@@ -15,6 +15,7 @@ import { readActingDeviceIdentifier } from '../utils/device';
 import { isYubiKeyEnabled } from '../utils/yubico-otp';
 import { auditRequestMetadata, writeAuditEvent } from '../services/audit-events';
 import { bumpOrganizationMembers } from '../utils/org-notify';
+import { ORG_SELF_SERVICE_REGISTRATION_CONFIG_KEY, ORG_USER_STATUS, ORG_USER_TYPE } from '../config/org';
 import { isValidEncString } from './ciphers';
 import { deleteAllAttachmentsForCiphers } from './attachments';
 
@@ -33,39 +34,9 @@ import { deleteAllAttachmentsForCiphers } from './attachments';
 // email also mints a registration invite code so the owner can onboard the
 // person without the server admin.
 
-// Bitwarden OrganizationUserStatusType, stored natively (no translation
-// layer): Revoked=-1, Invited=0, Accepted=1, Confirmed=2. Shared with
-// src/handlers/ciphers.ts.
-export const ORG_USER_STATUS = {
-  REVOKED: -1,
-  INVITED: 0,
-  ACCEPTED: 1,
-  CONFIRMED: 2,
-} as const;
-
 // ProductTierType on the wire: Free=0, Families=1, Teams=2, Enterprise=3,
 // TeamsStarter=4. We present every organization as Teams.
 const WIRE_PRODUCT_TIER_TYPE = 2;
-
-// Config key gating org-invite registration-code minting. Default OFF: org
-// owners can invite unregistered emails (pending invitations are still
-// created), but only the server admin may mint registration codes. Instance
-// admins can opt in via POST /api/admin/settings/org-self-service-registration.
-// Shared with src/handlers/admin.ts (the admin toggle endpoint).
-export const ORG_SELF_SERVICE_REGISTRATION_CONFIG_KEY = 'org.selfServiceRegistration';
-
-// Wire type values (Bitwarden OrganizationUserType). Shared with
-// src/handlers/ciphers.ts.
-export const ORG_USER_TYPE = {
-  OWNER: 0,
-  ADMIN: 1,
-  USER: 2,
-  // Bitwarden parity. Stored and surfaced on the wire, but management
-  // operations stay owner-gated until a permissions editor exists; access
-  // is driven by accessAll + collection grants like a regular User.
-  MANAGER: 3,
-  CUSTOM: 4,
-} as const;
 
 const ORG_INVITE_REGISTRATION_TTL_HOURS = 24 * 7;
 
@@ -123,15 +94,22 @@ export async function writeOrgAudit(
   });
 }
 
-// Fan-out for org changes lives in src/utils/org-notify.ts and is re-exported
-// through bumpOrganizationMembers imported above.
+// Fan-out for org changes lives in src/utils/org-notify.ts; the
+// bumpOrganizationMembers helper used throughout this file is imported from it.
 
-function organizationToResponse(organization: Organization): Record<string, unknown> {
+// Member-visible org shape. billingEmail is deliberately absent here: it
+// defaults to the owner's personal email and Bitwarden only exposes it to
+// billing-scope admins, so callers add it back only when the requester is an
+// Owner of this organization.
+function organizationToResponse(
+  organization: Organization,
+  options: { includeBillingEmail?: boolean } = {}
+): Record<string, unknown> {
   return {
     id: organization.id,
     name: organization.name,
     businessName: null,
-    billingEmail: organization.billingEmail,
+    ...(options.includeBillingEmail ? { billingEmail: organization.billingEmail } : {}),
     plan: 'Teams',
     planType: 2,
     productTierType: WIRE_PRODUCT_TIER_TYPE,
@@ -396,7 +374,7 @@ export async function handleCreateOrganization(request: Request, env: Env, userI
     organizationId: organization.id,
   });
 
-  return jsonResponse(organizationToResponse(organization), 200);
+  return jsonResponse(organizationToResponse(organization, { includeBillingEmail: true }), 200);
 }
 
 // GET /api/organizations/:id (owners)
@@ -404,7 +382,7 @@ export async function handleGetOrganization(request: Request, env: Env, userId: 
   const storage = new StorageService(env.DB);
   const owner = await requireOrganizationOwner(storage, organizationId, userId);
   if (owner instanceof Response) return owner;
-  return jsonResponse(organizationToResponse(owner.organization));
+  return jsonResponse(organizationToResponse(owner.organization, { includeBillingEmail: true }));
 }
 
 // PUT /api/organizations/:id (owners) — { name (enc w/ org key) }
@@ -427,7 +405,7 @@ export async function handleUpdateOrganization(request: Request, env: Env, userI
   await bumpOrganizationMembers(request, env, storage, organizationId);
   await writeOrgAudit(storage, request, userId, 'organization.update', { organizationId });
 
-  return jsonResponse(organizationToResponse(organization));
+  return jsonResponse(organizationToResponse(organization, { includeBillingEmail: true }));
 }
 
 // DELETE /api/organizations/:id (owners)
@@ -479,7 +457,12 @@ export async function handleLeaveOrganization(request: Request, env: Env, userId
     }
   }
 
-  await storage.deleteOrganizationUser(organizationUser.id);
+  // Guarded delete: a concurrent demote of the other owner can no longer
+  // strand the org ownerless (the count re-evaluates inside the statement).
+  const left = await storage.deleteOrganizationUserGuardingLastOwner(organizationUser.id);
+  if (!left) {
+    return errorResponse('The last owner cannot leave the organization. Promote another owner or delete the organization.', 400);
+  }
   const revisionDate = await storage.updateRevisionDate(userId);
   notifyUserVaultSync(env, userId, revisionDate, readActingDeviceIdentifier(request));
   await bumpOrganizationMembers(request, env, storage, organizationId, userId);
@@ -830,7 +813,10 @@ export async function handleUpdateOrganizationUser(
     {
       ...(body.type !== undefined ? { type: Number(body.type) } : {}),
       ...(body.accessAll !== undefined ? { accessAll: !!body.accessAll } : {}),
-    }
+    },
+    // Race-free last-owner guard: a concurrent demote of the other owner
+    // cannot leave the org ownerless even when both upfront checks passed.
+    { guardLastOwner: true }
   );
   if (!updated) {
     return errorResponse('Membership changed concurrently; retry', 409);
@@ -881,7 +867,12 @@ export async function handleRemoveOrganizationUser(
   }
 
   const removedUserId = organizationUser.userId;
-  await storage.deleteOrganizationUser(organizationUserId);
+  // Guarded delete: a concurrent demote of the other owner can no longer
+  // strand the org ownerless.
+  const removed = await storage.deleteOrganizationUserGuardingLastOwner(organizationUserId);
+  if (!removed) {
+    return errorResponse('The last owner cannot be removed. Promote another owner or delete the organization.', 400);
+  }
 
   if (removedUserId) {
     const revisionDate = await storage.updateRevisionDate(removedUserId);

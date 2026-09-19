@@ -1,4 +1,5 @@
 import type { Collection, CollectionUserAccess, OrganizationUserType } from '../types';
+import { ORG_USER_STATUS, ORG_USER_TYPE } from '../config/org';
 
 // Safe chunk for bulk id-list SQL (under the D1 100-variable limit).
 const ID_LIST_CHUNK_SIZE = 90;
@@ -79,7 +80,7 @@ export async function deleteCollectionForOwner(
     .prepare(
       'DELETE FROM collections WHERE id = ? AND organization_id = ? AND EXISTS (' +
         'SELECT 1 FROM organization_users ou ' +
-        'WHERE ou.organization_id = ? AND ou.user_id = ? AND ou.type = 0 AND ou.status = 2' +
+        'WHERE ou.organization_id = ? AND ou.user_id = ? AND ou.type = ${ORG_USER_TYPE.OWNER} AND ou.status = ${ORG_USER_STATUS.CONFIRMED}' +
       ')'
     )
     .bind(collectionId, organizationId, organizationId, ownerUserId)
@@ -125,7 +126,7 @@ export async function listCollectionsForUser(db: D1Database, userId: string): Pr
               CASE WHEN ou.access_all = 1 THEN 0 ELSE COALESCE(cu.hide_passwords, 0) END AS hide_passwords
        FROM collections c
        JOIN organization_users ou
-         ON ou.organization_id = c.organization_id AND ou.user_id = ? AND ou.status = 2
+         ON ou.organization_id = c.organization_id AND ou.user_id = ? AND ou.status = ${ORG_USER_STATUS.CONFIRMED}
        LEFT JOIN collection_users cu ON cu.collection_id = c.id AND cu.organization_user_id = ou.id
        WHERE ou.access_all = 1 OR cu.collection_id IS NOT NULL
        ORDER BY c.creation_date ASC`
@@ -255,7 +256,7 @@ export async function resolveCipherAccessForUser(
       `SELECT c.organization_id, ou.id AS organization_user_id, ou.type AS organization_user_type, ou.access_all
        FROM ciphers c
        JOIN organization_users ou
-         ON ou.organization_id = c.organization_id AND ou.user_id = ? AND ou.status = 2
+         ON ou.organization_id = c.organization_id AND ou.user_id = ? AND ou.status = ${ORG_USER_STATUS.CONFIRMED}
        WHERE c.id = ? AND c.organization_id IS NOT NULL`
     )
     .bind(userId, cipherId)

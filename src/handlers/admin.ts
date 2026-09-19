@@ -1,7 +1,7 @@
 import { Env, User, Invite } from '../types';
 import { AuthService } from '../services/auth';
 import { StorageService } from '../services/storage';
-import { ORG_SELF_SERVICE_REGISTRATION_CONFIG_KEY } from './organizations';
+import { ORG_SELF_SERVICE_REGISTRATION_CONFIG_KEY, ORG_USER_STATUS, ORG_USER_TYPE } from '../config/org';
 import { jsonResponse, errorResponse } from '../utils/response';
 import { deleteBlobObject, getAttachmentObjectKey, getSendFileObjectKey } from '../services/blob-store';
 import { auditRequestMetadata, getAuditLogSettings, normalizeAuditLogSettings, saveAuditLogSettings, writeAuditEvent } from '../services/audit-events';

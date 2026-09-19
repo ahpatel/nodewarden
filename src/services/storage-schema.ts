@@ -50,7 +50,6 @@ const SCHEMA_STATEMENTS: readonly string[] = [
   'FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE)',
   'ALTER TABLE ciphers ADD COLUMN archived_at TEXT',
   'ALTER TABLE ciphers ADD COLUMN organization_id TEXT',
-  'ALTER TABLE ciphers ADD COLUMN organization_folder_id TEXT',
   'CREATE INDEX IF NOT EXISTS idx_ciphers_user_updated ON ciphers(user_id, updated_at)',
   'CREATE INDEX IF NOT EXISTS idx_ciphers_user_archived ON ciphers(user_id, archived_at)',
   'CREATE INDEX IF NOT EXISTS idx_ciphers_user_deleted ON ciphers(user_id, deleted_at)',
@@ -267,32 +266,43 @@ async function migrateCiphersToOrganizationShape(db: D1Database): Promise<void> 
 
   await db.prepare('PRAGMA foreign_keys = OFF').run();
   try {
-    await db.prepare(
-      'CREATE TABLE ciphers_organization_migration (' +
-      'id TEXT PRIMARY KEY, user_id TEXT, organization_id TEXT, organization_folder_id TEXT, type INTEGER NOT NULL, folder_id TEXT, ' +
-      'name TEXT, notes TEXT, favorite INTEGER NOT NULL DEFAULT 0, data TEXT NOT NULL, reprompt INTEGER, ' +
-      'key TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, archived_at TEXT, deleted_at TEXT, ' +
-      'FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE, ' +
-      'FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE)'
-    ).run();
-    await db.prepare(
-      'INSERT INTO ciphers_organization_migration ' +
-      '(id, user_id, organization_id, organization_folder_id, type, folder_id, name, notes, favorite, data, reprompt, key, created_at, updated_at, archived_at, deleted_at) ' +
-      'SELECT id, user_id, organization_id, organization_folder_id, type, folder_id, name, notes, favorite, data, reprompt, key, created_at, updated_at, archived_at, deleted_at FROM ciphers'
-    ).run();
-    await db.prepare('DROP TABLE ciphers').run();
-    await db.prepare('ALTER TABLE ciphers_organization_migration RENAME TO ciphers').run();
-    for (const stmt of [
-      'CREATE INDEX IF NOT EXISTS idx_ciphers_user_updated ON ciphers(user_id, updated_at)',
-      'CREATE INDEX IF NOT EXISTS idx_ciphers_user_archived ON ciphers(user_id, archived_at)',
-      'CREATE INDEX IF NOT EXISTS idx_ciphers_user_deleted ON ciphers(user_id, deleted_at)',
-      'CREATE INDEX IF NOT EXISTS idx_ciphers_user_deleted_updated ON ciphers(user_id, deleted_at, updated_at)',
-      'CREATE INDEX IF NOT EXISTS idx_ciphers_user_folder ON ciphers(user_id, folder_id)',
-  'CREATE INDEX IF NOT EXISTS idx_ciphers_organization ON ciphers(organization_id, updated_at)',
-  'CREATE INDEX IF NOT EXISTS idx_ciphers_organization_folder ON ciphers(organization_folder_id)',
-    ]) {
-      await db.prepare(stmt).run();
-    }
+    // The rebuild runs as ONE atomic D1 batch: an eviction mid-sequence can
+    // never orphan vault data between the DROP and the RENAME. A concurrent
+    // isolate losing the race fails its batch whole; its batch would instead
+    // re-copy the already-rebuilt table (harmless), but the re-check below
+    // short-circuits that case anyway.
+    await db.batch([
+      db.prepare(
+        'CREATE TABLE ciphers_organization_migration (' +
+        'id TEXT PRIMARY KEY, user_id TEXT, organization_id TEXT, type INTEGER NOT NULL, folder_id TEXT, ' +
+        'name TEXT, notes TEXT, favorite INTEGER NOT NULL DEFAULT 0, data TEXT NOT NULL, reprompt INTEGER, ' +
+        'key TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, archived_at TEXT, deleted_at TEXT, ' +
+        'FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE, ' +
+        'FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE)'
+      ),
+      db.prepare(
+        'INSERT INTO ciphers_organization_migration ' +
+        '(id, user_id, organization_id, type, folder_id, name, notes, favorite, data, reprompt, key, created_at, updated_at, archived_at, deleted_at) ' +
+        'SELECT id, user_id, organization_id, type, folder_id, name, notes, favorite, data, reprompt, key, created_at, updated_at, archived_at, deleted_at FROM ciphers'
+      ),
+      db.prepare('DROP TABLE ciphers'),
+      db.prepare('ALTER TABLE ciphers_organization_migration RENAME TO ciphers'),
+      db.prepare('CREATE INDEX IF NOT EXISTS idx_ciphers_user_updated ON ciphers(user_id, updated_at)'),
+      db.prepare('CREATE INDEX IF NOT EXISTS idx_ciphers_user_archived ON ciphers(user_id, archived_at)'),
+      db.prepare('CREATE INDEX IF NOT EXISTS idx_ciphers_user_deleted ON ciphers(user_id, deleted_at)'),
+      db.prepare('CREATE INDEX IF NOT EXISTS idx_ciphers_user_deleted_updated ON ciphers(user_id, deleted_at, updated_at)'),
+      db.prepare('CREATE INDEX IF NOT EXISTS idx_ciphers_user_folder ON ciphers(user_id, folder_id)'),
+      db.prepare('CREATE INDEX IF NOT EXISTS idx_ciphers_organization ON ciphers(organization_id, updated_at)'),
+    ]);
+  } catch (error) {
+    // A concurrent isolate may have completed its own rebuild between this
+    // isolate's DDL check and its batch; confirm the table now has the
+    // organization shape before surfacing anything.
+    const ddlRow = await db
+      .prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'ciphers'")
+      .first<{ sql: string | null }>();
+    if (!/\buser_id\s+TEXT\s+NOT\s+NULL\b/i.test(String(ddlRow?.sql || ''))) return;
+    throw error;
   } finally {
     await db.prepare('PRAGMA foreign_keys = ON').run();
   }

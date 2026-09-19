@@ -87,6 +87,9 @@ export async function handleSync(request: Request, env: Env, userId: string): Pr
     storage.listCollectionsForUser(userId),
     storage.listCipherUserFolders(userId),
   ]);
+  // Sequential after the parallel block above: the attachment fetch keys off
+  // the merged cipher list (personal + org ciphers), which requires the org
+  // memberships to have resolved first.
   const ciphers = await storage.getAllCiphersIncludingOrgs(userId);
   const attachmentsByCipher = await storage.getAttachmentsByCipherIds(
     ciphers.map((cipher) => cipher.id)

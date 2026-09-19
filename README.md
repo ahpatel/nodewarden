@@ -87,17 +87,25 @@ curl -X POST -H "Authorization: Bearer <token>" -H "Content-Type: application/js
   https://your-instance/api/admin/settings/org-self-service-registration
 ```
 
-When enabled, org-minted codes are bound to the invited email only.
+When enabled, org-minted codes are bound to the invited email only. Any registered user can create an organization; instance population stays bounded by the registration gate above.
 
 ### Collection permissions
 
-Per-member, per-collection access with `readOnly` and `hidePasswords` flags. `hidePasswords` is enforced server-side: the encrypted password, TOTP, and password history are stripped from the response for affected members.
+Per-member, per-collection access with `readOnly` and `hidePasswords` flags. `hidePasswords` is enforced server-side: every password-bearing field (login password, TOTP, card security code, identity SSN / license / passport numbers, SSH private keys, bank PIN and account numbers, hidden custom fields, and the password history) is stripped from the response before it leaves the server — confirmed members hold the org key, so stripping the ciphertext is the only real enforcement.
+
+### Filing shared items
+
+Shared items are filed into each member's **own personal folders**: the cipher carries a standard `folderId` resolved per requesting user through a server-side map (`cipher_user_folders`), so the item shows up under your existing folder structure in every client. Folder names are encrypted with each user's own key, so a filing cannot cross members — each member organizes shared items independently. Sharing a personal item into an org keeps its current folder assignment automatically.
+
+### Upgrading existing installs
+
+On the first request after deploying this feature, the schema self-upgrades: new tables are created, the `ciphers` table is rebuilt (in one atomic batch) with a nullable `user_id` column for shared items, and organization membership statuses are shifted onto Bitwarden's wire enum (a guarded one-shot migration). Installs that never use organizations only pay the table rebuild; org data is absent and nothing else changes. The full D1 schema initializes lazily — no manual SQL upload is required.
 
 ### Tested clients for organizations
 
 - ✅ Browser extension (Chrome)
 - ✅ Web vault (NodeWarden webapp)
-- Desktop and mobile: uses the same `/api/sync` protocol; org items appear alongside personal items
+- Desktop and mobile: not separately tested; org data rides the standard `/api/sync` shape, so they are expected to work
 
 ---
 
