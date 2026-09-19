@@ -35,7 +35,9 @@ import { deleteAllAttachmentsForCiphers } from './attachments';
 // email also mints a registration invite code so the owner can onboard the
 // person without the server admin.
 
-const ORG_USER_STATUS = {
+// Wire status values (Bitwarden OrganizationUserStatusType). Shared with
+// src/handlers/ciphers.ts.
+export const ORG_USER_STATUS = {
   REVOKED: 0,
   INVITED: 1,
   ACCEPTED: 2,
@@ -59,9 +61,12 @@ const WIRE_PRODUCT_TIER_TYPE = 2;
 // owners can invite unregistered emails (pending invitations are still
 // created), but only the server admin may mint registration codes. Instance
 // admins can opt in via POST /api/admin/settings/org-self-service-registration.
-const ORG_SELF_SERVICE_REGISTRATION_CONFIG_KEY = 'org.selfServiceRegistration';
+// Shared with src/handlers/admin.ts (the admin toggle endpoint).
+export const ORG_SELF_SERVICE_REGISTRATION_CONFIG_KEY = 'org.selfServiceRegistration';
 
-const ORG_USER_TYPE = {
+// Wire type values (Bitwarden OrganizationUserType). Shared with
+// src/handlers/ciphers.ts.
+export const ORG_USER_TYPE = {
   OWNER: 0,
   ADMIN: 1,
   USER: 2,
@@ -265,14 +270,6 @@ function organizationUserToResponse(
     userCreatedAt: user?.createdAt ?? null,
     object: 'organizationUserUserDetails',
   };
-}
-
-function collectionAccessRowsToResponse(rows: Array<{ collectionId: string; readOnly: boolean; hidePasswords: boolean }>): unknown[] {
-  return rows.map((row) => ({
-    id: row.collectionId,
-    readOnly: !!row.readOnly,
-    hidePasswords: !!row.hidePasswords,
-  }));
 }
 
 interface OwnerContext {
@@ -760,12 +757,19 @@ export async function handleConfirmOrganizationUser(
 
   // Conditional transition: a concurrent remove demotes this to a no-op
   // failure instead of resurrecting the deleted membership with the org key.
-  const confirmed = await storage.transitionOrganizationUserStatus(organizationUserId, ORG_USER_STATUS.ACCEPTED, {
-    status: ORG_USER_STATUS.CONFIRMED,
-    key,
-  });
-  if (!confirmed) {
-    return errorResponse('Membership changed concurrently (accepted state no longer present; retry)', 409);
+  // Branch on the current status: ACCEPTED→CONFIRMED (first confirm) or
+  // CONFIRMED→CONFIRMED (re-confirm, updates the wrapped key only).
+  const isReconfirm = organizationUser.status === ORG_USER_STATUS.CONFIRMED;
+  const transitioned = await storage.transitionOrganizationUserStatus(
+    organizationUserId,
+    isReconfirm ? ORG_USER_STATUS.CONFIRMED : ORG_USER_STATUS.ACCEPTED,
+    {
+      status: ORG_USER_STATUS.CONFIRMED,
+      key,
+    }
+  );
+  if (!transitioned) {
+    return errorResponse('Membership changed concurrently; retry', 409);
   }
 
   await bumpOrganizationMembers(request, env, storage, organizationId);
@@ -809,14 +813,10 @@ export async function handleUpdateOrganizationUser(
         return errorResponse('The last owner cannot be demoted. Promote another owner first.', 400);
       }
     }
-    organizationUser.type = nextType as OrganizationUserType;
   }
-  if (body.accessAll !== undefined) {
-    organizationUser.accessAll = !!body.accessAll;
-  }
-  organizationUser.revisionDate = new Date().toISOString();
-  await storage.saveOrganizationUser(organizationUser);
 
+  // Validate collection assignments BEFORE persisting any state so a 400
+  // leaves the member unchanged (no partial writes).
   if (Array.isArray(body.collections)) {
     const collectionAccess = readCollectionAccessInput(body.collections) || [];
     if (collectionAccess.length) {
@@ -828,6 +828,25 @@ export async function handleUpdateOrganizationUser(
         }
       }
     }
+  }
+
+  // Conditional transition: fails cleanly when the membership was removed
+  // or its status changed between the read above and this write (no
+  // resurrection via the unconditional upsert).
+  const updated = await storage.transitionOrganizationUserStatus(
+    organizationUserId,
+    organizationUser.status,
+    {
+      ...(body.type !== undefined ? { type: Number(body.type) } : {}),
+      ...(body.accessAll !== undefined ? { accessAll: !!body.accessAll } : {}),
+    }
+  );
+  if (!updated) {
+    return errorResponse('Membership changed concurrently; retry', 409);
+  }
+
+  if (Array.isArray(body.collections)) {
+    const collectionAccess = readCollectionAccessInput(body.collections) || [];
     await storage.replaceOrganizationUserCollections(
       organizationUserId,
       collectionAccess.map((row) => ({ collectionId: row.collectionId, readOnly: row.readOnly, hidePasswords: row.hidePasswords }))

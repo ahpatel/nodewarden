@@ -1,6 +1,7 @@
 import { Env, User, Invite } from '../types';
 import { AuthService } from '../services/auth';
 import { StorageService } from '../services/storage';
+import { ORG_SELF_SERVICE_REGISTRATION_CONFIG_KEY } from './organizations';
 import { jsonResponse, errorResponse } from '../utils/response';
 import { deleteBlobObject, getAttachmentObjectKey, getSendFileObjectKey } from '../services/blob-store';
 import { auditRequestMetadata, getAuditLogSettings, normalizeAuditLogSettings, saveAuditLogSettings, writeAuditEvent } from '../services/audit-events';
@@ -458,7 +459,7 @@ export async function handleAdminGetOrgSelfServiceRegistration(
   }
   void request;
   const storage = new StorageService(env.DB);
-  const enabled = (await storage.getConfigValue('org.selfServiceRegistration')) === 'true';
+  const enabled = (await storage.getConfigValue(ORG_SELF_SERVICE_REGISTRATION_CONFIG_KEY)) === 'true';
   return jsonResponse({
     object: 'orgSelfServiceRegistrationSettings',
     enabled,
@@ -488,7 +489,7 @@ export async function handleAdminSetOrgSelfServiceRegistration(
 
   const enabled = body.enabled === true;
   const storage = new StorageService(env.DB);
-  await storage.setConfigValue('org.selfServiceRegistration', enabled ? 'true' : 'false');
+  await storage.setConfigValue(ORG_SELF_SERVICE_REGISTRATION_CONFIG_KEY, enabled ? 'true' : 'false');
   await writeAuditLog(storage, actorUser.id, 'admin.settings.orgSelfServiceRegistration', 'config', null, { enabled }, request);
   return jsonResponse({
     object: 'orgSelfServiceRegistrationSettings',

@@ -5,6 +5,9 @@ import {
   type CipherAccessInfo,
 } from './storage-collection-repo';
 
+// Safe chunk for bulk id-list SQL (under the D1 100-variable limit).
+const ID_LIST_CHUNK_SIZE = 90;
+
 function normalizeOptionalId(value: unknown): string | null {
   if (value == null) return null;
   const normalized = String(value).trim();
@@ -488,7 +491,7 @@ export async function getAllCiphersIncludingOrgs(db: D1Database, userId: string)
 
   const accessibleByCipher = new Map<string, Array<{ collectionId: string; readOnly: boolean; hidePasswords: boolean }>>();
   for (const [organizationUserId, cipherIds] of limitedByOrgUser.entries()) {
-    for (let i = 0; i < cipherIds.length; i += 90) {
+    for (let i = 0; i < cipherIds.length; i += ID_LIST_CHUNK_SIZE) {
       const chunk = cipherIds.slice(i, i + 90);
       const placeholders = chunk.map(() => '?').join(',');
       const result = await db
@@ -552,7 +555,7 @@ export async function listAccessibleCiphersByIds(
 export async function softDeleteCiphersByIds(db: D1Database, ids: string[]): Promise<void> {
   if (!ids.length) return;
   const now = new Date().toISOString();
-  for (let i = 0; i < ids.length; i += 90) {
+  for (let i = 0; i < ids.length; i += ID_LIST_CHUNK_SIZE) {
     const chunk = ids.slice(i, i + 90);
     const placeholders = chunk.map(() => '?').join(',');
     await db
@@ -570,7 +573,7 @@ export async function softDeleteCiphersByIds(db: D1Database, ids: string[]): Pro
 export async function restoreCiphersByIds(db: D1Database, ids: string[]): Promise<void> {
   if (!ids.length) return;
   const now = new Date().toISOString();
-  for (let i = 0; i < ids.length; i += 90) {
+  for (let i = 0; i < ids.length; i += ID_LIST_CHUNK_SIZE) {
     const chunk = ids.slice(i, i + 90);
     const placeholders = chunk.map(() => '?').join(',');
     await db
@@ -588,7 +591,7 @@ export async function restoreCiphersByIds(db: D1Database, ids: string[]): Promis
 export async function archiveCiphersByIds(db: D1Database, ids: string[]): Promise<void> {
   if (!ids.length) return;
   const now = new Date().toISOString();
-  for (let i = 0; i < ids.length; i += 90) {
+  for (let i = 0; i < ids.length; i += ID_LIST_CHUNK_SIZE) {
     const chunk = ids.slice(i, i + 90);
     const placeholders = chunk.map(() => '?').join(',');
     await db
@@ -609,7 +612,7 @@ export async function archiveCiphersByIds(db: D1Database, ids: string[]): Promis
 export async function unarchiveCiphersByIds(db: D1Database, ids: string[]): Promise<void> {
   if (!ids.length) return;
   const now = new Date().toISOString();
-  for (let i = 0; i < ids.length; i += 90) {
+  for (let i = 0; i < ids.length; i += ID_LIST_CHUNK_SIZE) {
     const chunk = ids.slice(i, i + 90);
     const placeholders = chunk.map(() => '?').join(',');
     await db
@@ -626,7 +629,7 @@ export async function unarchiveCiphersByIds(db: D1Database, ids: string[]): Prom
 
 export async function deleteCiphersByIds(db: D1Database, ids: string[]): Promise<void> {
   if (!ids.length) return;
-  for (let i = 0; i < ids.length; i += 90) {
+  for (let i = 0; i < ids.length; i += ID_LIST_CHUNK_SIZE) {
     const chunk = ids.slice(i, i + 90);
     const placeholders = chunk.map(() => '?').join(',');
     await db.prepare(`DELETE FROM ciphers WHERE id IN (${placeholders})`).bind(...chunk).run();

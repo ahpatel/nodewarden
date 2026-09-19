@@ -369,20 +369,20 @@ export async function handleRegister(request: Request, env: Env): Promise<Respon
       return errorResponse('Registration is temporarily unavailable, retry once', 409);
     }
     await storage.setRegistered();
-  await writeAuditEvent(storage, {
-    actorUserId: user.id,
-    action: 'user.register.first_admin',
-    targetType: 'user',
-    targetId: user.id,
-    category: 'security',
-    level: 'security',
-    metadata: { email: user.email, ...auditRequestMetadata(request) },
-  });
-  // Link any pending organization invitations issued for this email.
-  await storage.linkOrganizationUsersByEmail(user.id, user.email).catch((error) => {
-    console.error('Organization invite linking failed after registration:', error);
-  });
-  return jsonResponse({ success: true, role: user.role }, 200);
+    await writeAuditEvent(storage, {
+      actorUserId: user.id,
+      action: 'user.register.first_admin',
+      targetType: 'user',
+      targetId: user.id,
+      category: 'security',
+      level: 'security',
+      metadata: { email: user.email, ...auditRequestMetadata(request) },
+    });
+    // Link any pending organization invitations issued for this email.
+    await storage.linkOrganizationUsersByEmail(user.id, user.email).catch((error) => {
+      console.error('Organization invite linking failed after registration:', error);
+    });
+    return jsonResponse({ success: true, role: user.role }, 200);
   }
 
   if (!inviteCode) {
