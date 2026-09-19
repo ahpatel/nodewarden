@@ -704,6 +704,10 @@ export interface FolderResponse {
   revisionDate: string;
   creationDate: string;
   object: string;
+  /** NodeWarden extension: set for organization folders injected into the
+   *  folders list so the webapp can pick the decryption key; official clients
+   *  ignore the extra field. */
+  organizationId?: string;
 }
 
 export interface SyncResponse {

@@ -4,6 +4,8 @@ import {
   OrganizationUser,
   OrganizationUserStatus,
   OrganizationUserType,
+  OrganizationFolder,
+  FolderResponse,
   Collection,
   Cipher,
   User,
@@ -292,6 +294,52 @@ async function requireOrganizationOwner(
     return errorResponse('Only organization owners may perform this action', 403);
   }
   return { organization, organizationUser };
+}
+
+// Organization folders are manageable by owners AND admins (Bitwarden's
+// collection-folder analogue). Members see folders via sync only.
+async function requireOrganizationManager(
+  storage: StorageService,
+  organizationId: string,
+  userId: string
+): Promise<OwnerContext | Response> {
+  const organization = await storage.getOrganization(organizationId);
+  if (!organization) return errorResponse('Organization not found', 404);
+  const organizationUser = await storage.getOrganizationUserForUser(organizationId, userId);
+  if (!organizationUser || organizationUser.status !== ORG_USER_STATUS.CONFIRMED) {
+    return errorResponse('Organization not found', 404);
+  }
+  if (organizationUser.type !== ORG_USER_TYPE.OWNER && organizationUser.type !== ORG_USER_TYPE.ADMIN) {
+    return errorResponse('Organization folders can only be managed by organization owners or admins', 403);
+  }
+  return { organization, organizationUser };
+}
+
+// Console API response (NodeWarden webapp).
+export function organizationFolderToResponse(folder: OrganizationFolder): Record<string, unknown> {
+  return {
+    id: folder.id,
+    organizationId: folder.organizationId,
+    name: folder.name,
+    revisionDate: folder.revisionDate,
+    creationDate: folder.creationDate,
+    object: 'organizationFolder',
+  };
+}
+
+// Standard Bitwarden folder shape so org folders surface through the sync
+// folders list and official clients render org items filed without any
+// client changes. The organizationId field is a NodeWarden extension that
+// official clients ignore and the webapp uses for namespace separation.
+export function organizationFolderToSyncFolderResponse(folder: OrganizationFolder): FolderResponse {
+  return {
+    id: folder.id,
+    name: folder.name,
+    revisionDate: folder.revisionDate,
+    creationDate: folder.creationDate,
+    organizationId: folder.organizationId,
+    object: 'folder',
+  };
 }
 
 function readCollectionAccessInput(value: unknown): Array<{ collectionId: string; readOnly: boolean; hidePasswords: boolean }> | null {
@@ -1087,6 +1135,143 @@ export async function handleDeleteOrganizationCollection(
   await writeOrgAudit(storage, request, userId, 'organization.collection.delete', {
     organizationId,
     collectionId,
+  }, 'security');
+
+  return new Response(null, { status: 204 });
+}
+
+// GET /api/organizations/:id/folders (owners/admins)
+export async function handleListOrganizationFolders(
+  request: Request,
+  env: Env,
+  userId: string,
+  organizationId: string
+): Promise<Response> {
+  const storage = new StorageService(env.DB);
+  const manager = await requireOrganizationManager(storage, organizationId, userId);
+  if (manager instanceof Response) return manager;
+
+  const folders = await storage.listOrganizationFolders(organizationId);
+  return jsonResponse({
+    data: folders.map((folder) => organizationFolderToResponse(folder)),
+    object: 'list',
+    continuationToken: null,
+  });
+}
+
+// POST /api/organizations/:id/folders (owners/admins)
+export async function handleCreateOrganizationFolder(
+  request: Request,
+  env: Env,
+  userId: string,
+  organizationId: string
+): Promise<Response> {
+  const storage = new StorageService(env.DB);
+  const manager = await requireOrganizationManager(storage, organizationId, userId);
+  if (manager instanceof Response) return manager;
+
+  const body = await readJsonBody(request);
+  if (!body) return errorResponse('Invalid JSON', 400);
+  const name = optionalEncString(body.name);
+  if (!name) return errorResponse('name must be an encrypted string', 400);
+
+  const now = new Date().toISOString();
+  const folder: OrganizationFolder = {
+    id: generateUUID(),
+    organizationId,
+    name,
+    creationDate: now,
+    revisionDate: now,
+  };
+  await storage.saveOrganizationFolder(folder);
+
+  await bumpOrganizationMembers(request, env, storage, organizationId);
+  await writeOrgAudit(storage, request, userId, 'organization.folder.create', {
+    organizationId,
+    folderId: folder.id,
+  });
+
+  return jsonResponse(organizationFolderToResponse(folder), 200);
+}
+
+// PUT /api/organizations/:id/folders/:folderId (owners/admins)
+export async function handleUpdateOrganizationFolder(
+  request: Request,
+  env: Env,
+  userId: string,
+  organizationId: string,
+  folderId: string
+): Promise<Response> {
+  const storage = new StorageService(env.DB);
+  const manager = await requireOrganizationManager(storage, organizationId, userId);
+  if (manager instanceof Response) return manager;
+
+  const folder = await storage.getOrganizationFolder(organizationId, folderId);
+  if (!folder) return errorResponse('Folder not found', 404);
+
+  const body = await readJsonBody(request);
+  if (!body) return errorResponse('Invalid JSON', 400);
+  const name = optionalEncString(body.name);
+  if (!name) return errorResponse('name must be an encrypted string', 400);
+  await renameOrganizationFolderInternal(storage, folder, name);
+
+  await bumpOrganizationMembers(request, env, storage, organizationId);
+  await writeOrgAudit(storage, request, userId, 'organization.folder.update', {
+    organizationId,
+    folderId,
+  });
+
+  return jsonResponse(organizationFolderToResponse(folder));
+}
+
+// Shared rename used by both the console endpoint and the user-folder proxy
+// in folders.ts. Caller has already verified manager permission.
+export async function renameOrganizationFolderInternal(
+  storage: StorageService,
+  folder: OrganizationFolder,
+  name: string
+): Promise<OrganizationFolder> {
+  folder.name = name;
+  folder.revisionDate = new Date().toISOString();
+  await storage.saveOrganizationFolder(folder);
+  return folder;
+}
+
+// Shared delete-with-cascade used by the console endpoint and the user-folder
+// proxy. Unfiles every affected cipher, removes the folder, and bumps all org
+// members. Returns the number of unfilled ciphers.
+export async function deleteOrganizationFolderInternal(
+  request: Request,
+  env: Env,
+  storage: StorageService,
+  folder: OrganizationFolder
+): Promise<number> {
+  const now = new Date().toISOString();
+  const affected = await storage.clearOrganizationFolderFromCiphers(folder.id, now);
+  await storage.deleteOrganizationFolder(folder.id);
+  await bumpOrganizationMembers(request, env, storage, folder.organizationId);
+  return affected;
+}
+
+// DELETE /api/organizations/:id/folders/:folderId (owners/admins)
+export async function handleDeleteOrganizationFolder(
+  request: Request,
+  env: Env,
+  userId: string,
+  organizationId: string,
+  folderId: string
+): Promise<Response> {
+  const storage = new StorageService(env.DB);
+  const manager = await requireOrganizationManager(storage, organizationId, userId);
+  if (manager instanceof Response) return manager;
+
+  const folder = await storage.getOrganizationFolder(organizationId, folderId);
+  if (!folder) return errorResponse('Folder not found', 404);
+
+  await deleteOrganizationFolderInternal(request, env, storage, folder);
+  await writeOrgAudit(storage, request, userId, 'organization.folder.delete', {
+    organizationId,
+    folderId,
   }, 'security');
 
   return new Response(null, { status: 204 });
