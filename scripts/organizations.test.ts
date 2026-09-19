@@ -388,3 +388,48 @@ test('org folder machinery is removed', () => {
     'no org folder routes remain'
   );
 });
+
+// ─── Atomic creation & preconditioned deletes (sorolaholvi review) ───────────
+
+test('organization creation is atomic (org + owner + default collection in one D1 batch)', () => {
+  const repo = read('src/services/storage-org-repo.ts');
+  assert.ok(
+    /export async function createOrganizationWithOwner[\s\S]*?db\.batch\(/.test(repo),
+    'createOrganizationWithOwner commits org, owner membership, and default collection atomically'
+  );
+  const orgs = read('src/handlers/organizations.ts');
+  assert.ok(
+    /handleCreateOrganization[\s\S]*?createOrganizationWithOwner/.test(orgs),
+    'the create handler uses the atomic path'
+  );
+});
+
+test('organization delete is owner-preconditioned in SQL', () => {
+  const repo = read('src/services/storage-org-repo.ts');
+  const del = repo.slice(repo.indexOf('export async function deleteOrganizationForOwner'));
+  assert.ok(
+    /DELETE FROM organizations[\s\S]*?EXISTS \([\s\S]*?ou\.type = 0[\s\S]*?ou\.status =/.test(del),
+    'delete verifies confirmed owner membership inside the DELETE statement'
+  );
+  assert.ok(
+    /changes/.test(del),
+    'reports whether a row was deleted'
+  );
+});
+
+test('collection delete is owner-preconditioned in SQL', () => {
+  const repo = read('src/services/storage-collection-repo.ts');
+  const del = repo.slice(repo.indexOf('export async function deleteCollectionForOwner'));
+  assert.ok(
+    /DELETE FROM collections[\s\S]*?EXISTS \(/.test(del),
+    'collection delete guards org and owner in the statement itself'
+  );
+});
+
+test('required schema tables include the organization tables (self-healing ensure)', () => {
+  const storage = read('src/services/storage.ts');
+  const block = storage.slice(storage.indexOf('REQUIRED_SCHEMA_TABLES'));
+  for (const table of ['organizations', 'organization_users', 'collections', 'collection_users', 'cipher_collections', 'cipher_user_folders']) {
+    assert.ok(block.includes(`'${table}'`), `REQUIRED_SCHEMA_TABLES includes ${table}`);
+  }
+});

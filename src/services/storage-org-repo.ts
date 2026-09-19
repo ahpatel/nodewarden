@@ -1,4 +1,4 @@
-import type { Organization, OrganizationUser, OrganizationUserStatus, OrganizationUserType } from '../types';
+import type { Organization, OrganizationUser, OrganizationUserStatus, OrganizationUserType, Collection } from '../types';
 
 function mapOrganizationRow(row: any): Organization {
   return {
@@ -59,6 +59,88 @@ export async function saveOrganization(db: D1Database, organization: Organizatio
 
 export async function deleteOrganization(db: D1Database, id: string): Promise<void> {
   await db.prepare('DELETE FROM organizations WHERE id = ?').bind(id).run();
+}
+
+// Create an organization together with its first (owner) membership and the
+// optional default collection in a single atomic D1 batch — a crash mid-flow
+// can never leave an ownerless organization behind.
+export async function createOrganizationWithOwner(
+  db: D1Database,
+  organization: Organization,
+  organizationUser: OrganizationUser,
+  defaultCollection?: Collection | null
+): Promise<void> {
+  const statements: D1PreparedStatement[] = [
+    db
+      .prepare(
+        'INSERT INTO organizations(id, name, private_key, billing_email, public_key, creation_date, revision_date) ' +
+        'VALUES(?, ?, ?, ?, ?, ?, ?)'
+      )
+      .bind(
+        organization.id,
+        organization.name,
+        organization.privateKey,
+        organization.billingEmail ?? null,
+        organization.publicKey ?? null,
+        organization.creationDate,
+        organization.revisionDate
+      ),
+    db
+      .prepare(
+        'INSERT INTO organization_users(id, organization_id, user_id, email, key, status, type, access_all, creation_date, revision_date) ' +
+        'VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+      )
+      .bind(
+        organizationUser.id,
+        organizationUser.organizationId,
+        organizationUser.userId,
+        organizationUser.email,
+        organizationUser.key ?? null,
+        Number(organizationUser.status),
+        Number(organizationUser.type),
+        organizationUser.accessAll ? 1 : 0,
+        organizationUser.creationDate,
+        organizationUser.revisionDate
+      ),
+  ];
+  if (defaultCollection) {
+    statements.push(
+      db
+        .prepare(
+          'INSERT INTO collections(id, organization_id, name, external_id, creation_date, revision_date) ' +
+          'VALUES(?, ?, ?, ?, ?, ?)'
+        )
+        .bind(
+          defaultCollection.id,
+          defaultCollection.organizationId,
+          defaultCollection.name,
+          defaultCollection.externalId ?? null,
+          defaultCollection.creationDate,
+          defaultCollection.revisionDate
+        )
+    );
+  }
+  await db.batch(statements);
+}
+
+// Delete an organization in a single statement that simultaneously proves the
+// caller is a confirmed Owner of it — authorization and deletion cannot drift
+// apart. Returns false when no such organization/owner combination exists.
+export async function deleteOrganizationForOwner(
+  db: D1Database,
+  organizationId: string,
+  ownerUserId: string
+): Promise<boolean> {
+  const result = await db
+    .prepare(
+      'DELETE FROM organizations WHERE id = ? AND EXISTS (' +
+        'SELECT 1 FROM organization_users ou ' +
+        'WHERE ou.organization_id = organizations.id AND ou.user_id = ? AND ou.type = 0 AND ou.status = 3' +
+      ')'
+    )
+    .bind(organizationId, ownerUserId)
+    .run();
+  return (result.meta.changes ?? 0) > 0;
 }
 
 export async function getOrganizationUser(db: D1Database, id: string): Promise<OrganizationUser | null> {
