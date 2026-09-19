@@ -232,7 +232,7 @@ test('profile org response shape has required client fields', () => {
   assert.ok(orgs.includes('permissions: {'), 'permissions object');
 
   // billingEmail must NOT be in the profile response
-  const profileFn = orgs.slice(orgs.indexOf('profileOrganizationResponse'), orgs.indexOf('collectionToResponse'));
+  const profileFn = orgs.slice(orgs.indexOf('profileOrganizationResponse'), orgs.indexOf('organizationUserToResponse'));
   assert.ok(
     !profileFn.includes('billingEmail'),
     'billingEmail must be absent from profileOrganizationResponse (member-visible shape)'
@@ -467,4 +467,31 @@ test('required schema tables include the organization tables (self-healing ensur
   for (const table of ['organizations', 'organization_users', 'collections', 'collection_users', 'cipher_collections', 'cipher_user_folders']) {
     assert.ok(block.includes(`'${table}'`), `REQUIRED_SCHEMA_TABLES includes ${table}`);
   }
+});
+
+// ─── Module split: collections in their own handler ─────────────────────────
+
+test('collection handlers live in their own module', () => {
+  const collections = read('src/handlers/collections.ts');
+  for (const name of [
+    'collectionToResponse',
+    'handleCreateOrganizationCollection',
+    'handleListOrganizationCollections',
+    'handleGetOrganizationCollectionDetails',
+    'handleUpdateOrganizationCollection',
+    'handleDeleteOrganizationCollection',
+    'handleListMyCollections',
+  ]) {
+    assert.ok(collections.includes(name), `collections.ts exports ${name}`);
+  }
+  const orgs = read('src/handlers/organizations.ts');
+  assert.ok(
+    !orgs.includes('handleCreateOrganizationCollection'),
+    'organizations.ts no longer holds collection handlers'
+  );
+  const router = read('src/router-authenticated.ts');
+  assert.ok(
+    router.includes("./handlers/collections'"),
+    'the router dispatches to the collections module'
+  );
 });

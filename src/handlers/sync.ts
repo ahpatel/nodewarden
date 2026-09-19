@@ -11,7 +11,8 @@ import {
 import { buildDomainsResponse } from '../services/domain-rules';
 import { buildWebAuthnPrfOption } from '../utils/account-passkeys';
 import { buildProfileResponse } from '../utils/profile-response';
-import { profileOrganizationResponse, collectionToResponse } from './organizations';
+import { profileOrganizationResponse } from './organizations';
+import { collectionToResponse } from './collections';
 
 // CONTRACT:
 // /api/sync reuses cipherToResponse() as the single cipher response shaper.
