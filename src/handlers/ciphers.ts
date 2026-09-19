@@ -79,6 +79,12 @@ async function loadCipherForRequest(
     result.cipher.edit = result.access.canEdit;
     result.cipher.viewPassword = !result.access.hidePasswords;
   }
+  // Overlay the acting user's personal filing for org ciphers (the cipher row
+  // itself never stores a folder id). saveCipher guards the column, so this
+  // in-memory value can never leak back into storage.
+  if (result.cipher.organizationId) {
+    result.cipher.folderId = await storage.getCipherUserFolder(userId, cipherId);
+  }
   return result;
 }
 
@@ -918,13 +924,10 @@ export function cipherToResponse(
     // Pass through ALL stored cipher fields (known + unknown)
     ...passthrough,
     // Server-computed / enforced fields (always override)
-    // Org ciphers report their organization-folder filing through the standard
-    // folderId field so official clients render them filed; the id refers to
-    // an org folder injected into the member's sync folders list.
-    folderId: normalizeResponseFolderId(
-      cipher.organizationId ? (cipher.organizationFolderId ?? null) : cipher.folderId,
-      options.validFolderIds
-    ),
+    // Org ciphers report the acting user's personal filing through the
+    // standard folderId field (overlaid at load/sync time); the mapping is
+    // per-user so every member files shared items into their own folders.
+    folderId: normalizeResponseFolderId(cipher.folderId, options.validFolderIds),
     type: responseType,
     organizationId: normalizeOptionalId((passthrough as any).organizationId ?? null),
     organizationUseTotp: !!((passthrough as any).organizationUseTotp ?? false),
@@ -1021,17 +1024,6 @@ export async function handleGetCipher(request: Request, env: Env, userId: string
 async function verifyFolderOwnership(storage: StorageService, folderId: string | null | undefined, userId: string): Promise<boolean> {
   if (!folderId) return true;
   const folder = await storage.getFolderForUser(folderId, userId);
-  return !!folder;
-}
-
-// Org-cipher filing: the payload folderId references an organization folder
-// of the cipher's organization (never a user folder).
-async function verifyOrgFolderOwnership(
-  storage: StorageService,
-  folderId: string,
-  organizationId: string
-): Promise<boolean> {
-  const folder = await storage.getOrganizationFolder(organizationId, folderId);
   return !!folder;
 }
 
@@ -1139,20 +1131,24 @@ export async function handleCreateCipher(request: Request, env: Env, userId: str
       }
     }
 
-    // Org-cipher filing: the payload folderId references an org folder.
-    let createOrganizationFolderId: string | null = null;
+    // Org-cipher filing: the payload folderId references one of the acting
+    // user's own personal folders; it is stored per-user, not on the row.
+    let createCipherFolderId: string | null = null;
     if (cipher.folderId) {
-      const folderOk = await verifyOrgFolderOwnership(storage, cipher.folderId, createOrganizationId);
+      const folderOk = await verifyFolderOwnership(storage, cipher.folderId, userId);
       if (!folderOk) return errorResponse('Folder not found', 404);
-      createOrganizationFolderId = cipher.folderId;
+      createCipherFolderId = cipher.folderId;
     }
 
     cipher.userId = null;
     cipher.organizationId = createOrganizationId;
-    cipher.organizationFolderId = createOrganizationFolderId;
-    cipher.folderId = null;
+    cipher.organizationFolderId = null;
+    cipher.folderId = createCipherFolderId;
     cipher.collectionIds = createCollectionIds;
     await storage.saveCipher(cipher);
+    if (createCipherFolderId) {
+      await storage.setCipherUserFolder(userId, cipher.id, createCipherFolderId);
+    }
     await storage.setCipherCollections(cipher.id, createCollectionIds);
     await bumpOrganizationMembers(request, env, storage, createOrganizationId);
     notifyCipherCreateForRequest(request, env, cipher, cipher.updatedAt, userId);
@@ -1245,26 +1241,25 @@ export async function handleUpdateCipher(request: Request, env: Env, userId: str
   if (incomingFolderId.present) {
     cipher.folderId = normalizeOptionalId(incomingFolderId.value);
   }
-  // Org ciphers never carry a personal folderId; filing references an
-  // organization folder via the dedicated column and is reported back through
-  // the standard folderId response field.
+  // Org ciphers file into the ACTING USER's personal folders via a per-user
+  // mapping; the cipher row's folder_id column stays null (saveCipher guards
+  // it). An omitted folderId keeps the existing filing.
+  cipher.organizationFolderId = null;
   if (existingCipher.organizationId) {
-    cipher.folderId = null;
     if (incomingFolderId.present) {
       const requestedFolderId = normalizeOptionalId(incomingFolderId.value);
       if (requestedFolderId) {
-        const folderOk = await verifyOrgFolderOwnership(storage, requestedFolderId, existingCipher.organizationId);
+        const folderOk = await verifyFolderOwnership(storage, requestedFolderId, userId);
         if (!folderOk) return errorResponse('Folder not found', 404);
-        cipher.organizationFolderId = requestedFolderId;
+        await storage.setCipherUserFolder(userId, cipher.id, requestedFolderId);
+        cipher.folderId = requestedFolderId;
       } else {
-        cipher.organizationFolderId = null;
+        await storage.setCipherUserFolder(userId, cipher.id, null);
+        cipher.folderId = null;
       }
     } else {
-      // Not addressed by the client: keep the existing filing.
-      cipher.organizationFolderId = existingCipher.organizationFolderId ?? null;
+      cipher.folderId = await storage.getCipherUserFolder(userId, cipher.id);
     }
-  } else {
-    cipher.organizationFolderId = null;
   }
   if (incomingKey.present) {
     const normalizedIncomingKey = normalizeCipherKeyForStorage(incomingKey.value);
@@ -1433,28 +1428,19 @@ export async function handlePartialUpdateCipher(request: Request, env: Env, user
     return errorResponse('Invalid JSON', 400);
   }
 
-  // Folder moves: personal ciphers reference user folders; org ciphers
-  // reference organization folders of their org. Favorite state is honored
-  // for both.
+  // Folder moves: both personal and org ciphers file into the acting user's
+  // own folders. Personal rows store folder_id directly; org rows use the
+  // per-user cipher_user_folders mapping. Favorite state is honored for both.
   if (body.folderId !== undefined) {
-    if (cipher.organizationId) {
-      const folderId = normalizeOptionalId(body.folderId);
-      if (folderId) {
-        const folderOk = await verifyOrgFolderOwnership(storage, folderId, cipher.organizationId);
-        if (!folderOk) return errorResponse('Folder not found', 404);
-        cipher.organizationFolderId = folderId;
-      } else {
-        cipher.organizationFolderId = null;
-      }
-      cipher.folderId = null;
-    } else {
-      const folderId = normalizeOptionalId(body.folderId);
-      if (folderId) {
-        const folderOk = await verifyFolderOwnership(storage, folderId, userId);
-        if (!folderOk) return errorResponse('Folder not found', 404);
-      }
-      cipher.folderId = folderId;
+    const folderId = normalizeOptionalId(body.folderId);
+    if (folderId) {
+      const folderOk = await verifyFolderOwnership(storage, folderId, userId);
+      if (!folderOk) return errorResponse('Folder not found', 404);
     }
+    if (cipher.organizationId) {
+      await storage.setCipherUserFolder(userId, cipher.id, folderId);
+    }
+    cipher.folderId = folderId;
   }
   if (body.favorite !== undefined) {
     cipher.favorite = body.favorite;
@@ -1489,11 +1475,16 @@ export async function handleBulkMoveCiphers(request: Request, env: Env, userId: 
 
   const folderId = normalizeOptionalId(body.folderId);
 
-  // Partition by ownership: personal rows move via the user_id-scoped bulk
-  // update; org rows need per-cipher access checks and the org-folder
-  // namespace. Each cipher is loaded once (authz + write rights).
+  // Both namespaces file into the acting user's own folders, so one target
+  // folder works for mixed selections: personal rows move via the
+  // user_id-scoped bulk update; org rows use the per-user mapping. Each
+  // cipher is loaded once (authz + write rights).
+  if (folderId) {
+    const folderOk = await verifyFolderOwnership(storage, folderId, userId);
+    if (!folderOk) return errorResponse('Folder not found', 404);
+  }
   const personalIds: string[] = [];
-  const orgItems: Array<{ id: string; organizationId: string }> = [];
+  const orgIds: string[] = [];
   const seen = new Set<string>();
   for (const rawId of body.ids) {
     const id = String(rawId || '').trim();
@@ -1501,47 +1492,23 @@ export async function handleBulkMoveCiphers(request: Request, env: Env, userId: 
     seen.add(id);
     const loaded = await loadCipherForRequest(storage, userId, id, { requireWrite: true });
     if (loaded instanceof Response) return loaded;
-    if (loaded.cipher.organizationId) {
-      orgItems.push({ id, organizationId: loaded.cipher.organizationId });
-    } else {
-      personalIds.push(id);
-    }
+    if (loaded.cipher.organizationId) orgIds.push(id);
+    else personalIds.push(id);
   }
 
   if (personalIds.length) {
-    if (folderId) {
-      const folderOk = await verifyFolderOwnership(storage, folderId, userId);
-      if (!folderOk) return errorResponse('Folder not found', 404);
-    }
     const revisionDate = await storage.bulkMoveCiphers(personalIds, folderId, userId);
     if (revisionDate) {
       notifyVaultSyncForRequest(request, env, userId, revisionDate);
     }
   }
 
-  if (orgItems.length) {
-    // One bulk move targets one org folder (or unfiles): a single folderId
-    // cannot satisfy multiple organizations.
-    let resolvedOrgFolderId: string | null = null;
-    if (folderId) {
-      const firstOrgId = orgItems[0].organizationId;
-      if (orgItems.some((item) => item.organizationId !== firstOrgId)) {
-        return errorResponse('Cannot file items from multiple organizations into one folder', 400);
-      }
-      const folderOk = await verifyOrgFolderOwnership(storage, folderId, firstOrgId);
-      if (!folderOk) return errorResponse('Folder not found', 404);
-      resolvedOrgFolderId = folderId;
-    }
-    const now = new Date().toISOString();
-    await storage.bulkSetOrganizationFolderOnCiphers(
-      orgItems.map((item) => item.id),
-      resolvedOrgFolderId,
-      now
-    );
-    // Bump every affected organization's members so all clients refetch.
-    for (const organizationId of new Set(orgItems.map((item) => item.organizationId))) {
-      await bumpOrganizationMembers(request, env, storage, organizationId);
-    }
+  if (orgIds.length) {
+    // Per-user filing: only the acting user's view changes, so only their
+    // revision needs a bump.
+    await storage.bulkSetCipherUserFolders(userId, orgIds, folderId);
+    const revisionDate = await storage.updateRevisionDate(userId);
+    notifyVaultSyncForRequest(request, env, userId, revisionDate);
   }
 
   return new Response(null, { status: 204 });
@@ -1555,6 +1522,15 @@ async function buildCipherListResponse(
 ): Promise<Response> {
   const loaded = await storage.listAccessibleCiphersByIds(userId, ids);
   const attachmentsByCipher = await storage.getAttachmentsByCipherIds(loaded.map((item) => item.cipher.id));
+  // Overlay the acting user's per-user filing for org ciphers (matches sync).
+  const folderAssignments = new Map(
+    (await storage.listCipherUserFolders(userId)).map((row) => [row.cipherId, row.folderId])
+  );
+  for (const item of loaded) {
+    if (item.cipher.organizationId) {
+      item.cipher.folderId = folderAssignments.get(item.cipher.id) ?? null;
+    }
+  }
 
   return jsonResponse({
     data: loaded.map((item) => {
@@ -1922,16 +1898,15 @@ export async function handleShareCipher(request: Request, env: Env, userId: stri
   }
 
   const now = new Date().toISOString();
-  // Keep-my-filing: the client may name-match an org folder (same decrypted
-  // name as the source personal folder) and send it as the payload folderId.
-  const requestedOrgFolderId = normalizeOptionalId(
+  // Keep-my-filing: the client sends the source item's personal folderId in
+  // the payload; the filing carries over as the acting user's per-user
+  // mapping (their own folders only).
+  const requestedFolderId = normalizeOptionalId(
     getAliasedProp(cipherData, ['folderId', 'FolderId']).value
   );
-  let sharedOrganizationFolderId: string | null = null;
-  if (requestedOrgFolderId) {
-    const folderOk = await verifyOrgFolderOwnership(storage, requestedOrgFolderId, organizationId);
+  if (requestedFolderId) {
+    const folderOk = await verifyFolderOwnership(storage, requestedFolderId, userId);
     if (!folderOk) return errorResponse('Folder not found', 404);
-    sharedOrganizationFolderId = requestedOrgFolderId;
   }
   const shared: Cipher = {
     ...cipher,
@@ -1940,8 +1915,8 @@ export async function handleShareCipher(request: Request, env: Env, userId: stri
     id: cipher.id,
     userId: null,
     organizationId,
-    organizationFolderId: sharedOrganizationFolderId,
-    folderId: null,
+    organizationFolderId: null,
+    folderId: requestedFolderId,
     favorite: !!cipherData.favorite,
     reprompt: Number(cipherData.reprompt) || 0,
     createdAt: cipher.createdAt,
@@ -1960,6 +1935,11 @@ export async function handleShareCipher(request: Request, env: Env, userId: stri
   const transferred = await storage.transferCipherToOrganization(shared, userId);
   if (!transferred) {
     return errorResponse('Cipher not found', 404);
+  }
+  // The shared item keeps its personal folder filing for the sharer (per-user
+  // mapping; the cipher row stays unfiled).
+  if (requestedFolderId) {
+    await storage.setCipherUserFolder(userId, shared.id, requestedFolderId);
   }
   await storage.setCipherCollections(shared.id, collectionIds);
   await bumpOrganizationMembers(request, env, storage, organizationId);

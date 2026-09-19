@@ -56,8 +56,6 @@ import {
   uploadCipherAttachment,
 } from '@/lib/api/vault';
 import { deriveLoginHash, getPreloginKdfConfig, verifyMasterPassword } from '@/lib/api/auth';
-import { createOrganizationFolder } from '@/lib/api/organizations';
-import { encryptWithOrgKey } from '@/lib/org-crypto';
 import type { AuthedFetch } from '@/lib/api/shared';
 import { downloadBytesAsFile } from '@/lib/download';
 import type { Cipher, Folder as VaultFolder, Profile, Send, SendDraft, SessionState, VaultDraft } from '@/lib/types';
@@ -363,40 +361,6 @@ export default function useVaultSendActions(options: UseVaultSendActionsOptions)
     // Move a personal cipher into an organization, re-encrypting every field
     // with the organization key. draftOverride lets the editor transfer an item
     // with unsaved field changes in one step.
-    // Keep-my-filing: when a personal item is shared into an org, find an org
-    // folder whose decrypted name equals the source personal folder's name and
-    // file the item there. Purely client-side — the server is zero-knowledge
-    // and only validates the resulting id against the org's folders.
-    const matchOrganizationFolderByName = async (
-      organizationId: string,
-      sourceFolderId: string | null | undefined
-    ): Promise<string> => {
-      const sourceId = String(sourceFolderId || '').trim();
-      if (!sourceId || !session?.symEncKey || !session.symMacKey) return '';
-      const sourceFolder = (encryptedFolders || []).find((folder) => folder.id === sourceId && !folder.organizationId);
-      if (!sourceFolder) return '';
-      let sourceName = '';
-      try {
-        sourceName = await decryptStr(sourceFolder.name, base64ToBytes(session.symEncKey), base64ToBytes(session.symMacKey));
-      } catch {
-        return '';
-      }
-      if (!sourceName) return '';
-      const organizationKey = orgKeys?.[organizationId];
-      if (!organizationKey) return '';
-      const orgEnc = base64ToBytes(organizationKey.encB64);
-      const orgMac = base64ToBytes(organizationKey.macB64);
-      for (const folder of (encryptedFolders || []).filter((f) => f.organizationId === organizationId)) {
-        try {
-          const name = await decryptStr(folder.name, orgEnc, orgMac);
-          if (name && name === sourceName) return folder.id;
-        } catch {
-          continue;
-        }
-      }
-      return '';
-    };
-
     const performShareToOrganization = async (
       cipher: Cipher,
       organizationId: string,
@@ -407,8 +371,10 @@ export default function useVaultSendActions(options: UseVaultSendActionsOptions)
       requireOnlineWrite();
       const organizationSession = sessionWithOrganizationKey(organizationId);
       if (!organizationSession) throw new Error(t('txt_import_org_key_unavailable'));
+      // The source item's personal folder filing carries over unchanged:
+      // draftFromCipher seeds draft.folderId from the cipher, and the server
+      // stores it as the sharer's per-user mapping on the shared item.
       const draft = draftOverride || draftFromCipher(cipher);
-      draft.folderId = await matchOrganizationFolderByName(organizationId, cipher.folderId);
       const payload = await buildCipherImportPayload(organizationSession, draft);
       await shareCipherToOrganization(importAuthedFetch, cipher.id, {
         cipher: payload,
@@ -723,7 +689,9 @@ export default function useVaultSendActions(options: UseVaultSendActionsOptions)
           } else if (nextOrgId) {
             // draft.folderId is replaced by the org name-match inside
             // performShareToOrganization (keep-my-filing).
-            await performShareToOrganization(cipher, nextOrgId, Array.isArray(draft.collectionIds) ? draft.collectionIds.filter(Boolean) : [], { ...draft, folderId: '' });
+            // The selected personal folder carries over to the shared item
+            // (per-user filing).
+            await performShareToOrganization(cipher, nextOrgId, Array.isArray(draft.collectionIds) ? draft.collectionIds.filter(Boolean) : [], { ...draft });
             updated = await getCipherById(authedFetch, cipher.id);
           } else {
             updated = await updateCipher(authedFetch, session, cipher, draft);
@@ -1004,16 +972,7 @@ export default function useVaultSendActions(options: UseVaultSendActionsOptions)
         }
         try {
           if (!session) throw new Error(t('txt_vault_key_unavailable'));
-          // Organization folders carry org-key encrypted names; pick the key
-          // from the folder's owning organization.
-          const target = (encryptedFolders || []).find((folder) => folder.id === id);
-          const organizationKey = target?.organizationId && orgKeys?.[target.organizationId]
-            ? {
-                enc: base64ToBytes(orgKeys[target.organizationId].encB64),
-                mac: base64ToBytes(orgKeys[target.organizationId].macB64),
-              }
-            : undefined;
-          const updated = await updateFolder(authedFetch, session, id, nextName, organizationKey);
+          const updated = await updateFolder(authedFetch, session, id, nextName);
           upsertEncryptedFolder(updated);
           patchDecryptedFolders((prev) => prev.map((folder) => (
             folder.id === id
@@ -1024,31 +983,6 @@ export default function useVaultSendActions(options: UseVaultSendActionsOptions)
           onNotify('success', t('txt_folder_updated'));
         } catch (error) {
           onNotify('error', error instanceof Error ? error.message : t('txt_update_folder_failed'));
-          throw error;
-        }
-      },
-
-      // Create an organization folder from the vault editor's folder picker
-      // (owners/admins). Returns the new folder id so the picker can select it.
-      async createOrganizationFolderFromVault(organizationId: string, name: string): Promise<string | null> {
-        const orgId = String(organizationId || '').trim();
-        const folderName = String(name || '').trim();
-        if (!orgId || !folderName) return null;
-        const material = orgKeys?.[orgId];
-        if (!material) throw new Error(t('txt_import_org_key_unavailable'));
-        try {
-          const encName = await encryptWithOrgKey(folderName, {
-            encB64: material.encB64,
-            macB64: material.macB64,
-            encBytes: base64ToBytes(material.encB64),
-            macBytes: base64ToBytes(material.macB64),
-          });
-          const created = await createOrganizationFolder(authedFetch, orgId, encName);
-          await Promise.all([refetchFolders()]);
-          await refreshVaultRevisionStamp();
-          return created?.id || null;
-        } catch (error) {
-          onNotify('error', error instanceof Error ? error.message : t('txt_organizations_folder_create_failed'));
           throw error;
         }
       },

@@ -40,7 +40,7 @@ interface VaultSidebarProps {
   /** Organization collections with decrypted names (empty when none). */
   collections?: VaultCollection[];
   /** Confirmed organizations with decrypted names (empty when none). */
-  organizations?: Array<{ id: string; name: string; keyAvailable: boolean; type: number }>;
+  organizations?: Array<{ id: string; name: string; keyAvailable: boolean }>;
   onCloseMobileSidebar: () => void;
   onChangeFilter: (filter: SidebarFilter) => void;
   onOpenDeleteAllFolders: () => void;
@@ -197,15 +197,7 @@ export default function VaultSidebar(props: VaultSidebarProps) {
         <button type="button" className={`tree-btn ${props.sidebarFilter.kind === 'folder' && props.sidebarFilter.folderId === null ? 'active' : ''}`} onClick={() => props.onChangeFilter({ kind: 'folder', folderId: null })}>
           <FolderX size={14} className="tree-icon" /> <span className="tree-label">{t('txt_no_folder')}</span>
         </button>
-        {sortedFolders.map((folder) => {
-          // Organization folders are managed by their org's owners/admins; the
-          // rename/delete affordances reflect what the server will accept.
-          const owningOrg = folder.organizationId
-            ? (props.organizations || []).find((org) => org.id === folder.organizationId)
-            : undefined;
-          const canManageOrgFolder = !!owningOrg && (owningOrg.type === 0 || owningOrg.type === 1);
-          const showFolderActions = !folder.organizationId || canManageOrgFolder;
-          return (
+        {sortedFolders.map((folder) => (
           <div key={folder.id} className="folder-row">
             <button
               type="button"
@@ -216,14 +208,7 @@ export default function VaultSidebar(props: VaultSidebarProps) {
               <span className="tree-label" title={folder.decName || folder.name || folder.id}>
                 {folder.decName || folder.name || folder.id}
               </span>
-              {folder.organizationId && (
-                <span className="tree-badge" title={owningOrg?.name || ''}>
-                  {(owningOrg?.name || '').slice(0, 12) || t('txt_organizations_shared_item_badge')}
-                </span>
-              )}
             </button>
-            {showFolderActions && (
-              <>
             <button
               type="button"
               className="folder-delete-btn folder-edit-btn"
@@ -252,11 +237,8 @@ export default function VaultSidebar(props: VaultSidebarProps) {
             >
               <X size={12} />
             </button>
-              </>
-            )}
           </div>
-          );
-        })}
+        ))}
       </div>
 
       {(props.organizations || []).length > 0 && (

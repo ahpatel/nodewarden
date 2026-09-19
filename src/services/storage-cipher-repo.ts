@@ -139,7 +139,10 @@ export async function getCipherForUser(db: D1Database, id: string, userId: strin
 }
 
 export async function saveCipher(db: D1Database, safeBind: SafeBind, cipher: Cipher): Promise<void> {
-  const folderId = normalizeOptionalId(cipher.folderId);
+  // Org rows never persist a personal folder id: shared-item filing is
+  // per-user (cipher_user_folders) and the in-memory folderId may carry the
+  // acting user's overlaid assignment for response building.
+  const folderId = cipher.organizationId ? null : normalizeOptionalId(cipher.folderId);
   const data = buildCipherData(cipher, folderId);
   const stmt = db.prepare(
     'INSERT INTO ciphers(id, user_id, organization_id, organization_folder_id, type, folder_id, name, notes, favorite, data, reprompt, key, created_at, updated_at, archived_at, deleted_at) ' +

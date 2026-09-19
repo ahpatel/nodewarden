@@ -238,7 +238,7 @@ test('backup includes all five org tables', () => {
 test('schema version is bumped for org feature', () => {
   const storage = read('src/services/storage.ts');
   assert.ok(
-    /^const STORAGE_SCHEMA_VERSION = '.*organization.*';$/m.test(storage),
+    /^const STORAGE_SCHEMA_VERSION = '.*(organization|org|filing).*';$/m.test(storage),
     'schema version reflects org feature'
   );
 });
@@ -262,159 +262,129 @@ test('admin toggle requires master password verification', () => {
   );
 });
 
-// ─── Organization folders ───────────────────────────────────────────────────
-// Org folders are admin-managed, org-scoped, org-key encrypted, and surfaced
-// through the standard sync folders list so official clients render filing.
+// ─── Per-user filing of organization ciphers ────────────────────────────────
+// Shared items are filed into each member's own personal folders via a
+// per-user mapping (cipher_user_folders). The cipher row never carries a
+// personal folder id; the standard folderId response field carries the
+// acting user's assignment so official clients render filing natively.
 
-test('schema and backup include the organization_folders table', () => {
+test('schema and backup include the per-user cipher filing map', () => {
   const schema = read('src/services/storage-schema.ts');
   assert.ok(
-    schema.includes('CREATE TABLE IF NOT EXISTS organization_folders'),
-    'schema creates organization_folders'
+    schema.includes('CREATE TABLE IF NOT EXISTS cipher_user_folders'),
+    'schema creates cipher_user_folders'
+  );
+  const mapping = schema.slice(schema.indexOf('CREATE TABLE IF NOT EXISTS cipher_user_folders'));
+  assert.ok(
+    /FOREIGN KEY \(folder_id\) REFERENCES folders\(id\) ON DELETE CASCADE/.test(mapping),
+    'deleting a folder unfiles affected org items (FK cascade)'
   );
   assert.ok(
-    schema.includes('ALTER TABLE ciphers ADD COLUMN organization_folder_id TEXT'),
-    'ciphers gain the org filing column'
-  );
-  assert.ok(
-    /ciphers_organization_migration[\s\S]*?organization_folder_id/.test(schema),
-    'legacy rebuild carries the column'
+    /FOREIGN KEY \(cipher_id\) REFERENCES ciphers\(id\) ON DELETE CASCADE/.test(mapping),
+    'deleting a cipher cleans up its filing rows (FK cascade)'
   );
 
   const archive = read('src/services/backup-archive.ts');
-  assert.ok(archive.includes('FROM organization_folders'), 'export includes org folders');
+  assert.ok(archive.includes('FROM cipher_user_folders'), 'export includes the filing map');
   const backupImport = read('src/services/backup-import.ts');
   assert.ok(
-    backupImport.includes("'organization_folders'"),
-    'restore allowlist includes org folders'
+    backupImport.includes("'cipher_user_folders'"),
+    'restore allowlist includes the filing map'
   );
   assert.ok(
-    /DELETE FROM organization_folders/.test(backupImport),
-    'restore reset clears org folders'
+    /DELETE FROM cipher_user_folders/.test(backupImport),
+    'restore reset clears the filing map'
   );
 });
 
-test('org folder CRUD is gated to owners and admins', () => {
-  const orgs = read('src/handlers/organizations.ts');
-  const gate = orgs.slice(orgs.indexOf('async function requireOrganizationManager'));
+test('org cipher rows never persist a personal folder id', () => {
+  const repo = read('src/services/storage-cipher-repo.ts');
   assert.ok(
-    gate.includes('ORG_USER_TYPE.OWNER') && gate.includes('ORG_USER_TYPE.ADMIN'),
-    'owners AND admins may manage folders'
-  );
-  assert.ok(
-    gate.includes('403'),
-    'regular members are rejected'
-  );
-  assert.ok(
-    /handleCreateOrganizationFolder[\s\S]*?requireOrganizationManager/.test(orgs) &&
-    /handleUpdateOrganizationFolder[\s\S]*?requireOrganizationManager/.test(orgs) &&
-    /handleDeleteOrganizationFolder[\s\S]*?requireOrganizationManager/.test(orgs),
-    'all folder write handlers check the manager gate'
+    /const folderId = cipher\.organizationId \? null : normalizeOptionalId\(cipher\.folderId\);/.test(repo),
+    'saveCipher guards org rows against personal folder ids'
   );
 });
 
-test('deleting an org folder unfiles affected ciphers', () => {
-  const orgs = read('src/handlers/organizations.ts');
-  const del = orgs.slice(orgs.indexOf('export async function deleteOrganizationFolderInternal'));
-  assert.ok(
-    del.includes('clearOrganizationFolderFromCiphers'),
-    'delete cascades unfiling before removing the folder'
-  );
-  assert.ok(
-    del.includes('bumpOrganizationMembers'),
-    'members are bumped so clients refetch'
-  );
-  const repo = read('src/services/storage-org-folder-repo.ts');
-  assert.ok(
-    /clearOrganizationFolderFromCiphers[\s\S]*?organization_folder_id = NULL/.test(repo),
-    'cascade nulls the filing column'
-  );
-});
-
-test('org cipher write paths resolve the payload folder against org folders', () => {
+test('org cipher write paths file into the acting user\'s own folders', () => {
   const ciphers = read('src/handlers/ciphers.ts');
+
+  // The load path overlays the per-user assignment so every org cipher
+  // response reports the acting user's filing.
   assert.ok(
-    /verifyOrgFolderOwnership[\s\S]*?getOrganizationFolder/.test(ciphers),
-    'org folder ownership checks resolve against organization_folders'
+    /loadCipherForRequest[\s\S]*?result\.cipher\.folderId = await storage\.getCipherUserFolder\(userId, cipherId\);/.test(ciphers),
+    'load path overlays the per-user assignment'
   );
-  // create-in-org
+
+  // create-in-org: mapping write after save.
   assert.ok(
-    /if \(cipher\.folderId\)[\s\S]*?verifyOrgFolderOwnership\(storage, cipher\.folderId, createOrganizationId\)/.test(ciphers),
-    'create-in-org validates the filing'
+    /createCipherFolderId[\s\S]*?setCipherUserFolder\(userId, cipher\.id, createCipherFolderId\)/.test(ciphers),
+    'create-in-org stores the filing per-user'
   );
-  // full update
+
+  // full update: user-folder verification + mapping writes, keep-when-omitted.
   const update = ciphers.slice(ciphers.indexOf('export async function handleUpdateCipher'));
   assert.ok(
-    update.includes('verifyOrgFolderOwnership(storage, requestedFolderId, existingCipher.organizationId)'),
-    'full update resolves org filing'
+    update.includes('verifyFolderOwnership(storage, requestedFolderId, userId)') &&
+    update.includes('setCipherUserFolder(userId, cipher.id, requestedFolderId)') &&
+    update.includes('setCipherUserFolder(userId, cipher.id, null)'),
+    'full update resolves filing against the acting user\'s folders'
   );
   assert.ok(
-    /incomingFolderId[\s\S]*?keep the existing filing/.test(ciphers),
-    'omitted folderId preserves the existing filing'
+    /An omitted folderId keeps the existing filing/.test(ciphers),
+    'omitted folderId keeps the existing filing'
   );
-  // partial update
+
+  // partial (move-to-folder): single user-folder check + mapping.
   const partial = ciphers.slice(ciphers.indexOf('handlePartialUpdateCipher'));
   assert.ok(
-    partial.includes('verifyOrgFolderOwnership(storage, folderId, cipher.organizationId)'),
-    'move-to-folder resolves org filing'
+    partial.includes('setCipherUserFolder(userId, cipher.id, folderId)'),
+    'move-to-folder writes the per-user mapping'
   );
-  // bulk move
+
+  // bulk move works for mixed personal + org selections.
   const bulk = ciphers.slice(ciphers.indexOf('handleBulkMoveCiphers'));
   assert.ok(
-    bulk.includes('bulkSetOrganizationFolderOnCiphers') &&
-    bulk.includes('multiple organizations'),
-    'bulk move handles org items with per-org folder validation'
+    bulk.includes('bulkSetCipherUserFolders(userId, orgIds, folderId)') &&
+    /bulkSetCipherUserFolders[\s\S]*?updateRevisionDate\(userId\)/.test(bulk),
+    'bulk move files org items per acting user and bumps only their revision'
   );
-  // share
+
+  // share: the source personal folder carries over as the sharer's mapping.
   const share = ciphers.slice(ciphers.indexOf('handleShareCipher'));
   assert.ok(
-    share.includes('verifyOrgFolderOwnership(storage, requestedOrgFolderId, organizationId)'),
-    'share resolves the name-matched org folder'
-  );
-  // personal folders never leak onto org rows
-  assert.ok(
-    /organizationId\s*\?\s*\(cipher\.organizationFolderId \?\? null\)\s*:\s*cipher\.folderId/.test(ciphers),
-    'responses report org filing through folderId'
-  );
-  assert.ok(
-    /organizationFolderId: undefined/.test(ciphers),
-    'the internal column is never exposed on the wire'
+    share.includes('verifyFolderOwnership(storage, requestedFolderId, userId)') &&
+    share.includes('setCipherUserFolder(userId, shared.id, requestedFolderId)'),
+    'share keeps the source personal folder filing per-user'
   );
 });
 
-test('sync injects org folders into the folders list', () => {
+test('sync overlays the acting user\'s filing onto org ciphers', () => {
   const sync = read('src/handlers/sync.ts');
   assert.ok(
-    sync.includes('listOrganizationFoldersForUser'),
-    'sync loads org folders for confirmed memberships'
+    sync.includes('listCipherUserFolders(userId)'),
+    'sync loads the acting user\'s filing map'
   );
   assert.ok(
-    /validFolderIds\.add\(organizationFolder\.id\)/.test(sync),
-    'org folder ids are valid cipher folderId targets'
+    /folderAssignmentByCipher[\s\S]*?cipher\.folderId = folderAssignmentByCipher\.get\(cipher\.id\) \?\? null;/.test(sync),
+    'org ciphers report the per-user assignment through folderId'
   );
   assert.ok(
-    /folderResponses\.push\(organizationFolderToSyncFolderResponse\(organizationFolder\)\)/.test(sync),
-    'org folders ride the standard folders list'
+    !sync.includes('organizationFolderToSyncFolderResponse'),
+    'org folders are no longer injected into the folders list'
   );
 });
 
-test('user-folder endpoints proxy org folders with permission checks', () => {
+test('org folder machinery is removed', () => {
+  const orgs = read('src/handlers/organizations.ts');
+  assert.ok(!orgs.includes('OrganizationFolder'), 'no org folder handlers remain');
   const folders = read('src/handlers/folders.ts');
   assert.ok(
-    folders.includes('getOrganizationFolderById'),
-    'folder handlers resolve org folder ids first'
+    !folders.includes('getOrganizationFolderById'),
+    'user-folder endpoints no longer proxy org folders'
   );
+  const router = read('src/router-authenticated.ts');
   assert.ok(
-    folders.includes('confirmedOrganizationFolderMembership'),
-    'membership is checked before serving or acting'
-  );
-  assert.ok(
-    folders.includes('Organization folders can only be managed by organization owners or admins'),
-    'non-managers get a clear 403'
-  );
-  assert.ok(
-    folders.includes('renameOrganizationFolderInternal') &&
-    folders.includes('deleteOrganizationFolderInternal'),
-    'rename/delete delegate to the same operations as the console'
+    !router.includes('OrganizationFolder'),
+    'no org folder routes remain'
   );
 });

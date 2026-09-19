@@ -107,7 +107,6 @@ export interface AppMainRoutesProps {
   onBulkUnarchiveVaultItems: (ids: string[]) => Promise<void>;
   onBulkMoveVaultItems: (ids: string[], folderId: string | null) => Promise<void>;
   onShareVaultItemToOrganization: (cipher: Cipher, organizationId: string, collectionIds: string[]) => Promise<void>;
-  onCreateOrgFolder: (organizationId: string, name: string) => Promise<string | null>;
   onVerifyMasterPassword: (email: string, password: string) => Promise<void>;
   onCreateFolder: (name: string) => Promise<void>;
   onRenameFolder: (folderId: string, name: string) => Promise<void>;
@@ -304,7 +303,6 @@ export default function AppMainRoutes(props: AppMainRoutesProps) {
             onBulkUnarchive={props.onBulkUnarchiveVaultItems}
             onBulkMove={props.onBulkMoveVaultItems}
             onShareVaultItemToOrganization={props.onShareVaultItemToOrganization}
-            onCreateOrgFolder={props.onCreateOrgFolder}
             onVerifyMasterPassword={props.onVerifyMasterPassword}
             onNotify={props.onNotify}
             onCreateFolder={props.onCreateFolder}
