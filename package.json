@@ -26,6 +26,7 @@
     "test:org-crypto": "tsx --test scripts/org-crypto.test.ts",
     "test:hide-password": "tsx --test scripts/hide-password.test.ts",
     "deploy": "wrangler deploy",
+    "deploy:personal": "wrangler deploy -c wrangler.my.toml",
     "deploy:kv": "node scripts/ensure-kv.cjs && wrangler deploy -c wrangler.kv.toml",
     "deploy:staging": "wrangler deploy -c wrangler.staging.toml",
     "deploy:demo": "npm run build:demo && wrangler pages deploy dist --project-name nw-demo"
