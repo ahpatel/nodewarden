@@ -349,6 +349,28 @@ export default function useVaultSendActions(options: UseVaultSendActionsOptions)
       throw new Error(t('txt_offline_vault_readonly'));
     };
 
+    // Existing vault folders keyed by decrypted name, so imports reuse a
+    // matching folder instead of creating a duplicate. First folder wins when
+    // the vault already contains duplicate names.
+    const buildExistingFolderIdByName = async (): Promise<Map<string, string>> => {
+      const map = new Map<string, string>();
+      if (!session?.symEncKey || !session.symMacKey) return map;
+      const encKey = base64ToBytes(session.symEncKey);
+      const macKey = base64ToBytes(session.symMacKey);
+      for (const folder of encryptedFolders || []) {
+        const id = String(folder.id || '').trim();
+        const encryptedName = String(folder.name || '').trim();
+        if (!id || !encryptedName) continue;
+        try {
+          const name = (await decryptStr(encryptedName, encKey, macKey) || '').trim();
+          if (name && !map.has(name)) map.set(name, id);
+        } catch {
+          // Skip folders that cannot be decrypted with the current key.
+        }
+      }
+      return map;
+    };
+
     // Organization ciphers encrypt with the organization key. buildCipherPayload
     // only reads symEncKey/symMacKey, so a session carrying the org key halves
     // reuses the entire user-key encryption path.
@@ -1176,46 +1198,59 @@ export default function useVaultSendActions(options: UseVaultSendActionsOptions)
           ? { ...session, symEncKey: organizationKeyMaterial.encB64, symMacKey: organizationKeyMaterial.macB64 }
           : null;
         const nextPayload: CiphersImportPayload = { ciphers: [], folders: [], folderRelationships: [] };
+        const existingFolderIdByCipherIndex = new Map<number, string>();
 
         if (mode === 'original') {
-          const folderIndexByLegacyId = new Map<string, number>();
-          const folderIndexByName = new Map<string, number>();
+          // Match import folders against existing vault folders by decrypted
+          // name: matches reuse the existing folder id on the ciphers instead
+          // of sending new folder rows that would duplicate them.
+          const existingFolderIdByName = await buildExistingFolderIdByName();
+          type FolderSlot = { folderIndex: number } | { existingFolderId: string };
+          const folderSlotByLegacyId = new Map<string, FolderSlot>();
+          const folderSlotByName = new Map<string, FolderSlot>();
           for (let i = 0; i < payload.folders.length; i++) {
             const folderRaw = (payload.folders[i] || {}) as Record<string, unknown>;
             const name = String(folderRaw.name || '').trim();
             if (!name) continue;
-            let folderIndex = folderIndexByName.get(name);
-            if (folderIndex == null) {
-              folderIndex = nextPayload.folders.length;
-              nextPayload.folders.push({ name: await encryptFolderImportName(session, name) });
-              folderIndexByName.set(name, folderIndex);
+            let folderSlot = folderSlotByName.get(name);
+            if (!folderSlot) {
+              const existingFolderId = existingFolderIdByName.get(name);
+              if (existingFolderId) {
+                folderSlot = { existingFolderId };
+              } else {
+                folderSlot = { folderIndex: nextPayload.folders.length };
+                nextPayload.folders.push({ name: await encryptFolderImportName(session, name) });
+              }
+              folderSlotByName.set(name, folderSlot);
             }
             const legacyId = String(folderRaw.id || '').trim();
-            if (legacyId) folderIndexByLegacyId.set(legacyId, folderIndex);
+            if (legacyId) folderSlotByLegacyId.set(legacyId, folderSlot);
           }
 
           for (let i = 0; i < payload.ciphers.length; i++) {
             const raw = (payload.ciphers[i] || {}) as Record<string, unknown>;
-            let folderIndex: number | undefined;
+            let folderSlot: FolderSlot | undefined;
             for (const relation of payload.folderRelationships || []) {
               const cipherIndex = Number(relation?.key);
               const relFolderIndex = Number(relation?.value);
               if (cipherIndex !== i || !Number.isFinite(relFolderIndex)) continue;
               const importedFolder = payload.folders[relFolderIndex] as Record<string, unknown> | undefined;
               const importedName = String(importedFolder?.name || '').trim();
-              if (importedName) folderIndex = folderIndexByName.get(importedName);
-              if (folderIndex != null) break;
+              if (importedName) folderSlot = folderSlotByName.get(importedName);
+              if (folderSlot) break;
             }
-            if (folderIndex == null) {
+            if (!folderSlot) {
               const rawFolderId = String(raw.folderId || '').trim();
-              if (rawFolderId) folderIndex = folderIndexByLegacyId.get(rawFolderId);
+              if (rawFolderId) folderSlot = folderSlotByLegacyId.get(rawFolderId);
             }
-            if (folderIndex == null) {
+            if (!folderSlot) {
               const rawFolderName = String(raw.folder || '').trim();
-              if (rawFolderName) folderIndex = folderIndexByName.get(rawFolderName);
+              if (rawFolderName) folderSlot = folderSlotByName.get(rawFolderName);
             }
-            if (folderIndex != null) {
-              nextPayload.folderRelationships.push({ key: i, value: folderIndex });
+            if (folderSlot && 'existingFolderId' in folderSlot) {
+              existingFolderIdByCipherIndex.set(i, folderSlot.existingFolderId);
+            } else if (folderSlot && 'folderIndex' in folderSlot) {
+              nextPayload.folderRelationships.push({ key: i, value: folderSlot.folderIndex });
             }
           }
         }
@@ -1225,7 +1260,9 @@ export default function useVaultSendActions(options: UseVaultSendActionsOptions)
           const isOrganizationItem = !!organization && !!organizationSession && rawImportItemIsOrganizationItem(raw);
           const draft = importCipherToDraft(
             raw,
-            mode === 'target' ? targetFolderId : null
+            mode === 'target'
+              ? targetFolderId
+              : existingFolderIdByCipherIndex.get(i) || null
           );
           const cipherPayload = await buildCipherImportPayload(isOrganizationItem ? organizationSession! : session, draft);
           const sourceId = String(raw.id || '').trim();
@@ -1256,10 +1293,60 @@ export default function useVaultSendActions(options: UseVaultSendActionsOptions)
         const targetFolderId = (options.targetFolderId || '').trim() || null;
         const nextPayload: CiphersImportPayload = {
           ciphers: payload.ciphers.map((raw) => ({ ...(raw as Record<string, unknown>) })),
-          folders: mode === 'original' ? payload.folders : [],
-          folderRelationships: mode === 'original' ? payload.folderRelationships : [],
+          folders: [],
+          folderRelationships: [],
         };
-        if (mode === 'none') {
+        if (mode === 'original') {
+          if (!session?.symEncKey || !session.symMacKey) throw new Error(t('txt_vault_key_unavailable'));
+          // Folder names in an encrypted export are ciphertext; decrypt them to
+          // match against existing vault folders. Matches reuse the existing
+          // folder id on the affected ciphers; only genuinely new folders are
+          // sent for creation.
+          const existingFolderIdByName = await buildExistingFolderIdByName();
+          const encKey = base64ToBytes(session!.symEncKey!);
+          const macKey = base64ToBytes(session!.symMacKey!);
+          const existingFolderIdByPayloadIndex = new Map<number, string>();
+          const newFolderIndexByPayloadIndex = new Map<number, number>();
+          const newFolderIndexByName = new Map<string, number>();
+          for (let i = 0; i < payload.folders.length; i++) {
+            const encryptedName = String((payload.folders[i] as Record<string, unknown> | undefined)?.name || '').trim();
+            let name = '';
+            try {
+              name = encryptedName ? (await decryptStr(encryptedName, encKey, macKey) || '').trim() : '';
+            } catch {
+              // Undecryptable names always create a new folder.
+            }
+            const existingFolderId = name ? existingFolderIdByName.get(name) : undefined;
+            if (existingFolderId) {
+              existingFolderIdByPayloadIndex.set(i, existingFolderId);
+              continue;
+            }
+            const seenNewIndex = name ? newFolderIndexByName.get(name) : undefined;
+            if (seenNewIndex != null) {
+              newFolderIndexByPayloadIndex.set(i, seenNewIndex);
+              continue;
+            }
+            const newFolderIndex = nextPayload.folders.length;
+            nextPayload.folders.push(payload.folders[i]);
+            newFolderIndexByPayloadIndex.set(i, newFolderIndex);
+            if (name) newFolderIndexByName.set(name, newFolderIndex);
+          }
+          for (const relation of payload.folderRelationships || []) {
+            const cipherIndex = Number(relation?.key);
+            const folderIndex = Number(relation?.value);
+            if (!Number.isFinite(cipherIndex) || !Number.isFinite(folderIndex)) continue;
+            const existingFolderId = existingFolderIdByPayloadIndex.get(folderIndex);
+            if (existingFolderId) {
+              const cipher = nextPayload.ciphers[cipherIndex] as Record<string, unknown> | undefined;
+              if (cipher) cipher.folderId = existingFolderId;
+              continue;
+            }
+            const newFolderIndex = newFolderIndexByPayloadIndex.get(folderIndex);
+            if (newFolderIndex != null) {
+              nextPayload.folderRelationships.push({ key: cipherIndex, value: newFolderIndex });
+            }
+          }
+        } else if (mode === 'none') {
           for (const raw of nextPayload.ciphers) (raw as Record<string, unknown>).folderId = null;
         } else if (mode === 'target' && targetFolderId) {
           for (const raw of nextPayload.ciphers) (raw as Record<string, unknown>).folderId = targetFolderId;

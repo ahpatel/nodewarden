@@ -134,19 +134,45 @@ export async function handleCiphersImport(request: Request, env: Env, userId: st
   const now = new Date().toISOString();
   const batchChunkSize = LIMITS.performance.bulkMoveChunkSize;
 
+  // Resolve existing folders up front so imported folders whose (encrypted)
+  // name exactly matches an existing vault folder reuse that row instead of
+  // creating a duplicate. Folder names are opaque ciphertext, so only exact
+  // string matches dedupe here; the first-party webapp additionally matches
+  // decrypted names client-side before sending the payload.
+  const existingFolders = await storage.getAllFolders(userId);
+  const existingFolderIds = new Set(existingFolders.map((folder) => folder.id));
+  const existingFolderIdByName = new Map<string, string>();
+  for (const folder of existingFolders) {
+    if (folder.name && !existingFolderIdByName.has(folder.name)) {
+      existingFolderIdByName.set(folder.name, folder.id);
+    }
+  }
+
   // Create folders and build index -> id mapping
   const folderIdMap = new Map<number, string>();
+  const createdFolderIdByName = new Map<string, string>();
   const folderRows: Folder[] = [];
   
   for (let i = 0; i < folders.length; i++) {
     const importedFolder = folders[i] && typeof folders[i] === 'object' ? folders[i] : null;
+    const name = typeof importedFolder?.name === 'string' && importedFolder.name ? importedFolder.name : 'Folder';
+
+    // Reuse an existing vault folder — or an earlier folder in this payload
+    // with the same name — rather than inserting a duplicate row.
+    const reusedFolderId = existingFolderIdByName.get(name) ?? createdFolderIdByName.get(name);
+    if (reusedFolderId) {
+      folderIdMap.set(i, reusedFolderId);
+      continue;
+    }
+
     const folderId = generateUUID();
+    createdFolderIdByName.set(name, folderId);
     folderIdMap.set(i, folderId);
 
     const folder: Folder = {
       id: folderId,
       userId: userId,
-      name: typeof importedFolder?.name === 'string' && importedFolder.name ? importedFolder.name : 'Folder',
+      name: name,
       createdAt: now,
       updatedAt: now,
     };
@@ -175,7 +201,6 @@ export async function handleCiphersImport(request: Request, env: Env, userId: st
       cipherFolderMap.set(rel.key, folderId);
     }
   }
-  const existingFolderIds = new Set((await storage.getAllFolders(userId)).map((folder) => folder.id));
 
   // Organization support: ciphers may carry organizationId + collectionIds
   // (the webapp import flow re-encrypts org items with the org key before
