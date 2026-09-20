@@ -165,6 +165,7 @@ export function profileOrganizationResponse(
     useScim: false,
     useOrganizationDomains: false,
     useKeyConnector: false,
+    keyConnectorEnabled: false,
     useCustomPermissions: false,
     useResetPassword: false,
     useSecretsManager: false,

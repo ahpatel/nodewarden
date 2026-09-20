@@ -259,8 +259,12 @@ test('profile org response shape has required client fields', () => {
   assert.ok(orgs.includes('usePasswordManager'), 'usePasswordManager');
   assert.ok(orgs.includes('permissions: {'), 'permissions object');
 
-  // billingEmail must NOT be in the profile response
+  // Required by the official Android app's Organization DTO (non-nullable, no
+  // default): a missing key fails deserialization of the whole sync response.
   const profileFn = orgs.slice(orgs.indexOf('profileOrganizationResponse'), orgs.indexOf('organizationUserToResponse'));
+  assert.ok(profileFn.includes('keyConnectorEnabled'), 'keyConnectorEnabled');
+
+  // billingEmail must NOT be in the profile response
   assert.ok(
     !profileFn.includes('billingEmail'),
     'billingEmail must be absent from profileOrganizationResponse (member-visible shape)'
