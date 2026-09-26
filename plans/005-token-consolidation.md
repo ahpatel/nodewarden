@@ -1,6 +1,6 @@
 # 005 — Consolidate motion tokens and keyframes
 
-- **Status**: TODO
+- **Status**: DONE (commit a25ab29 on `modern-ui`; leftovers documented in commit message)
 - **Commit**: 7889cfd
 - **Severity**: MEDIUM
 - **Category**: Cohesion & tokens (audit findings 6, 17)

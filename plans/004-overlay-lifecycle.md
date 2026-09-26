@@ -1,6 +1,6 @@
 # 004 — Interruptible overlay lifecycle (toasts, menus, dialogs)
 
-- **Status**: TODO
+- **Status**: DONE (commits 1f8b69b, 1ca5388, 65a40e4 on `modern-ui`)
 - **Commit**: 7889cfd
 - **Severity**: MEDIUM
 - **Category**: Interruptibility (audit findings 8, 10)

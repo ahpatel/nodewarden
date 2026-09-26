@@ -1,6 +1,6 @@
 # 002 — Scope reduced-motion handling and gate hover motion for touch
 
-- **Status**: TODO
+- **Status**: DONE (commit cd665eb on `modern-ui`; hover-gate block empty by design after 001)
 - **Commit**: 7889cfd
 - **Severity**: HIGH
 - **Category**: Accessibility (audit findings 3, 4)

@@ -1,6 +1,6 @@
 # 001 — Subtract decorative motion from high-frequency surfaces
 
-- **Status**: TODO
+- **Status**: DONE (commits 2f7ab1c..96c31dc on `modern-ui`; 4 commits as planned, commit 4 included)
 - **Commit**: 7889cfd
 - **Severity**: HIGH
 - **Category**: Purpose & frequency (audit findings 1, 5, 12, 13-optional)
@@ -110,6 +110,7 @@ Commit 3 — dead layer (finding 12):
 14. `webapp/src/styles/forms.css`: delete the never-visible glow: rules 140-159 (`.topbar-actions .btn::before, …` and the `:hover::before` rule). Keep the `@apply relative overflow-hidden` at 133-138 (used for other purposes).
 
 Commit 4 (OPTIONAL — drop-able, taste call) — row press (finding 13):
+<!-- Status update: this commit LANDED (96c31dc). Plan 000 (motion decision sandbox) now includes a P0/P1/P2 feel-confirm of the landed press, with the option to retune to scale(0.99) via plan 006 commit 3 or to flag this commit as the one upstream may drop. -->
 15. `webapp/src/styles/vault.css`: add `.list-item:active { transform: scale(0.98); transition-duration: var(--dur-instant); }` next to the `.list-item` rule. Do not touch the deliberate no-motion zones at `vault.css:259-271` and `management.css:945-951`.
 
 ## Boundaries

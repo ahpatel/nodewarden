@@ -1,6 +1,6 @@
 # 007 — Wire the orphaned keyframes (route, unlock, popover, settings, chevron)
 
-- **Status**: TODO
+- **Status**: DONE (commits 72e5d2e, db11406, cd60475, f138d3c, d78dfad on `modern-ui`; O3 adopted the plan-004 persistent pattern as its step 6 anticipated, and the plan's `menu-in` reuse was replaced by it since 004 deleted that keyframe)
 - **Commit**: 7889cfd
 - **Severity**: MEDIUM (additive)
 - **Category**: Missed opportunities (gated audit, opportunities 1, 2, 3, 4, 6)

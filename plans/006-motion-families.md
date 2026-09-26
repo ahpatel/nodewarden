@@ -1,6 +1,6 @@
 # 006 — Unify motion families, origins, and press feedback
 
-- **Status**: TODO
+- **Status**: DONE (commits 4b2054d, b8bc168, 6e464c8, b03326e, 992ec1d, 1472409 on `modern-ui`; commit 2 applied per the recommended option — no plan-000 decision recorded)
 - **Commit**: 7889cfd
 - **Severity**: MEDIUM (7, 9, 14, 15, 16), LOW (19)
 - **Category**: Cohesion & tokens / Physicality / Interruptibility (audit findings 7, 9, 14, 15, 16, 19)
@@ -66,7 +66,8 @@ Family rules (document once in a comment at the top of motion.css):
 .mobile-fab-trigger { transition: transform var(--dur-fast) var(--ease-out-soft), box-shadow var(--dur-fast) var(--ease-out-soft); }
 .mobile-fab-trigger:active { transform: scale(0.96); transition-duration: var(--dur-instant); }
 .mobile-sidebar-sheet { … transition: opacity var(--dur-fast) var(--ease-out-soft), transform var(--dur-medium) var(--ease-out-strong), visibility var(--dur-fast); transform-origin: top center; }
-.mobile-detail-sheet  { … transition: opacity var(--dur-fast) var(--ease-out-soft), transform var(--dur-panel) var(--ease-out-strong), visibility var(--dur-fast); transform-origin: top center; }
+.mobile-detail-sheet  { … transition: opacity var(--dur-fast) var(--ease-out-soft), transform var(--dur-panel) var(--ease-spring), visibility var(--dur-fast); transform-origin: top center; }
+/* DECIDED (plan 000): the detail sheet KEEPS --ease-spring on its transform leg — swap only the opacity/visibility legs off --ease-out-expo. Tab, FAB, and .mobile-sidebar-sheet get the crisp values above unchanged. */
 
 /* press (commit 3) */
 .password-security-metric:active:not(:disabled) { transform: scale(.99); transition-duration: var(--dur-instant); }
@@ -87,8 +88,9 @@ Commit 1 — entrance/exit family (finding 7):
 2. `shell.css` mobile-sidebar-mask: opacity/visibility curves → `var(--ease-out-soft)`.
 3. Add the family-rules comment block to the top of motion.css (5 lines, the list above).
 
-Commit 2 (taste call — drop-able) — mobile unification (finding 9):
-4. `responsive.css`: apply the target block above (tab, FAB, both sheets). Then delete `--ease-spring` and `--ease-out-expo` from tokens.css after the grep guard.
+Commit 2 (taste call — **DECIDED by plan 000**) — mobile unification (finding 9):
+<!-- RECORDED DECISION (plan 000 motion sandbox, felt-tested at 100% + 10% speed, both themes): keep --ease-spring on .mobile-detail-sheet ONLY (V2 won). Tab, FAB, and the sidebar sheet still unify to crisp per the original target. --ease-out-expo is still removed; --ease-spring is KEPT (one live use). Row press (001 commit 4): confirmed keep as landed. -->
+4. `responsive.css`: apply the target block above — tab, FAB, and `.mobile-sidebar-sheet` get the crisp curves; `.mobile-detail-sheet` swaps only its opacity/visibility legs to `var(--ease-out-soft)` and keeps `var(--ease-spring)` on the transform leg (decided by plan 000). Then delete `--ease-out-expo` from tokens.css after the grep guard; **keep `--ease-spring`** (one live use).
 
 Commit 3 — press feedback (finding 15):
 5. `responsive.css`: FAB per target above. `password-security.css:15-17`: per target. `forms.css`: add `:active` rules for `.input-icon-btn`, `.eye-btn`, `.password-toggle` per target (these are absolute-positioned: the `:active` transform must compose with their positioning — check each rule's base `transform`; `.search-clear-btn` if it still exists post-001 uses `translateY(-50%)` so its active rule is `transform: translateY(-50%) scale(0.95);`).
@@ -109,13 +111,13 @@ Commit 6 — TOTP wrap (finding 19):
 
 ## Boundaries
 
-- Commit 2 is the one taste call — if the maintainer prefers spring on the mobile detail sheet, keep `.mobile-detail-sheet` on `--ease-spring` and note it; everything else in commit 2 still lands.
+- Commit 2 is **decided** (plan 000): spring stays on `.mobile-detail-sheet` only; tab/FAB/sidebar go crisp. No further taste input needed — implement as written.
 - Do NOT change durations on the toast/dialog family beyond what plans 004/005 already set — this plan only fixes curves, origins, press, stagger, and the TOTP wrap.
 - If cited lines don't match after plans 001-005, re-locate by quoted values; report anything unfindable instead of improvising.
 
 ## Verification
 
-- **Mechanical**: `npm run build`; `rg 'ease-spring|ease-out-expo' webapp/src` empty (post commit 2).
+- **Mechanical**: `npm run build`; `rg 'ease-out-expo' webapp/src` empty (post commit 2); `rg 'ease-spring' webapp/src` returns exactly the token definition plus its single `.mobile-detail-sheet` use.
 - **Feel check** (`npm run dev`, DevTools Animations panel at 10%):
   - Open a dialog: backdrop and card start together; close: both leave promptly (no slow-start linger).
   - Mobile emulation: open a vault item → the sheet rises from the **top edge** with a confident settle, no bounce past rest; bottom tab press snaps down in ~80ms and settles ~180ms; no overshoot on tab switch.
