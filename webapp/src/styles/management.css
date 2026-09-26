@@ -1595,7 +1595,6 @@
 
 .create-menu-item:hover {
   background: #f1f5f9;
-  transform: translateX(2px);
 }
 
 .website-row {
@@ -2059,7 +2058,6 @@
 .domain-rule-expand-btn:hover {
   background: var(--panel-soft);
   color: var(--primary);
-  transform: translateY(-1px);
 }
 
 .domain-rule-main {
@@ -2130,7 +2128,6 @@
 .domain-rule-input-remove:hover {
   background: color-mix(in srgb, var(--danger) 12%, var(--panel));
   color: var(--danger);
-  transform: translateY(-50%) scale(1.04);
 }
 
 .domain-rule-row-actions {

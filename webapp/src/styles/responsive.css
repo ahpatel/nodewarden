@@ -250,10 +250,6 @@
       color var(--dur-fast) var(--ease-smooth);
   }
 
-  .mobile-tab:hover {
-    transform: translateY(-2px);
-  }
-
   .mobile-tab:active {
     transform: translateY(0) scale(0.95);
     transition-duration: 80ms;
@@ -315,10 +311,6 @@
       transform var(--dur-fast) var(--ease-out-soft),
       background-color var(--dur-fast) var(--ease-smooth),
       border-color var(--dur-fast) var(--ease-smooth);
-  }
-
-  .mobile-sidebar-close:hover {
-    transform: scale(1.05);
   }
 
   .mobile-sidebar-sheet .sidebar-block {
@@ -473,10 +465,6 @@
     @apply h-9 w-9 gap-0 rounded-full p-0 text-[0];
     box-shadow: 0 14px 30px rgba(37, 99, 235, 0.28);
     transition: transform 180ms var(--ease-spring), box-shadow var(--dur-fast) var(--ease-out-soft);
-  }
-
-  .mobile-fab-trigger:hover {
-    transform: scale(1.06);
   }
 
   .mobile-fab-trigger:active {

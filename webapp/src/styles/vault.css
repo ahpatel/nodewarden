@@ -83,7 +83,7 @@
 .search-clear-btn:hover {
   background: rgba(59, 130, 246, 0.18);
   color: var(--brand);
-  transform: translateY(-50%) scale(1.04);
+  transform: translateY(-50%);
 }
 
 .search-clear-btn:focus-visible {
@@ -142,7 +142,6 @@
 .folder-delete-btn:hover {
   color: #b91c1c;
   background: #fee2e2;
-  transform: scale(1.06);
 }
 
 .folder-edit-btn:hover {
@@ -163,7 +162,6 @@
 .folder-sort-btn:hover {
   color: var(--primary-hover);
   background: #dbeafe;
-  transform: scale(1.06);
 }
 
 .folder-sort-btn.active {
@@ -394,7 +392,6 @@ select.input.duplicate-mode-toolbar-select {
 
 .sort-menu-item:hover {
   background: #f2f7ff;
-  transform: translateX(2px);
 }
 
 .sort-menu-item.active {
@@ -754,15 +751,9 @@ select.input.duplicate-mode-toolbar-select {
   transition: color var(--dur-fast) var(--ease-smooth), transform 220ms var(--ease-out-soft), opacity var(--dur-fast) var(--ease-smooth);
 }
 
-.list-item:hover .list-icon-wrap,
-.list-item.active .list-icon-wrap {
-  transform: translateX(1px) scale(1.04);
-}
-
 .list-item:hover .list-icon-fallback,
 .list-item.active .list-icon-fallback {
   color: var(--primary-strong);
-  transform: scale(1.04);
 }
 
 .list-item:hover .list-text,
@@ -986,7 +977,6 @@ select.input.duplicate-mode-toolbar-select {
 
 .totp-scan-close:hover {
   background: rgba(255, 255, 255, 0.18);
-  transform: scale(1.04);
 }
 
 .totp-scan-frame {

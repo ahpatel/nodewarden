@@ -63,7 +63,6 @@ input[type='file'].input::file-selector-button:hover {
   border-color: var(--primary);
   background-color: #fbfdff;
   box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12), 0 8px 20px rgba(37, 99, 235, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.95);
-  transform: translateY(-1px);
 }
 
 .input-readonly {
@@ -98,7 +97,6 @@ input[type='file'].input::file-selector-button:hover {
 .input-icon-btn:hover:not(:disabled) {
   color: var(--primary);
   background: rgba(37, 99, 235, 0.08);
-  transform: translateY(-50%) scale(1.04);
 }
 
 .input-icon-btn:disabled {
@@ -118,7 +116,6 @@ input[type='file'].input::file-selector-button:hover {
 .password-toggle:hover,
 .eye-btn:hover {
   color: var(--primary);
-  transform: translateY(-50%) scale(1.04);
 }
 
 .btn {
@@ -159,12 +156,11 @@ input[type='file'].input::file-selector-button:hover {
 }
 
 .btn:hover:not(:disabled) {
-  transform: translateY(-1px);
   transition-duration: var(--dur-quick);
 }
 
 .btn:active:not(:disabled) {
-  transform: translateY(0) scale(0.97);
+  transform: scale(0.97);
   transition-duration: var(--dur-instant);
 }
 
@@ -191,23 +187,9 @@ input[type='file'].input::file-selector-button:hover {
   overflow: hidden;
 }
 
-.btn-primary::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.2) 0%, transparent 50%);
-  opacity: 0;
-  transition: opacity var(--dur-fast) var(--ease-smooth);
-}
-
 .btn-primary:hover {
   background: linear-gradient(135deg, #1d4ed8 0%, #1e3a8a 100%);
   box-shadow: 0 6px 20px rgba(37, 99, 235, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.25);
-  transform: translateY(-2px);
-}
-
-.btn-primary:hover::before {
-  opacity: 1;
 }
 
 .btn-primary:active:not(:disabled) {
@@ -278,7 +260,6 @@ input[type='file'].input::file-selector-button:hover {
 .auth-link-btn:hover {
   text-decoration: underline;
   text-underline-offset: 2px;
-  transform: translateX(2px);
 }
 
 .auth-link-btn:disabled {
