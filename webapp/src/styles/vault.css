@@ -91,6 +91,11 @@
   transform: translateY(-50%);
 }
 
+.search-clear-btn:active:not(:disabled) {
+  transform: translateY(-50%) scale(0.95);
+  transition-duration: var(--dur-instant);
+}
+
 .search-clear-btn:focus-visible {
   outline: none;
   box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.16);
@@ -115,6 +120,10 @@
 .tree-btn:hover {
   background: rgba(37, 99, 235, 0.05);
   color: var(--text);
+}
+
+.tree-btn:active {
+  background: rgba(37, 99, 235, 0.10);
 }
 
 .tree-btn.active {
@@ -416,6 +425,10 @@ select.input.duplicate-mode-toolbar-select {
 
 .sort-menu-item:hover {
   background: #f2f7ff;
+}
+
+.sort-menu-item:active {
+  background: color-mix(in srgb, var(--primary) 9%, #f2f7ff);
 }
 
 .sort-menu-item.active {

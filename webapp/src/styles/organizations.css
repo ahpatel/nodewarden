@@ -38,6 +38,11 @@
   background: var(--panel);
 }
 
+.org-list-item:active {
+  background: color-mix(in srgb, var(--primary) 7%, var(--panel));
+  border-color: color-mix(in srgb, var(--primary) 40%, var(--line));
+}
+
 .org-list-item.active {
   background: color-mix(in srgb, var(--primary) 10%, var(--panel));
   border-color: color-mix(in srgb, var(--primary) 34%, var(--line));

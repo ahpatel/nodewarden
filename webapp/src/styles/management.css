@@ -1611,6 +1611,10 @@
   background: #f1f5f9;
 }
 
+.create-menu-item:active {
+  background: #e2e8f0;
+}
+
 .website-row {
   @apply mb-2 grid items-center gap-2 rounded-[18px] border p-1.5;
   grid-template-columns: auto minmax(0, 1fr) minmax(96px, 120px) auto;

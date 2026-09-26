@@ -183,6 +183,10 @@
   box-shadow: 0 10px 22px rgba(15, 23, 42, 0.06);
 }
 
+.user-chip:active {
+  background: color-mix(in srgb, var(--primary) 7%, #f3f6fd);
+}
+
 .app-main {
   @apply grid min-h-0 flex-1;
   grid-template-columns: 200px 1fr;
@@ -252,6 +256,10 @@
   box-shadow: 0 2px 8px rgba(15, 23, 42, 0.06), inset 0 1px 0 rgba(255, 255, 255, 1);
 }
 
+.side-link:active {
+  background: color-mix(in srgb, var(--primary) 14%, transparent);
+}
+
 .side-link.active,
 .side-group-trigger.active {
   background: linear-gradient(135deg, rgba(37, 99, 235, 0.12) 0%, rgba(37, 99, 235, 0.08) 100%);
@@ -310,6 +318,10 @@
 .side-sub-link:hover {
   background: rgba(255, 255, 255, 0.78);
   color: var(--text);
+}
+
+.side-sub-link:active {
+  background: color-mix(in srgb, var(--primary) 10%, transparent);
 }
 
 .side-sub-link.active {

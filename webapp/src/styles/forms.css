@@ -110,6 +110,15 @@ input[type='file'].input::file-selector-button:hover {
   @apply cursor-not-allowed text-slate-400;
 }
 
+/* Press feedback: composed with the positioning transform; press snaps,
+   release settles (family rules in motion.css). */
+.input-icon-btn:active:not(:disabled),
+.password-toggle:active:not(:disabled),
+.eye-btn:active:not(:disabled) {
+  transform: translateY(-50%) scale(0.95);
+  transition-duration: var(--dur-instant);
+}
+
 .password-toggle {
   @apply absolute right-2 top-1/2 grid cursor-pointer place-items-center border-0 bg-transparent text-blue-700;
   transition: background-color var(--dur-fast) var(--ease-smooth),
