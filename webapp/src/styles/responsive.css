@@ -245,7 +245,7 @@
     @apply grid justify-items-center gap-1 rounded-xl px-1 py-1.5 text-[11px] font-bold no-underline;
     color: #64748b;
     transition:
-      transform var(--dur-fast) var(--ease-spring),
+      transform var(--dur-fast) var(--ease-out-soft),
       background-color var(--dur-fast) var(--ease-smooth),
       color var(--dur-fast) var(--ease-smooth);
   }
@@ -280,10 +280,11 @@
     visibility: hidden;
     pointer-events: none;
     transform: translate3d(0, 12px, 0) scale(0.97);
+    transform-origin: top center;
     transition:
-      opacity var(--dur-medium) var(--ease-out-expo),
-      transform var(--dur-medium) var(--ease-spring),
-      visibility var(--dur-medium) var(--ease-out-expo);
+      opacity var(--dur-fast) var(--ease-out-soft),
+      transform var(--dur-medium) var(--ease-out-strong),
+      visibility var(--dur-fast);
   }
 
   .mobile-sidebar-sheet.open {
@@ -464,11 +465,12 @@
   .mobile-fab-trigger {
     @apply h-9 w-9 gap-0 rounded-full p-0 text-[0];
     box-shadow: 0 14px 30px rgba(37, 99, 235, 0.28);
-    transition: transform var(--dur-fast) var(--ease-spring), box-shadow var(--dur-fast) var(--ease-out-soft);
+    transition: transform var(--dur-fast) var(--ease-out-soft), box-shadow var(--dur-fast) var(--ease-out-soft);
   }
 
   .mobile-fab-trigger:active {
-    transform: scale(0.94);
+    transform: scale(0.96);
+    transition-duration: var(--dur-instant);
   }
 
   .mobile-fab-trigger .btn-icon {
@@ -511,10 +513,11 @@
     visibility: hidden;
     pointer-events: none;
     transform: translate3d(0, 20px, 0);
+    transform-origin: top center;
     transition:
-      opacity var(--dur-medium) var(--ease-out-expo),
-      transform var(--dur-panel) var(--ease-spring),
-      visibility var(--dur-medium) var(--ease-out-expo);
+      opacity var(--dur-fast) var(--ease-out-soft),
+      transform var(--dur-panel) var(--ease-out-strong),
+      visibility var(--dur-fast);
   }
 
   .mobile-detail-sheet.open {
