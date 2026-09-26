@@ -1,4 +1,4 @@
-import { useMemo } from 'preact/hooks';
+import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import {
   BookUser,
   CreditCard,
@@ -210,6 +210,41 @@ export function getWebsiteMatchOptions(): Array<{ value: number | null; label: s
 
 const TOTP_RING_RADIUS = 14;
 export const TOTP_RING_CIRCUMFERENCE = 2 * Math.PI * TOTP_RING_RADIUS;
+
+/**
+ * TOTP ring progress circle. The offset drains smoothly via the CSS
+ * transition on .totp-ring-progress; at each period wrap the offset
+ * jumps backward, so the transition is suppressed for that paint
+ * (.totp-ring-snap) and the ring snaps to full instead of sweeping in
+ * reverse (plans/006 finding 19).
+ */
+export function TotpRingProgress(props: { progress: number; radius: number; circumference: number }) {
+  const [snap, setSnap] = useState(false);
+  const prevProgressRef = useRef(props.progress);
+  const wrapped = props.progress > prevProgressRef.current + 0.0005;
+
+  useEffect(() => {
+    const hadWrapped = props.progress > prevProgressRef.current + 0.0005;
+    prevProgressRef.current = props.progress;
+    if (!hadWrapped) return;
+    setSnap(true);
+    const raf = requestAnimationFrame(() => setSnap(false));
+    return () => cancelAnimationFrame(raf);
+  }, [props.progress]);
+
+  return (
+    <circle
+      className={`totp-ring-progress${snap || wrapped ? ' totp-ring-snap' : ''}`}
+      cx="18"
+      cy="18"
+      r={props.radius}
+      style={{
+        strokeDasharray: `${props.circumference} ${props.circumference}`,
+        strokeDashoffset: String(props.circumference - props.circumference * props.progress),
+      }}
+    />
+  );
+}
 
 export function CreateTypeIcon({ type }: { type: number }) {
   if (type === 1) return <Globe size={15} />;

@@ -9,6 +9,7 @@ import { t } from '@/lib/i18n';
 import {
   CardBrandIcon,
   TOTP_RING_CIRCUMFERENCE,
+  TotpRingProgress,
   VaultListIcon,
   copyToClipboard,
   displayCardBrand,
@@ -253,18 +254,10 @@ export default function VaultDetailView(props: VaultDetailViewProps) {
                       >
                         <svg viewBox="0 0 36 36" className="totp-ring" role="presentation" aria-hidden="true">
                           <circle className="totp-ring-track" cx="18" cy="18" r="15.9155" />
-                          <circle
-                            className="totp-ring-progress"
-                            cx="18"
-                            cy="18"
-                            r="15.9155"
-                            style={{
-                              strokeDasharray: `${TOTP_RING_CIRCUMFERENCE} ${TOTP_RING_CIRCUMFERENCE}`,
-                              strokeDashoffset: String(
-                                TOTP_RING_CIRCUMFERENCE -
-                                  TOTP_RING_CIRCUMFERENCE * totpProgress(props.totpLive)
-                              ),
-                            }}
+                          <TotpRingProgress
+                            progress={totpProgress(props.totpLive)}
+                            radius={15.9155}
+                            circumference={TOTP_RING_CIRCUMFERENCE}
                           />
                         </svg>
                         <span className="totp-timer-value">{props.totpLive ? props.totpLive.remain : 0}</span>

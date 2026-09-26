@@ -6,7 +6,7 @@ import { t } from '@/lib/i18n';
 import type { Cipher } from '@/lib/types';
 import LoadingState from '@/components/LoadingState';
 import WebsiteIcon from '@/components/vault/WebsiteIcon';
-import { formatTotp, isCipherVisibleInNormalVault } from '@/components/vault/vault-page-helpers';
+import { formatTotp, isCipherVisibleInNormalVault, TotpRingProgress } from '@/components/vault/vault-page-helpers';
 
 interface TotpCodesPageProps {
   ciphers: Cipher[];
@@ -54,19 +54,7 @@ function TotpRow(props: TotpRowProps) {
         >
           <svg viewBox="0 0 36 36" className="totp-ring" role="presentation" aria-hidden="true">
             <circle className="totp-ring-track" cx="18" cy="18" r={TOTP_RING_RADIUS} />
-            <circle
-              className="totp-ring-progress"
-              cx="18"
-              cy="18"
-              r={TOTP_RING_RADIUS}
-              style={{
-                strokeDasharray: `${TOTP_RING_CIRCUMFERENCE} ${TOTP_RING_CIRCUMFERENCE}`,
-                strokeDashoffset: String(
-                  TOTP_RING_CIRCUMFERENCE -
-                    TOTP_RING_CIRCUMFERENCE * progress
-                ),
-              }}
-            />
+            <TotpRingProgress progress={progress} radius={TOTP_RING_RADIUS} circumference={TOTP_RING_CIRCUMFERENCE} />
           </svg>
           <span className="totp-timer-value">{props.live ? props.live.remain : 0}</span>
         </div>

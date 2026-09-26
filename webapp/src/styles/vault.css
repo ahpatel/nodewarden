@@ -930,6 +930,12 @@ select.input.duplicate-mode-toolbar-select {
   transition: stroke-dashoffset var(--dur-medium) linear, stroke var(--dur-fast) var(--ease-smooth);
 }
 
+/* Period wrap: applied for one paint by TotpRingProgress so the offset
+   snaps to full instead of transitioning a reverse sweep. */
+.totp-ring-progress.totp-ring-snap {
+  transition: none;
+}
+
 .totp-timer-value {
   @apply absolute inset-0 grid place-items-center text-[11px] font-bold;
   color: #0f172a;
