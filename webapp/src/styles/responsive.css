@@ -521,7 +521,7 @@
     transform-origin: top center;
     transition:
       opacity var(--dur-fast) var(--ease-out-soft),
-      transform var(--dur-panel) var(--ease-out-strong),
+      transform var(--dur-panel) var(--ease-spring),
       visibility var(--dur-fast);
   }
 

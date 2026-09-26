@@ -1,6 +1,6 @@
 # 006 — Unify motion families, origins, and press feedback
 
-- **Status**: DONE (commits 4b2054d, b8bc168, 6e464c8, b03326e, 992ec1d, 1472409 on `modern-ui`; commit 2 applied per the recommended option — no plan-000 decision recorded)
+- **Status**: DONE (commits 4b2054d, b8bc168, 6e464c8, b03326e, 992ec1d, 1472409 on `modern-ui`; commit 2 initially landed crisp, then reconciled to plan 000's recorded decision — `--ease-spring` restored on `.mobile-detail-sheet`'s transform leg only)
 - **Commit**: 7889cfd
 - **Severity**: MEDIUM (7, 9, 14, 15, 16), LOW (19)
 - **Category**: Cohesion & tokens / Physicality / Interruptibility (audit findings 7, 9, 14, 15, 16, 19)

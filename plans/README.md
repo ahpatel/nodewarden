@@ -19,7 +19,7 @@ Each plan is self-contained: exact file paths, current-code excerpts, exact targ
 
 ## Recommended execution order
 
-**Progress so far (HEAD `cd665eb`): 001 ✅ → 005 ✅ → 002 ✅ → 000 (sandbox) ✅. Remaining: 003 → 004 → 006 → 007.**
+**Progress (final, HEAD `fd37c99` + reconciliation): 000 (sandbox) ✅ → 001 ✅ → 005 ✅ → 002 ✅ → 003 ✅ (optional commit 3 skipped, documented) → 004 ✅ → 006 ✅ (commit 2 reconciled to plan 000's decision) → 007 ✅. All plans DONE.**
 
 Dependencies (why this order):
 
@@ -36,7 +36,7 @@ The upstream owner can drop these without touching the rest of their plan:
 
 - **001 commit 4** — vault-row `:active` press feedback — **landed** (`96c31dc`) and **confirmed by plan 000** (keep P1 as landed); upstream can still drop this commit independently.
 - **003 commit 3** — virtualization spacer refactor (recommended: attempt last, abandon on any scroll jitter; the team previously fought jitter here).
-- **006 commit 2** — mobile motion unification — **decided by plan 000 (sandbox)**: keep `--ease-spring` on `.mobile-detail-sheet` only; tab, FAB, and `.mobile-sidebar-sheet` unify to crisp; `--ease-out-expo` deleted, `--ease-spring` kept. Plan 006 carries the revised target — no further input needed.
+- **006 commit 2** — mobile motion unification — **decided by plan 000 (sandbox)**: keep `--ease-spring` on `.mobile-detail-sheet` only; tab, FAB, and `.mobile-sidebar-sheet` unify to crisp; `--ease-out-expo` deleted, `--ease-spring` kept. Plan 006 carries the revised target — **landed crisp in `b8bc168`, reconciled to this decision in the follow-up commit below.**
 - **007 commit 1** — route entrance wiring (recommended: wire at 180ms; the alternative — remove `routeAnimationKey` + delete the keyframe — is documented in the plan).
 
 ## Deliberate design — do not "fix"
@@ -53,7 +53,7 @@ Each plan can be run with any agent (e.g. `improve-animations execute <plan>`, o
 
 ## Execution record (2026-09-26, worktree `modern-ui`)
 
-All seven plans executed in the recommended order (001 → 005 → 002 → 003 → 004 → 006 → 007), one commit per plan-commit boundary, `npm run build` + `tsc --noEmit` green at every landing. Post-landing reconcile sweep is clean: no `transition: all`, no spring/expo/bounce tokens, no raw off-scale durations beyond the documented set, one spin keyframe, all keyframes in motion.css (except the necessarily-inline `boot-shimmer`), each wired keyframe with exactly one live user.
+All seven plans executed in the recommended order (001 → 005 → 002 → 003 → 004 → 006 → 007), one commit per plan-commit boundary, `npm run build` + `tsc --noEmit` green at every landing. Post-landing reconcile sweep is clean: no `transition: all`, no expo/bounce tokens, no raw off-scale durations beyond the documented set, one spin keyframe, all keyframes in motion.css (except the necessarily-inline `boot-shimmer`), each wired keyframe with exactly one live user. Plan 000 (built concurrently in this worktree) settled the two taste calls; its decisions are folded in — see below.
 
 Documented exceptions (deliberate, not drift):
 
@@ -61,4 +61,4 @@ Documented exceptions (deliberate, not drift):
 - **002's `@media (hover: none)` block is empty by design** — plan 001 had already removed every decorative transform hover; the block remains as the registration point and documents why the three non-motion survivors (positioning re-asserts, show-state centering, no-motion resets) must not be gated.
 - **140ms durations remain** (help-bubble, log-config opacity, domain-rule fade) — off-scale by 40ms from both neighboring tokens, outside the 005 snap table; swapping would breach the zero-visual-change boundary.
 - **`ease-in-out` remains on infinite shimmer loops** (skeleton/boot) — no token equivalent; swapping would alter loop feel.
-- **Plan 000 coordination note (006 commit 2)**: no recorded sandbox decision existed, so the recommended crisp option was applied and `--ease-spring`/`--ease-out-expo` were deleted.
+- **Plan 000 coordination note (006 commit 2)**: plan 000 was authored and felt-tested *concurrently* in this worktree while 003-007 executed; when 006 commit 2 (`b8bc168`) landed, no decision was yet recorded, so the recommended crisp option was applied. Plan 000 subsequently recorded **V2 — keep `--ease-spring` on `.mobile-detail-sheet` only** — and the code was reconciled in the follow-up commit: `--ease-spring` restored to tokens.css (single live use on the sheet's transform leg), the sheet's opacity/visibility legs stay crisp (`--ease-out-soft` at `--dur-fast`) as revised, tab/FAB/sidebar-sheet stay crisp, `--ease-out-expo` stays deleted. Plan 000 also confirmed 001's row press as landed (no change). The revised plan-006 verification guard passes: `rg 'ease-spring' webapp/src` returns exactly the token definition plus its single `.mobile-detail-sheet` use.
