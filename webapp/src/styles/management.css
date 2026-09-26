@@ -595,6 +595,12 @@
   @apply grid min-w-0 gap-0;
 }
 
+/* Category swaps conditionally mount this wrapper; a short fade replaces
+   the hard cut (O4 — occasional tier, matches the detail-switch fade). */
+.settings-category-panel > .settings-section-stack {
+  animation: fade-in var(--dur-fast) var(--ease-out-soft) both;
+}
+
 .settings-submodule {
   @apply min-w-0 border-0 border-b px-0 py-5;
   border-color: var(--line);
