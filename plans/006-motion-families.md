@@ -1,6 +1,6 @@
 # 006 — Unify motion families, origins, and press feedback
 
-- **Status**: DONE (commits 4b2054d, b8bc168, 6e464c8, b03326e, 992ec1d, 1472409 on `modern-ui`; commit 2 initially landed crisp, then reconciled to plan 000's recorded decision — `--ease-spring` restored on `.mobile-detail-sheet`'s transform leg only)
+- **Status**: DONE (commits 4b2054d, b8bc168, 6e464c8, b03326e, 992ec1d, 1472409, plus reconciliation b51beaa on `modern-ui`; commit 2 initially landed crisp, then reconciled to plan 000's recorded decision — `--ease-spring` restored on `.mobile-detail-sheet`'s transform leg only). Live-verified (demo mode): TOTP period wrap observed at remain 1→30 with all rings gaining `.totp-ring-snap` and offset 0 in the same frame (snap, not sweep); sort menu transform-origin 156px 0px (top right, the trigger's corner) with the entry scaling from that anchor; mobile filter menu origin top-left; chevron glides at 0.18s ease-out-soft (mid-rotation matrix sampled); unlock handoff: lock → `fade-in-up` 0.28s, unlock → `shell-enter` 0.28s
 - **Commit**: 7889cfd
 - **Severity**: MEDIUM (7, 9, 14, 15, 16), LOW (19)
 - **Category**: Cohesion & tokens / Physicality / Interruptibility (audit findings 7, 9, 14, 15, 16, 19)

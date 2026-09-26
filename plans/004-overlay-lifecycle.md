@@ -1,6 +1,6 @@
 # 004 — Interruptible overlay lifecycle (toasts, menus, dialogs)
 
-- **Status**: DONE (commits 1f8b69b, 1ca5388, 65a40e4 on `modern-ui`)
+- **Status**: DONE (commits 1f8b69b, 1ca5388, 65a40e4 on `modern-ui`). Live-verified (demo mode, DevTools): toast closing phase mounts at ~4.4s and unmounts at ~4.7s while staying mounted through the exit; sort menu opens (opacity 0.49→0.99 over ~9 frames) and rapid close retargets with a smooth fade (0.80→0.008 over ~10 frames, visibility flips discretely at the end); dialog entry 0→1 over 240ms, exit 1→0.001 over 240ms with the card mounted, reopen-during-close settles at opacity 1.00, Escape closes. Known edge: cancelling within the first ~35ms of the entry (before the entry transition visually starts) can fire the transitionend fast path on the canceled entry transition and unmount instantly — visually indistinguishable from the fade (dialog is at ~3% opacity), no fix needed
 - **Commit**: 7889cfd
 - **Severity**: MEDIUM
 - **Category**: Interruptibility (audit findings 8, 10)

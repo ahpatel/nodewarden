@@ -1,6 +1,6 @@
 # 002 — Scope reduced-motion handling and gate hover motion for touch
 
-- **Status**: DONE (commit cd665eb on `modern-ui`; hover-gate block empty by design after 001)
+- **Status**: DONE (commit cd665eb on `modern-ui`; hover-gate block empty by design after 001). Live-verified: the reduced-motion whitelist and functional-indicator overrides survive minification into the bundle; note the empty `@media (hover: none)` block is dropped by the CSS minifier (nothing to apply — the registration point lives in source where new transform-hovers get added)
 - **Commit**: 7889cfd
 - **Severity**: HIGH
 - **Category**: Accessibility (audit findings 3, 4)

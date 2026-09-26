@@ -1,6 +1,6 @@
 # 007 — Wire the orphaned keyframes (route, unlock, popover, settings, chevron)
 
-- **Status**: DONE (commits 72e5d2e, db11406, cd60475, f138d3c, d78dfad on `modern-ui`; O3 adopted the plan-004 persistent pattern as its step 6 anticipated, and the plan's `menu-in` reuse was replaced by it since 004 deleted that keyframe)
+- **Status**: DONE (commits 72e5d2e, db11406, cd60475, f138d3c, d78dfad on `modern-ui`; O3 adopted the plan-004 persistent pattern as its step 6 anticipated, and the plan's `menu-in` reuse was replaced by it since 004 deleted that keyframe). Live-verified (demo mode): navigating routes remounts `.route-stage` with `route-stage-in` at 0.18s; lock → `.standalone-shell` enters with `fade-in-up` 0.28s and unlock → `.app-shell` with `shell-enter` 0.28s (alternative roots, never stacked); settings panel fade and chevron glide confirmed in the bundle and (chevron) live
 - **Commit**: 7889cfd
 - **Severity**: MEDIUM (additive)
 - **Category**: Missed opportunities (gated audit, opportunities 1, 2, 3, 4, 6)

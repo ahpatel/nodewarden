@@ -1,6 +1,6 @@
 # 003 — Composite-friendly transitions (transform/opacity only)
 
-- **Status**: DONE commits 1-2 (5b4324e, cd8203f on `modern-ui`); optional commit 3 (virtualization spacers) intentionally skipped — needs manual jitter verification per its own abandon protocol
+- **Status**: DONE commits 1-2 (5b4324e, cd8203f on `modern-ui`); optional commit 3 (virtualization spacers) intentionally skipped — needs manual jitter verification per its own abandon protocol. Live-verified: detail-switch stage computes `animation: none` on item selection (instant swap) in the demo app
 - **Commit**: 7889cfd
 - **Severity**: HIGH (finding 2), MEDIUM (11), LOW-MEDIUM and OPTIONAL (18)
 - **Category**: Performance (audit findings 2, 11, 18)
