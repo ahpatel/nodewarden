@@ -2,7 +2,7 @@
   @apply fixed inset-0 grid h-dvh w-screen place-items-center p-5 opacity-0;
   background: rgba(15, 23, 42, 0.5);
   z-index: 1200;
-  animation: fade-in var(--dur-medium) var(--ease-smooth) both;
+  animation: fade-in var(--dur-medium) var(--ease-out-soft) both;
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
 }
@@ -66,7 +66,7 @@
 }
 
 .dialog-mask.closing {
-  animation: fade-out var(--dur-medium) var(--ease-smooth) both;
+  animation: fade-out var(--dur-medium) var(--ease-out-soft) both;
 }
 
 .dialog-card.closing {

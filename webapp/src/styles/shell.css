@@ -416,8 +416,8 @@
   background: rgba(15, 23, 42, 0.36);
   z-index: 54;
   transition:
-    opacity var(--dur-medium) var(--ease-smooth),
-    visibility var(--dur-medium) var(--ease-smooth);
+    opacity var(--dur-medium) var(--ease-out-soft),
+    visibility var(--dur-medium) var(--ease-out-soft);
 }
 
 .mobile-sidebar-mask.open {

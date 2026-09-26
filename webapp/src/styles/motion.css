@@ -1,3 +1,13 @@
+/*
+ * Motion families (see plans/006):
+ * - Pop entrances (menus, dialogs, toasts): --ease-out-strong
+ * - Panel/sheet entrances: --ease-out-soft
+ * - All exits: --ease-out-soft
+ * - Color/hover: --ease-smooth; constant motion: linear
+ * - Press feedback: press leg --dur-instant (80ms), release leg
+ *   --dur-fast with --ease-out-soft — press snaps, release settles
+ */
+
 @keyframes toast-life {
   from {
     transform: scaleX(1);
