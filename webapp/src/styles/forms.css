@@ -134,27 +134,6 @@ input[type='file'].input::file-selector-button:hover {
   @apply relative overflow-hidden;
 }
 
-.topbar-actions .btn::before,
-.user-chip::before,
-.side-link::before,
-.mobile-tab::before {
-  content: '';
-  @apply absolute left-1/2 top-1/2 h-[110px] w-[110px] rounded-full opacity-0;
-  background: radial-gradient(circle, rgba(255, 255, 255, 0.36), rgba(255, 255, 255, 0.08) 42%, transparent 72%);
-  transform: translate(-50%, -50%) scale(0.68);
-  pointer-events: none;
-  transition:
-    opacity var(--dur-fast) var(--ease-smooth),
-    transform var(--dur-medium) var(--ease-out-soft);
-}
-
-.topbar-actions .btn:hover::before,
-.user-chip:hover::before,
-.side-link:hover::before,
-.mobile-tab:hover::before {
-  opacity: 0;
-}
-
 .btn:hover:not(:disabled) {
   transition-duration: var(--dur-quick);
 }

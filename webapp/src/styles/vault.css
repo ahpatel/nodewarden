@@ -448,19 +448,6 @@ select.input.duplicate-mode-toolbar-select {
   border-color: hsl(var(--duplicate-group-hue) 42% 78%);
 }
 
-.list-item::before {
-  content: '';
-  @apply absolute inset-0 opacity-0;
-  background:
-    linear-gradient(90deg, rgba(43, 102, 217, 0.06), transparent 24%, transparent 76%, rgba(14, 165, 233, 0.05)),
-    radial-gradient(circle at 18px 50%, rgba(255, 255, 255, 0.28), transparent 44%);
-  transition:
-    opacity var(--dur-fast) var(--ease-smooth),
-    transform 320ms var(--ease-out-soft);
-  transform: translateX(-8px);
-  pointer-events: none;
-}
-
 .stagger-item {
   opacity: 0;
   animation: stagger-rise 520ms var(--ease-out-strong) both;
@@ -533,11 +520,6 @@ select.input.duplicate-mode-toolbar-select {
   border-color: hsl(var(--duplicate-group-hue) 52% 68%);
 }
 
-.list-item:hover::before {
-  opacity: 1;
-  transform: translateX(0);
-}
-
 .list-item.active {
   background: rgba(37, 99, 235, 0.1);
   border-color: rgba(43, 102, 217, 0.26);
@@ -549,11 +531,6 @@ select.input.duplicate-mode-toolbar-select {
   border-color: hsl(var(--duplicate-group-hue) 58% 58%);
 }
 
-.list-item.active::before {
-  opacity: 1;
-  transform: translateX(0);
-}
-
 .row-check {
   @apply relative z-[2] h-4 w-4 cursor-pointer;
 }
@@ -561,12 +538,6 @@ select.input.duplicate-mode-toolbar-select {
 .row-main {
   @apply relative z-[1] flex min-w-0 flex-1 cursor-pointer items-center gap-2.5 border-0 bg-transparent p-0 text-left;
   border: none;
-  transition: transform 220ms var(--ease-out-soft);
-}
-
-.list-item:hover .row-main,
-.list-item.active .row-main {
-  transform: translateX(2px);
 }
 
 .list-icon-wrap {
@@ -716,7 +687,6 @@ select.input.duplicate-mode-toolbar-select {
 
 .list-text {
   @apply min-w-0 flex-1 overflow-hidden;
-  transition: transform 220ms var(--ease-out-soft);
 }
 
 .list-title {
@@ -727,7 +697,7 @@ select.input.duplicate-mode-toolbar-select {
   line-height: var(--leading-tight);
   letter-spacing: var(--tracking-tight);
   color: var(--primary-strong);
-  transition: color var(--dur-fast) var(--ease-smooth), letter-spacing 220ms var(--ease-out-soft);
+  transition: color var(--dur-fast) var(--ease-smooth);
 }
 
 .list-title-text {
@@ -748,28 +718,12 @@ select.input.duplicate-mode-toolbar-select {
 .list-sub {
   @apply mt-0.5 block overflow-hidden text-ellipsis whitespace-nowrap text-[13px];
   color: #5f6f85;
-  transition: color var(--dur-fast) var(--ease-smooth), transform 220ms var(--ease-out-soft), opacity var(--dur-fast) var(--ease-smooth);
+  transition: color var(--dur-fast) var(--ease-smooth), opacity var(--dur-fast) var(--ease-smooth);
 }
 
 .list-item:hover .list-icon-fallback,
 .list-item.active .list-icon-fallback {
   color: var(--primary-strong);
-}
-
-.list-item:hover .list-text,
-.list-item.active .list-text {
-  transform: translateX(1px);
-}
-
-.list-item:hover .list-title,
-.list-item.active .list-title {
-  letter-spacing: var(--tracking-tighter);
-}
-
-.list-item:hover .list-sub,
-.list-item.active .list-sub {
-  transform: translateX(1px);
-  opacity: 0.92;
 }
 
 .detail-col {
