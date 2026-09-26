@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'preact/hooks';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import ToastHost from '@/components/ToastHost';
 import { t } from '@/lib/i18n';
-import type { ToastMessage } from '@/lib/types';
+import type { ManagedToast } from '@/hooks/useToastManager';
 
 export interface AppConfirmState {
   title: string;
@@ -19,7 +19,7 @@ export interface AppConfirmState {
 }
 
 interface AppGlobalOverlaysProps {
-  toasts: ToastMessage[];
+  toasts: ManagedToast[];
   onCloseToast: (id: string) => void;
   confirm: AppConfirmState | null;
   onCancelConfirm: () => void;

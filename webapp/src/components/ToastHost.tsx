@@ -1,7 +1,7 @@
-import type { ToastMessage } from '@/lib/types';
+import type { ManagedToast } from '@/hooks/useToastManager';
 
 interface ToastHostProps {
-  toasts: ToastMessage[];
+  toasts: ManagedToast[];
   onClose: (id: string) => void;
 }
 
@@ -10,7 +10,7 @@ export default function ToastHost({ toasts, onClose }: ToastHostProps) {
   return (
     <ul className="toast-stack">
       {toasts.map((toast) => (
-        <li key={toast.id} className={`toast-item ${toast.type}`}>
+        <li key={toast.id} className={`toast-item ${toast.type}${toast.closing ? ' closing' : ''}`}>
           <div className="toast-text">{toast.text}</div>
           <button type="button" className="toast-close" onClick={() => onClose(toast.id)} aria-label="关闭通知">
             <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">

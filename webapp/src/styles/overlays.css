@@ -215,6 +215,12 @@
   animation: toast-in var(--dur-medium) var(--ease-out-strong) both;
 }
 
+/* Exit phase: the item stays mounted while this plays (driven by the
+   `closing` flag in useToastManager.ts). */
+.toast-item.closing {
+  animation: fade-out var(--dur-fast) var(--ease-out-soft) both;
+}
+
 .toast-item.error {
   border-color: #f2b8c1;
   background: #fde7eb;
@@ -260,5 +266,6 @@
 .toast-progress {
   @apply absolute bottom-0 left-0 h-[3px] w-full;
   background: rgba(15, 23, 42, 0.2);
+  /* keep in sync with TOAST_LIFE_MS in useToastManager.ts */
   animation: toast-life 4.5s linear forwards;
 }
