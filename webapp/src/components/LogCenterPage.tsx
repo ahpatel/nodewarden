@@ -406,8 +406,7 @@ export default function LogCenterPage(props: LogCenterPageProps) {
           </div>
         </form>
 
-        {settingsOpen && (
-          <div className="log-settings-popover">
+        <div className={`log-settings-popover${settingsOpen ? ' open' : ''}`}>
             <div className="section-head log-settings-popover-head">
               <h3>{t('txt_log_retention_settings')}</h3>
             </div>
@@ -496,7 +495,6 @@ export default function LogCenterPage(props: LogCenterPageProps) {
               )}
             </div>
           </div>
-        )}
       </section>
 
       <div className="log-center-grid">

@@ -878,6 +878,24 @@
   border-color: var(--line);
   background: #ffffff;
   box-shadow: 0 18px 44px rgba(15, 23, 42, 0.16);
+  /* Same persistent + .open pattern as the plan-004 menus: right-anchored
+     drop from its trigger, scaled from the top-right corner. */
+  transform-origin: top right;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transform: translateY(-4px) scale(0.98);
+  transition:
+    opacity var(--dur-quick) var(--ease-out-strong),
+    transform var(--dur-quick) var(--ease-out-strong),
+    visibility var(--dur-quick);
+}
+
+.log-settings-popover.open {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transform: none;
 }
 
 .log-settings-popover-head {
@@ -1301,6 +1319,14 @@
 
   .log-settings-popover {
     @apply static mt-3 w-full;
+    /* Static in the mobile stack: a hidden persistent popover would leave
+       a layout void, so collapse with display instead (instant appear on
+       mobile is fine at this tier). */
+    display: none;
+  }
+
+  .log-settings-popover.open {
+    display: block;
   }
 
   .log-settings-retention-row {
