@@ -443,6 +443,11 @@ select.input.duplicate-mode-toolbar-select {
   overflow-anchor: none;
 }
 
+.list-item:active {
+  transform: scale(0.98);
+  transition-duration: var(--dur-instant);
+}
+
 .list-item.duplicate-group-item {
   background: hsl(var(--duplicate-group-hue) 84% 94%);
   border-color: hsl(var(--duplicate-group-hue) 42% 78%);
