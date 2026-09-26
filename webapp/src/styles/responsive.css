@@ -482,6 +482,11 @@
     right: 0;
     top: auto;
     bottom: calc(100% + 10px);
+    /* Opens upward-right from the FAB: anchor at that corner and make the
+       hidden state rise (the base menu's translateY(-4px) drop reads
+       wrong for an upward-opening menu). */
+    transform-origin: bottom right;
+    transform: translateY(4px) scale(0.98);
   }
 
   .list-panel {

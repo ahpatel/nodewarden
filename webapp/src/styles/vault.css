@@ -340,10 +340,12 @@ select.input.duplicate-mode-toolbar-select {
 .mobile-vault-filter-menu {
   @apply left-0 right-auto max-h-[280px] min-w-full overflow-auto;
   min-width: max(100%, 168px);
+  transform-origin: top left;
 }
 
 .mobile-vault-filter-control:last-child .mobile-vault-filter-menu {
   @apply left-auto right-0;
+  transform-origin: top right;
 }
 
 .mobile-vault-filter-item {

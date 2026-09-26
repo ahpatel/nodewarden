@@ -1579,7 +1579,7 @@
   background: #fff;
   border-color: var(--line);
   box-shadow: 0 12px 28px rgba(15, 23, 42, 0.18);
-  transform-origin: bottom left;
+  transform-origin: top left;
   opacity: 0;
   visibility: hidden;
   pointer-events: none;

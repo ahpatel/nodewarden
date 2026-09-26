@@ -229,6 +229,7 @@
   background: #dff4e5;
   color: #0f5132;
   box-shadow: 0 10px 24px rgba(15, 23, 42, 0.12);
+  transform-origin: right center;
   animation: toast-in var(--dur-medium) var(--ease-out-strong) both;
 }
 
