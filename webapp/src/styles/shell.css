@@ -411,6 +411,7 @@
 
 .route-stage {
   @apply h-full min-h-0 overflow-auto;
+  animation: route-stage-in var(--dur-fast) var(--ease-out-soft) both;
 }
 
 .route-stage-fixed {
