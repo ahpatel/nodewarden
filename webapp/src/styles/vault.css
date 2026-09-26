@@ -331,6 +331,7 @@ select.input.duplicate-mode-toolbar-select {
 
 .mobile-vault-filter-chevron {
   @apply shrink-0;
+  transition: transform var(--dur-fast) var(--ease-out-soft);
 }
 
 .mobile-vault-filter-trigger.active .mobile-vault-filter-chevron {
