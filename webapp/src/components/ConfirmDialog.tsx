@@ -199,6 +199,15 @@ export default function ConfirmDialog(props: ConfirmDialogProps) {
         aria-describedby={hasMessage ? messageId : undefined}
         tabIndex={-1}
         onKeyDown={handleDialogKeyDown}
+        onTransitionEnd={(event) => {
+          /* Fast-path dismissal: the 240ms timer below is only a fallback.
+             Fire only for the card's own opacity transition (not bubbled
+             child transitions, not the entry transition). */
+          if (event.target !== event.currentTarget) return;
+          if (event.propertyName !== 'opacity' || !closing) return;
+          setPresent(false);
+          setClosing(false);
+        }}
         onSubmit={(e) => {
           e.preventDefault();
           if (props.confirmDisabled || closing) return;
