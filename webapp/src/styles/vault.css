@@ -500,7 +500,7 @@ select.input.duplicate-mode-toolbar-select {
 
 .stagger-item {
   opacity: 0;
-  animation: stagger-rise 520ms var(--ease-out-strong) both;
+  animation: stagger-rise var(--dur-panel) var(--ease-out-strong) both;
 }
 
 .stagger-delay-0 {
@@ -508,43 +508,27 @@ select.input.duplicate-mode-toolbar-select {
 }
 
 .stagger-delay-1 {
-  @apply [animation-delay:26ms];
+  @apply [animation-delay:40ms];
 }
 
 .stagger-delay-2 {
-  @apply [animation-delay:52ms];
+  @apply [animation-delay:80ms];
 }
 
 .stagger-delay-3 {
-  @apply [animation-delay:78ms];
+  @apply [animation-delay:120ms];
 }
 
 .stagger-delay-4 {
-  @apply [animation-delay:104ms];
+  @apply [animation-delay:160ms];
 }
 
 .stagger-delay-5 {
-  @apply [animation-delay:130ms];
+  @apply [animation-delay:200ms];
 }
 
 .stagger-delay-6 {
-  @apply [animation-delay:156ms];
-}
-
-.stagger-delay-7 {
-  @apply [animation-delay:182ms];
-}
-
-.stagger-delay-8 {
-  @apply [animation-delay:208ms];
-}
-
-.stagger-delay-9 {
-  @apply [animation-delay:234ms];
-}
-
-.stagger-delay-10 {
-  @apply [animation-delay:260ms];
+  @apply [animation-delay:240ms];
 }
 
 .detail-unlock-actions {

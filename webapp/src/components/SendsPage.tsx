@@ -345,7 +345,7 @@ export default function SendsPage(props: SendsPageProps) {
           {filteredSends.map((send, index) => (
             <div
               key={send.id}
-              className={`list-item stagger-item stagger-delay-${Math.min(index, 10)} ${selectedId === send.id ? 'active' : ''}`}
+              className={`list-item stagger-item stagger-delay-${Math.min(index, 6)} ${selectedId === send.id ? 'active' : ''}`}
               onClick={(event) => {
                 const target = event.target as HTMLElement;
                 if (target.closest('.row-check')) return;
@@ -425,7 +425,7 @@ export default function SendsPage(props: SendsPageProps) {
         )}
         {isEditing && draft && (
           <div key={`send-editor-${draft.id || selectedSend?.id || 'new'}-${draft.type}`} className="detail-switch-stage">
-            <div className="card stagger-item stagger-delay-0">
+            <div className="card">
               <h3 className="detail-title">{isCreating ? t('txt_new_send') : t('txt_edit_send')}</h3>
               {!!props.uploadingSendFileName && <div className="detail-sub">{sendUploadLabel}</div>}
               <div className="field-grid">
@@ -536,12 +536,12 @@ export default function SendsPage(props: SendsPageProps) {
 
         {!isEditing && selectedSend && (
           <div key={`send-detail-${selectedSend.id}`} className="detail-switch-stage">
-            <div className="card stagger-item stagger-delay-1">
+            <div className="card">
               <h3 className="detail-title">{selectedSend.decName || t('txt_no_name')}</h3>
               <div className="detail-sub">{Number(selectedSend.type) === 1 ? t('txt_file_send') : t('txt_text_send')}</div>
             </div>
 
-            <div className="card stagger-item stagger-delay-2">
+            <div className="card">
               <h4>{t('txt_send_details')}</h4>
               <div className="kv-line"><span>{t('txt_access_count')}</span><strong>{selectedSend.accessCount || 0}</strong></div>
               <div className="kv-line"><span>{t('txt_deletion_date')}</span><strong>{formatSendDate(selectedSend.deletionDate)}</strong></div>
@@ -564,7 +564,7 @@ export default function SendsPage(props: SendsPageProps) {
             </div>
 
             {!!(selectedSend.decNotes || '').trim() && (
-              <div className="card stagger-item stagger-delay-3">
+              <div className="card">
                 <h4>{t('txt_notes')}</h4>
                 <div className="notes">{selectedSend.decNotes || ''}</div>
               </div>
