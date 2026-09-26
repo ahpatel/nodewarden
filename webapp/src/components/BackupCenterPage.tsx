@@ -1045,7 +1045,7 @@ export default function BackupCenterPage(props: BackupCenterPageProps) {
             <span
               className="restore-progress-meter-bar"
               style={{
-                width: `${((restoreProgress.phaseIndex + 1) / restoreProgress.phases.length) * 100}%`,
+                transform: `scaleX(${(restoreProgress.phaseIndex + 1) / restoreProgress.phases.length})`,
               }}
             />
           </div>

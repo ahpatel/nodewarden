@@ -6,6 +6,12 @@
   animation: skeleton-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
 
+.skeleton-avatar,
+.skeleton-icon,
+.skeleton-line {
+  @apply relative overflow-hidden;
+}
+
 .skeleton-avatar {
   @apply h-12 w-12 shrink-0 rounded-full;
   background: linear-gradient(
@@ -14,8 +20,6 @@
     var(--panel-soft) 50%,
     var(--panel-muted) 100%
   );
-  background-size: 200% 100%;
-  animation: shimmer 1.5s ease-in-out infinite;
 }
 
 .skeleton-icon {
@@ -26,8 +30,6 @@
     var(--panel-soft) 50%,
     var(--panel-muted) 100%
   );
-  background-size: 200% 100%;
-  animation: shimmer 1.5s ease-in-out infinite;
 }
 
 .skeleton-content {
@@ -42,8 +44,22 @@
     var(--panel-soft) 50%,
     var(--panel-muted) 100%
   );
-  background-size: 200% 100%;
-  animation: shimmer 1.5s ease-in-out infinite;
+}
+
+.skeleton-avatar::after,
+.skeleton-icon::after,
+.skeleton-line::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    color-mix(in srgb, white 38%, transparent) 48%,
+    transparent 100%
+  );
+  animation: loading-shimmer 1.25s ease-in-out infinite;
 }
 
 .skeleton-line-sm {

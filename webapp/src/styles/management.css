@@ -1755,7 +1755,9 @@
 .restore-progress-meter-bar {
   @apply block h-full rounded-[inherit];
   background: #3a71d8;
-  transition: width var(--dur-panel) var(--ease-smooth);
+  transform: scaleX(0);
+  transform-origin: left center;
+  transition: transform var(--dur-medium) var(--ease-smooth);
 }
 
 .restore-progress-current {
@@ -2019,9 +2021,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  transition:
-    max-height var(--dur-fast) var(--ease-out-soft),
-    opacity 140ms var(--ease-smooth);
+  transition: opacity 140ms var(--ease-smooth);
 }
 
 .domain-rule-row-expanded {
