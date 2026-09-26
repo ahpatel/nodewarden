@@ -23,7 +23,9 @@
   background: var(--panel);
   border-color: rgba(74, 103, 150, 0.34);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.82);
-  transition: all var(--dur-fast) var(--ease-smooth);
+  transition: border-color var(--dur-fast) var(--ease-smooth),
+    background-color var(--dur-fast) var(--ease-smooth),
+    box-shadow var(--dur-fast) var(--ease-smooth);
   font-size: var(--font-base);
   line-height: var(--leading-snug);
   letter-spacing: var(--tracking-normal);
@@ -139,7 +141,11 @@ input[type='file'].input::file-selector-button:hover {
   font-weight: 600;
   letter-spacing: var(--tracking-wide);
   line-height: 1;
-  transition: all var(--dur-fast) var(--ease-smooth);
+  transition: transform var(--dur-fast) var(--ease-smooth),
+    background-color var(--dur-fast) var(--ease-smooth),
+    border-color var(--dur-fast) var(--ease-smooth),
+    color var(--dur-fast) var(--ease-smooth),
+    box-shadow var(--dur-fast) var(--ease-smooth);
 }
 
 .topbar-actions .btn,
