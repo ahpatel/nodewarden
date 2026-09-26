@@ -1580,7 +1580,21 @@
   border-color: var(--line);
   box-shadow: 0 12px 28px rgba(15, 23, 42, 0.18);
   transform-origin: bottom left;
-  animation: menu-in var(--dur-fast) var(--ease-out-strong) both;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transform: translateY(-4px) scale(0.98);
+  transition:
+    opacity var(--dur-quick) var(--ease-out-strong),
+    transform var(--dur-quick) var(--ease-out-strong),
+    visibility var(--dur-quick);
+}
+
+.create-menu.open {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transform: none;
 }
 
 .create-menu-item {

@@ -236,8 +236,7 @@ export default function VaultListPanel(props: VaultListPanelProps) {
         <span className="mobile-vault-filter-trigger-label">{selected?.label || label}</span>
         <ChevronDown size={13} className="mobile-vault-filter-chevron" />
       </button>
-      {mobileFilterOpen === key && (
-        <div className="sort-menu mobile-vault-filter-menu" role="menu">
+      <div className={`sort-menu mobile-vault-filter-menu${mobileFilterOpen === key ? ' open' : ''}`} role="menu">
           {options.map((option) => (
             <button
               key={option.value}
@@ -257,8 +256,7 @@ export default function VaultListPanel(props: VaultListPanelProps) {
               {option.active ? <Check size={14} /> : <span className="sort-menu-check-placeholder" />}
             </button>
           ))}
-        </div>
-      )}
+      </div>
     </div>
   );
 
@@ -273,16 +271,14 @@ export default function VaultListPanel(props: VaultListPanelProps) {
       >
         <Plus size={14} className="btn-icon" />
       </button>
-      {props.createMenuOpen && (
-        <div className="create-menu">
+      <div className={`create-menu${props.createMenuOpen ? ' open' : ''}`}>
           {createTypeOptions.map((option) => (
             <button key={option.type} type="button" className="create-menu-item" onClick={() => props.onStartCreate(option.type)}>
               <CreateTypeIcon type={option.type} />
               <span>{option.label}</span>
             </button>
           ))}
-        </div>
-      )}
+      </div>
     </div>
   );
 
@@ -378,8 +374,7 @@ export default function VaultListPanel(props: VaultListPanelProps) {
                 >
                   <ArrowUpDown size={14} className="btn-icon" /> <span>{t('txt_sort')}</span>
                 </button>
-                {props.sortMenuOpen && (
-                  <div className="sort-menu">
+                <div className={`sort-menu${props.sortMenuOpen ? ' open' : ''}`}>
                     {vaultSortOptions.map((option) => (
                       <button
                         key={option.value}
@@ -391,8 +386,7 @@ export default function VaultListPanel(props: VaultListPanelProps) {
                         {props.sortMode === option.value ? <Check size={14} /> : <span className="sort-menu-check-placeholder" />}
                       </button>
                     ))}
-                  </div>
-                )}
+                </div>
               </div>
               <button type="button" className="btn btn-secondary small list-icon-btn" disabled={props.busy || props.loading} onClick={props.onSyncVault}>
                 <RefreshCw size={14} className="btn-icon" /> {t('txt_sync_vault')}

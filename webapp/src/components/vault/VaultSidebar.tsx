@@ -163,8 +163,7 @@ export default function VaultSidebar(props: VaultSidebarProps) {
               >
                 <ArrowUpDown size={13} />
               </button>
-              {props.folderSortMenuOpen && (
-                <div className="sort-menu">
+              <div className={`sort-menu${props.folderSortMenuOpen ? ' open' : ''}`}>
                   {folderSortOptions.map((option) => (
                     <button
                       key={option.value}
@@ -176,8 +175,7 @@ export default function VaultSidebar(props: VaultSidebarProps) {
                       {props.folderSortMode === option.value ? <Check size={14} /> : <span className="sort-menu-check-placeholder" />}
                     </button>
                   ))}
-                </div>
-              )}
+              </div>
             </div>
             <button
               type="button"
