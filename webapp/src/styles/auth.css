@@ -428,6 +428,7 @@
 
 .standalone-shell {
   @apply grid w-[min(640px,100%)] gap-3.5;
+  animation: fade-in-up var(--dur-panel) var(--ease-out-strong) both;
 }
 
 .standalone-brand {
