@@ -13,7 +13,7 @@
   border: 1px solid var(--line);
   box-shadow: 0 20px 50px rgba(15, 23, 42, 0.2);
   transform-origin: 50% 30%;
-  animation: dialog-in 240ms var(--ease-out-strong) both;
+  animation: dialog-in var(--dur-medium) var(--ease-out-strong) both;
 }
 
 .dialog-mask.warning {
@@ -53,11 +53,11 @@
 }
 
 .dialog-mask.closing {
-  animation: fade-out 220ms var(--ease-smooth) both;
+  animation: fade-out var(--dur-medium) var(--ease-smooth) both;
 }
 
 .dialog-card.closing {
-  animation: dialog-out 220ms var(--ease-smooth) both;
+  animation: dialog-out var(--dur-medium) var(--ease-smooth) both;
 }
 
 .dialog-card .field {
@@ -212,7 +212,7 @@
   background: #dff4e5;
   color: #0f5132;
   box-shadow: 0 10px 24px rgba(15, 23, 42, 0.12);
-  animation: toast-in 240ms var(--ease-out-strong) both;
+  animation: toast-in var(--dur-medium) var(--ease-out-strong) both;
 }
 
 .toast-item.error {
@@ -240,7 +240,7 @@
   background: transparent;
   color: inherit;
   -webkit-tap-highlight-color: transparent;
-  transition: background 120ms ease, opacity 120ms ease;
+  transition: background var(--dur-quick) var(--ease-smooth), opacity var(--dur-quick) var(--ease-smooth);
 }
 
 .toast-close:hover {

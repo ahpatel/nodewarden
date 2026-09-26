@@ -121,7 +121,7 @@
   box-shadow: 0 16px 38px rgba(15, 23, 42, 0.14);
   color: #475467;
   transform: translate(-50%, -4px);
-  transition: opacity 140ms ease, transform 140ms ease, visibility 140ms ease;
+  transition: opacity 140ms var(--ease-smooth), transform 140ms ease, visibility 140ms var(--ease-smooth);
 }
 
 .backup-help-bubble::before {
@@ -230,7 +230,7 @@
 .backup-destination-item {
   @apply grid w-full cursor-pointer gap-1.5 rounded-xl bg-white p-3 text-left;
   border: 1px solid var(--line);
-  transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+  transition: border-color var(--dur-fast) var(--ease-smooth), background var(--dur-fast) var(--ease-smooth), box-shadow var(--dur-fast) var(--ease-smooth);
 }
 
 .backup-destination-item:hover {
@@ -899,7 +899,7 @@
   @apply h-9 cursor-pointer rounded-md border-0 px-2 text-sm font-extrabold;
   background: transparent;
   color: #475569;
-  transition: background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+  transition: background var(--dur-fast) var(--ease-smooth), color var(--dur-fast) var(--ease-smooth), box-shadow var(--dur-fast) var(--ease-smooth);
 }
 
 .log-mode-option.active {
@@ -1016,7 +1016,7 @@
   grid-template-columns: auto minmax(0, 1fr) auto;
   border: 1px solid var(--line);
   background: #ffffff;
-  transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+  transition: border-color var(--dur-fast) var(--ease-smooth), background var(--dur-fast) var(--ease-smooth), box-shadow var(--dur-fast) var(--ease-smooth);
 }
 
 .log-row:hover,
@@ -1580,7 +1580,7 @@
   border-color: var(--line);
   box-shadow: 0 12px 28px rgba(15, 23, 42, 0.18);
   transform-origin: bottom left;
-  animation: menu-in 190ms var(--ease-out-strong) both;
+  animation: menu-in var(--dur-fast) var(--ease-out-strong) both;
 }
 
 .create-menu-item {
@@ -1606,7 +1606,7 @@
     border-color var(--dur-fast) var(--ease-smooth),
     background-color var(--dur-fast) var(--ease-smooth),
     box-shadow var(--dur-fast) var(--ease-out-soft),
-    transform 220ms var(--ease-out-soft),
+    transform var(--dur-medium) var(--ease-out-soft),
     opacity var(--dur-fast) var(--ease-smooth);
 }
 
@@ -1755,7 +1755,7 @@
 .restore-progress-meter-bar {
   @apply block h-full rounded-[inherit];
   background: #3a71d8;
-  transition: width 280ms ease;
+  transition: width var(--dur-panel) var(--ease-smooth);
 }
 
 .restore-progress-current {
@@ -2020,7 +2020,7 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   transition:
-    max-height 180ms var(--ease-out-soft),
+    max-height var(--dur-fast) var(--ease-out-soft),
     opacity 140ms var(--ease-smooth);
 }
 

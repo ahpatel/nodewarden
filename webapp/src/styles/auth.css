@@ -46,32 +46,6 @@
   min-height: 100%;
 }
 
-@keyframes not-found-star-fall {
-  0% {
-    opacity: 0;
-    transform: translateY(-100vh);
-  }
-
-  20% {
-    opacity: 1;
-  }
-
-  100% {
-    opacity: 1;
-    transform: translateY(100vh);
-  }
-}
-
-@keyframes not-found-astronaut-spin {
-  0% {
-    transform: rotate(0deg);
-  }
-
-  100% {
-    transform: rotate(360deg);
-  }
-}
-
 .not-found-star-box {
   @apply absolute left-0 top-0 z-10 h-full w-full;
 }
@@ -160,7 +134,7 @@
   @apply relative z-10;
   width: 220px;
   height: 264px;
-  animation: not-found-astronaut-spin 5s linear infinite;
+  animation: spin 5s linear infinite;
   filter: drop-shadow(0 28px 36px rgba(0, 0, 0, 0.28));
 }
 

@@ -245,14 +245,14 @@
     @apply grid justify-items-center gap-1 rounded-xl px-1 py-1.5 text-[11px] font-bold no-underline;
     color: #64748b;
     transition:
-      transform 180ms var(--ease-spring),
+      transform var(--dur-fast) var(--ease-spring),
       background-color var(--dur-fast) var(--ease-smooth),
       color var(--dur-fast) var(--ease-smooth);
   }
 
   .mobile-tab:active {
     transform: translateY(0) scale(0.95);
-    transition-duration: 80ms;
+    transition-duration: var(--dur-instant);
   }
 
   .mobile-tab.active {
@@ -281,9 +281,9 @@
     pointer-events: none;
     transform: translate3d(0, 12px, 0) scale(0.97);
     transition:
-      opacity 200ms var(--ease-out-expo),
-      transform 260ms var(--ease-spring),
-      visibility 200ms var(--ease-out-expo);
+      opacity var(--dur-medium) var(--ease-out-expo),
+      transform var(--dur-medium) var(--ease-spring),
+      visibility var(--dur-medium) var(--ease-out-expo);
   }
 
   .mobile-sidebar-sheet.open {
@@ -464,7 +464,7 @@
   .mobile-fab-trigger {
     @apply h-9 w-9 gap-0 rounded-full p-0 text-[0];
     box-shadow: 0 14px 30px rgba(37, 99, 235, 0.28);
-    transition: transform 180ms var(--ease-spring), box-shadow var(--dur-fast) var(--ease-out-soft);
+    transition: transform var(--dur-fast) var(--ease-spring), box-shadow var(--dur-fast) var(--ease-out-soft);
   }
 
   .mobile-fab-trigger:active {
@@ -512,9 +512,9 @@
     pointer-events: none;
     transform: translate3d(0, 20px, 0);
     transition:
-      opacity 200ms var(--ease-out-expo),
-      transform 280ms var(--ease-spring),
-      visibility 200ms var(--ease-out-expo);
+      opacity var(--dur-medium) var(--ease-out-expo),
+      transform var(--dur-panel) var(--ease-spring),
+      visibility var(--dur-medium) var(--ease-out-expo);
   }
 
   .mobile-detail-sheet.open {

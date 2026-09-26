@@ -228,14 +228,7 @@
   animation: loading-shimmer 1.25s ease-in-out infinite;
 }
 
-@keyframes loading-shimmer {
-  100% {
-    transform: translateX(100%);
-  }
-}
-
-/* Product refinement layer: calm, dense, app-like surfaces for the vault workflow. */
-html,
+/* Product refinement layer: calm, dense, app-like surfaces for the vault workflow. */html,
 body,
 #root {
   background:

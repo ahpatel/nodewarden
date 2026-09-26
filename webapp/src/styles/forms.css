@@ -90,7 +90,12 @@ input[type='file'].input::file-selector-button:hover {
 }
 
 .input-icon-btn {
-  @apply absolute right-2 top-1/2 grid h-8 w-8 cursor-pointer place-items-center rounded-full border-0 bg-transparent text-slate-700 transition;
+  @apply absolute right-2 top-1/2 grid h-8 w-8 cursor-pointer place-items-center rounded-full border-0 bg-transparent text-slate-700;
+  transition: background-color var(--dur-fast) var(--ease-smooth),
+    border-color var(--dur-fast) var(--ease-smooth),
+    color var(--dur-fast) var(--ease-smooth),
+    box-shadow var(--dur-fast) var(--ease-smooth),
+    opacity var(--dur-fast) var(--ease-smooth);
   transform: translateY(-50%);
 }
 
@@ -104,12 +109,22 @@ input[type='file'].input::file-selector-button:hover {
 }
 
 .password-toggle {
-  @apply absolute right-2 top-1/2 grid cursor-pointer place-items-center border-0 bg-transparent text-blue-700 transition;
+  @apply absolute right-2 top-1/2 grid cursor-pointer place-items-center border-0 bg-transparent text-blue-700;
+  transition: background-color var(--dur-fast) var(--ease-smooth),
+    border-color var(--dur-fast) var(--ease-smooth),
+    color var(--dur-fast) var(--ease-smooth),
+    box-shadow var(--dur-fast) var(--ease-smooth),
+    opacity var(--dur-fast) var(--ease-smooth);
   transform: translateY(-50%);
 }
 
 .eye-btn {
-  @apply absolute right-2.5 top-1/2 grid h-8 w-8 cursor-pointer place-items-center border-0 bg-transparent text-slate-700 transition;
+  @apply absolute right-2.5 top-1/2 grid h-8 w-8 cursor-pointer place-items-center border-0 bg-transparent text-slate-700;
+  transition: background-color var(--dur-fast) var(--ease-smooth),
+    border-color var(--dur-fast) var(--ease-smooth),
+    color var(--dur-fast) var(--ease-smooth),
+    box-shadow var(--dur-fast) var(--ease-smooth),
+    opacity var(--dur-fast) var(--ease-smooth);
   transform: translateY(-50%);
 }
 
@@ -228,7 +243,12 @@ input[type='file'].input::file-selector-button:hover {
 }
 
 .auth-link-btn {
-  @apply cursor-pointer border-0 bg-transparent p-0 transition;
+  @apply cursor-pointer border-0 bg-transparent p-0;
+  transition: background-color var(--dur-fast) var(--ease-smooth),
+    border-color var(--dur-fast) var(--ease-smooth),
+    color var(--dur-fast) var(--ease-smooth),
+    box-shadow var(--dur-fast) var(--ease-smooth),
+    opacity var(--dur-fast) var(--ease-smooth);
   font-size: var(--font-xs);
   font-weight: 600;
   letter-spacing: var(--tracking-wide);

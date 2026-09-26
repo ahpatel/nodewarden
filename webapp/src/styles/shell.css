@@ -9,7 +9,12 @@
 }
 
 .topbar {
-  @apply flex h-[58px] items-center justify-between border-b px-[18px] text-slate-900 transition;
+  @apply flex h-[58px] items-center justify-between border-b px-[18px] text-slate-900;
+  transition: background-color var(--dur-fast) var(--ease-smooth),
+    border-color var(--dur-fast) var(--ease-smooth),
+    color var(--dur-fast) var(--ease-smooth),
+    box-shadow var(--dur-fast) var(--ease-smooth),
+    opacity var(--dur-fast) var(--ease-smooth);
   border-color: var(--line-soft);
   background: rgba(244, 248, 255, 0.78);
   backdrop-filter: blur(12px);
@@ -97,7 +102,12 @@
 }
 
 .theme-switch-slider {
-  @apply absolute inset-0 cursor-pointer rounded-full border transition;
+  @apply absolute inset-0 cursor-pointer rounded-full border;
+  transition: background-color var(--dur-fast) var(--ease-smooth),
+    border-color var(--dur-fast) var(--ease-smooth),
+    color var(--dur-fast) var(--ease-smooth),
+    box-shadow var(--dur-fast) var(--ease-smooth),
+    opacity var(--dur-fast) var(--ease-smooth);
   background: #dbeafe;
   border-color: #9dbbec;
 }
@@ -154,11 +164,16 @@
 
 .topbar-actions .btn {
   @apply h-[34px] rounded-xl px-3 text-[13px] font-semibold;
-  transition-duration: 220ms;
+  transition-duration: var(--dur-medium);
 }
 
 .user-chip {
-  @apply inline-flex h-[34px] items-center gap-1.5 rounded-full border px-3 text-sm font-semibold text-muted-strong transition;
+  @apply inline-flex h-[34px] items-center gap-1.5 rounded-full border px-3 text-sm font-semibold text-muted-strong;
+  transition: background-color var(--dur-fast) var(--ease-smooth),
+    border-color var(--dur-fast) var(--ease-smooth),
+    color var(--dur-fast) var(--ease-smooth),
+    box-shadow var(--dur-fast) var(--ease-smooth),
+    opacity var(--dur-fast) var(--ease-smooth);
   background: rgba(249, 251, 255, 0.94);
   border-color: rgba(148, 163, 184, 0.30);
   box-shadow: 0 8px 16px rgba(13, 31, 68, 0.04);
@@ -183,7 +198,12 @@
 }
 
 .side-link {
-  @apply flex items-center rounded-xl border border-transparent px-3 py-2.5 no-underline transition;
+  @apply flex items-center rounded-xl border border-transparent px-3 py-2.5 no-underline;
+  transition: background-color var(--dur-fast) var(--ease-smooth),
+    border-color var(--dur-fast) var(--ease-smooth),
+    color var(--dur-fast) var(--ease-smooth),
+    box-shadow var(--dur-fast) var(--ease-smooth),
+    opacity var(--dur-fast) var(--ease-smooth);
   gap: var(--space-2);
   font-size: var(--font-sm);
   font-weight: 500;
@@ -209,7 +229,12 @@
 }
 
 .side-group-trigger {
-  @apply flex w-full cursor-pointer items-center rounded-xl border border-transparent px-3 py-2.5 text-left transition;
+  @apply flex w-full cursor-pointer items-center rounded-xl border border-transparent px-3 py-2.5 text-left;
+  transition: background-color var(--dur-fast) var(--ease-smooth),
+    border-color var(--dur-fast) var(--ease-smooth),
+    color var(--dur-fast) var(--ease-smooth),
+    box-shadow var(--dur-fast) var(--ease-smooth),
+    opacity var(--dur-fast) var(--ease-smooth);
   gap: var(--space-2);
   background: transparent;
   font-size: var(--font-sm);
@@ -239,7 +264,7 @@
 
 .side-group-chevron {
   @apply shrink-0;
-  transition: transform 190ms var(--ease-out-soft);
+  transition: transform var(--dur-fast) var(--ease-out-soft);
 }
 
 .side-nav-group.open .side-group-chevron {
@@ -252,9 +277,9 @@
   opacity: 0;
   transform: translateY(-4px);
   transition:
-    grid-template-rows 220ms var(--ease-smooth),
-    opacity 170ms var(--ease-smooth),
-    transform 220ms var(--ease-out-soft);
+    grid-template-rows var(--dur-medium) var(--ease-smooth),
+    opacity var(--dur-fast) var(--ease-smooth),
+    transform var(--dur-medium) var(--ease-out-soft);
 }
 
 .side-subnav.open {
@@ -268,7 +293,12 @@
 }
 
 .side-sub-link {
-  @apply flex items-center rounded-lg border border-transparent px-2.5 py-2 no-underline transition;
+  @apply flex items-center rounded-lg border border-transparent px-2.5 py-2 no-underline;
+  transition: background-color var(--dur-fast) var(--ease-smooth),
+    border-color var(--dur-fast) var(--ease-smooth),
+    color var(--dur-fast) var(--ease-smooth),
+    box-shadow var(--dur-fast) var(--ease-smooth),
+    opacity var(--dur-fast) var(--ease-smooth);
   gap: var(--space-2);
   font-size: var(--font-sm);
   font-weight: 500;
@@ -293,7 +323,12 @@
 }
 
 .nav-layout-trigger {
-  @apply flex h-10 w-10 cursor-pointer items-center justify-center rounded-xl border p-0 transition;
+  @apply flex h-10 w-10 cursor-pointer items-center justify-center rounded-xl border p-0;
+  transition: background-color var(--dur-fast) var(--ease-smooth),
+    border-color var(--dur-fast) var(--ease-smooth),
+    color var(--dur-fast) var(--ease-smooth),
+    box-shadow var(--dur-fast) var(--ease-smooth),
+    opacity var(--dur-fast) var(--ease-smooth);
   border-color: rgba(128, 152, 192, 0.18);
   background: rgba(255, 255, 255, 0.46);
   color: var(--muted-strong);
@@ -312,11 +347,16 @@
   background: var(--panel);
   box-shadow: var(--shadow-md);
   transform-origin: bottom center;
-  animation: menu-in 190ms var(--ease-out-strong) both;
+  animation: menu-in var(--dur-fast) var(--ease-out-strong) both;
 }
 
 .nav-layout-option {
-  @apply flex w-full cursor-pointer items-center gap-2.5 rounded-xl border border-transparent bg-transparent px-3 py-2.5 text-left transition;
+  @apply flex w-full cursor-pointer items-center gap-2.5 rounded-xl border border-transparent bg-transparent px-3 py-2.5 text-left;
+  transition: background-color var(--dur-fast) var(--ease-smooth),
+    border-color var(--dur-fast) var(--ease-smooth),
+    color var(--dur-fast) var(--ease-smooth),
+    box-shadow var(--dur-fast) var(--ease-smooth),
+    opacity var(--dur-fast) var(--ease-smooth);
   color: var(--text);
 }
 
@@ -362,8 +402,8 @@
   background: rgba(15, 23, 42, 0.36);
   z-index: 54;
   transition:
-    opacity 220ms var(--ease-smooth),
-    visibility 220ms var(--ease-smooth);
+    opacity var(--dur-medium) var(--ease-smooth),
+    visibility var(--dur-medium) var(--ease-smooth);
 }
 
 .mobile-sidebar-mask.open {
