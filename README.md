@@ -162,6 +162,10 @@ On the first request after deploying this feature, the schema self-upgrades: new
   It is recommended to store `JWT_SECRET` as a **Secret** rather than as a plain-text variable. `JWT_SECRET` is a sensitive runtime credential and should not be committed to the repository.  
   If your deployment process recreates or overwrites the Worker variable configuration, ordinary variables may be affected. Secrets are more appropriate for sensitive configuration that needs to remain available across multiple deployments. If the application still reports that `JWT_SECRET` is missing after a redeployment, check **Variables and Secrets** for the current Worker and make sure the Secret is still configured.
 
+- **Security-key (WebAuthn) two-factor login spins forever in the Bitwarden desktop app or browser extension, with no key prompt. Why?**  
+  Check your Cloudflare zone settings. NodeWarden sets its own security headers on every response and deliberately exempts the WebAuthn connector pages (`/webauthn-connector.html`, `/webauthn-mobile-connector.html`) from `X-Frame-Options`, because official Bitwarden clients embed these pages in a hidden iframe to perform security-key ceremonies against your server's origin. Cloudflare's **Rules → Transform Rules → Managed Transforms → "Add security headers"** appends `X-Frame-Options: SAMEORIGIN` to every HTML response, which overrides that exemption — the embedded connector iframe is then refused, and the client's "Verify your Identity" screen waits forever. Any zone-level rule that sets `X-Frame-Options` will cause the same failure, so turn the managed transform off and let the Worker deliver its headers. You can verify with:
+  `curl -sI https://your-server/webauthn-connector.html | grep -i x-frame-options` — the header should be absent on connector pages (and `DENY` elsewhere, which the Worker already sets). Note that Cloudflare's **Agent Readiness → WebMCP** preview also injects a `/.webmcp/bridge.js` script into every HTML response; it does not affect two-factor login, but self-hosters who do not need AI-agent tooling will usually want it disabled.
+
 ---
 
 ## How to update

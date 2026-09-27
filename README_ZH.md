@@ -107,6 +107,10 @@
   建议将 `JWT_SECRET` 配置为 **Secret**，而不是普通的明文变量。`JWT_SECRET` 属于敏感的运行时凭据，也不应该出现在代码仓库中。  
   如果部署流程会重新生成或覆盖 Worker 的变量配置，普通变量可能受到影响；使用 Secret 更适合保存这类需要在多次部署之间持续存在的敏感配置。重新部署后如果仍提示缺失，请检查当前 Worker 的 **Variables and Secrets** 中是否仍存在该 Secret。
 
+- **Bitwarden 桌面端或浏览器扩展进行安全密钥（WebAuthn）两步验证时一直转圈，不弹出密钥确认框，为什么？**  
+  请检查 Cloudflare 区域设置。NodeWarden 会为每个响应自行设置安全响应头，并特意让 WebAuthn 连接器页面（`/webauthn-connector.html`、`/webauthn-mobile-connector.html`）不带 `X-Frame-Options`——因为官方客户端需要以隐藏 iframe 的方式嵌入这些页面，以便在你的服务器源上完成安全密钥验证。Cloudflare 的 **Rules → Transform Rules → Managed Transforms → "Add security headers"** 会为每个 HTML 响应追加 `X-Frame-Options: SAMEORIGIN`，覆盖了上述豁免——嵌入的连接器 iframe 因此被拒绝渲染，客户端的“验证身份”界面就会永远等待。任何在区域级别设置 `X-Frame-Options` 的规则都会导致同样的故障，因此请关闭该托管转换，让 Worker 自己输出响应头。可以使用以下命令验证：
+  `curl -sI https://你的服务器地址/webauthn-connector.html | grep -i x-frame-options`——连接器页面不应返回该响应头（其他页面应返回 Worker 设置的 `DENY`）。另外，Cloudflare 的 **Agent Readiness → WebMCP** 预览功能会向每个 HTML 响应注入 `/.webmcp/bridge.js` 脚本；它不影响两步验证登录，但不需要 AI 代理功能的用户通常应将其关闭。
+
 ---
 
 ## 更新方法：
