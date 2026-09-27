@@ -15,6 +15,32 @@ let dbInitialized = false;
 let dbInitError: string | null = null;
 let dbInitPromise: Promise<void> | null = null;
 
+/* Server-Timing attribution: lets clients (and production probes) split every
+   backend response into the per-isolate database-init wait and the request
+   handler itself. The db_init leg drops to ~0 on warm isolates and shows the
+   true cost of cold ones — the measurable signal behind the popup-latency
+   work in docs/perf/bitwarden-popup.md. */
+function withServerTiming(response: Response, timing: string): Response {
+  // WebSocket upgrade responses must be returned untouched.
+  const webSocket = (response as Response & { webSocket?: unknown }).webSocket;
+  if (response.status === 101 || webSocket) return response;
+  try {
+    const existing = response.headers.get('Server-Timing');
+    response.headers.set('Server-Timing', existing ? `${existing}, ${timing}` : timing);
+    return response;
+  } catch {
+    // Immutable headers (upstream passthrough): re-wrap preserving the stream.
+    const headers = new Headers(response.headers);
+    const existing = headers.get('Server-Timing');
+    headers.set('Server-Timing', existing ? `${existing}, ${timing}` : timing);
+    return new Response(response.body, {
+      status: response.status,
+      statusText: response.statusText,
+      headers,
+    });
+  }
+}
+
 function normalizeRequestUrl(request: Request): Request {
   const url = new URL(request.url);
   const normalizedPathname = url.pathname.length <= 1 ? url.pathname : url.pathname.replace(/\/+$/, '');
@@ -90,7 +116,9 @@ export default {
       return applyCors(normalizedRequest, assetResponse, env);
     }
 
+    const timingStart = performance.now();
     await ensureDatabaseInitialized(env);
+    const dbInitMs = performance.now() - timingStart;
     if (dbInitError) {
       // Log full error server-side, return generic message to client.
       console.error('DB init error (not forwarded to client):', dbInitError);
@@ -105,11 +133,17 @@ export default {
         },
         500
       );
-      return applyCors(normalizedRequest, resp, env);
+      return applyCors(normalizedRequest, withServerTiming(resp, `db_init;dur=${dbInitMs.toFixed(1)}`), env);
     }
 
+    const handlerStart = performance.now();
     const resp = await handleRequest(normalizedRequest, env);
-    return applyCors(normalizedRequest, resp, env);
+    const handlerMs = performance.now() - handlerStart;
+    return applyCors(
+      normalizedRequest,
+      withServerTiming(resp, `db_init;dur=${dbInitMs.toFixed(1)}, handler;dur=${handlerMs.toFixed(1)}`),
+      env
+    );
   },
 
   async scheduled(controller: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
