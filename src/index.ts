@@ -24,7 +24,19 @@ const DATABASE_FREE_PATHS = new Set(['/config', '/api/config', '/api/version']);
    backend response into the per-isolate database-init wait and the request
    handler itself. The db_init leg drops to ~0 on warm isolates and shows the
    true cost of cold ones — the measurable signal behind the popup-latency
-   work in docs/perf/bitwarden-popup.md. */
+   work in docs/perf/bitwarden-popup.md.
+
+   SECURITY SCOPE: the header is a precision timing instrument. Unauthenticated
+   existence-adjacent endpoints (prelogin, send access, …) must not advertise
+   handler durations — a timing oracle there defeats their anti-enumeration
+   design. It is therefore emitted ONLY for (a) the database-free metadata
+   paths (static build responses, no secrets, no per-user work) or (b) requests
+   that present credentials (Bearer or the web-session header): invalid
+   credentials reject on constant-cost paths before any user-dependent work,
+   so no oracle exists there, and valid credentials mean the timing describes
+   the requester's own session. */
+const CREDENTIAL_HEADER_NAMES = ['Authorization', 'X-NodeWarden-Web-Session'];
+
 function withServerTiming(response: Response, timing: string): Response {
   // WebSocket upgrade responses must be returned untouched.
   const webSocket = (response as Response & { webSocket?: unknown }).webSocket;
@@ -153,6 +165,10 @@ export default {
     const dbInitEntry = databaseFree
       ? `db_init;dur=0;desc="database-free path"`
       : `db_init;dur=${dbInitMs.toFixed(1)}`;
+    const credentialed = CREDENTIAL_HEADER_NAMES.some((name) => normalizedRequest.headers.has(name));
+    if (!credentialed && !databaseFree) {
+      return applyCors(normalizedRequest, resp, env);
+    }
     return applyCors(
       normalizedRequest,
       withServerTiming(resp, `${dbInitEntry}, handler;dur=${handlerMs.toFixed(1)}`),
