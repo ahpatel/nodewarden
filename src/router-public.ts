@@ -47,6 +47,16 @@ type PublicRateLimiter = (category?: string, maxRequests?: number) => Promise<Re
    keeping the path free of database round-trips. */
 const isolateRateBuckets = new Map<string, { count: number; resetAt: number }>();
 
+/* ETag helper: SHA-1 is fine for validator tokens (not a security primitive). */
+async function sha1Prefix(input: string, length: number): Promise<string> {
+  const digest = await crypto.subtle.digest('SHA-1', new TextEncoder().encode(input));
+  return Array.from(new Uint8Array(digest))
+    .slice(0, Math.ceil(length / 2))
+    .map((byte) => byte.toString(16).padStart(2, '0'))
+    .join('')
+    .slice(0, length);
+}
+
 function enforceIsolateRateLimit(request: Request, maxRequests: number): Response | null {
   const clientId = request.headers.get('CF-Connecting-IP') || 'unknown';
   const now = Date.now();
@@ -515,18 +525,39 @@ export async function handlePublicRoute(
      they skip the per-isolate database-init gate (src/index.ts) and use an
      isolate-local rate limiter instead of the D1-backed one. This removes the
      cold-isolate DB wait from the hot path the Bitwarden clients hit on every
-     popup open (see docs/perf/bitwarden-popup.md). */
+     popup open (see docs/perf/bitwarden-popup.md). The response is immutable
+     per server build, so it is served with a short client cache window and an
+     ETag: HTTP-cache-honoring clients skip the round-trip entirely within the
+     window and get a 304 after it. */
   if ((path === '/config' || path === '/api/config') && method === 'GET') {
     const blocked = enforceIsolateRateLimit(request, LIMITS.rateLimit.publicReadRequestsPerMinute);
     if (blocked) return blocked;
     const origin = new URL(request.url).origin;
-    return jsonResponse(buildConfigResponse(origin), 200, { 'Cache-Control': 'no-store' });
+    const body = JSON.stringify(buildConfigResponse(origin));
+    const etag = `W/"${await sha1Prefix(body, 16)}"`;
+    const ifNoneMatch = request.headers.get('If-None-Match');
+    if (ifNoneMatch && ifNoneMatch.split(',').some((candidate) => candidate.trim() === etag)) {
+      return new Response(null, {
+        status: 304,
+        headers: { ETag: etag, 'Cache-Control': 'public, max-age=60' },
+      });
+    }
+    return new Response(body, {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/json',
+        'Cache-Control': 'public, max-age=60',
+        ETag: etag,
+      },
+    });
   }
 
   if (path === '/api/version' && method === 'GET') {
     const blocked = enforceIsolateRateLimit(request, LIMITS.rateLimit.publicReadRequestsPerMinute);
     if (blocked) return blocked;
-    return jsonResponse(LIMITS.compatibility.bitwardenServerVersion);
+    return jsonResponse(LIMITS.compatibility.bitwardenServerVersion, 200, {
+      'Cache-Control': 'public, max-age=300',
+    });
   }
 
   if (path === '/api/accounts/register' && method === 'POST') {
