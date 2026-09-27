@@ -128,6 +128,26 @@ test('org key split into enc/mac parts correctly', async () => {
   assert.equal(bytesToBase64(parts.macBytes), bytesToBase64(raw.slice(32, 64)));
 });
 
+test('looksLikeEncString distinguishes legacy encrypted org names from plaintext', async () => {
+  const { looksLikeEncString, encryptBw } = await import('../webapp/src/lib/crypto');
+  const { generateOrganizationKeyBytes, orgKeyBytesToParts } =
+    await import('../webapp/src/lib/org-crypto');
+
+  // A real type-2 EncString (what legacy org names were stored as)
+  const parts = orgKeyBytesToParts(generateOrganizationKeyBytes());
+  const encName = await encryptBw(new TextEncoder().encode('Family'), parts.encBytes, parts.macBytes);
+  assert.equal(looksLikeEncString(encName), true, 'type-2 EncString is detected');
+
+  // Plaintext names, including digit-dot forms, must render as themselves
+  assert.equal(looksLikeEncString('Family'), false, 'plain name');
+  assert.equal(looksLikeEncString('1. Acme Corp'), false, 'numbered name with spaces');
+  assert.equal(looksLikeEncString('2.Q3 budget'), false, 'digit-dot name, no pipe-separated base64 body');
+  assert.equal(looksLikeEncString('2026. Plans'), false, 'year-dot name');
+  assert.equal(looksLikeEncString(''), false, 'empty');
+  assert.equal(looksLikeEncString(null), false, 'null');
+  assert.equal(looksLikeEncString(undefined), false, 'undefined');
+});
+
 test('unwrapOrganizationKeyDetailed returns null for invalid format', async () => {
   const { unwrapOrganizationKeyDetailed } = await import('../webapp/src/lib/org-crypto');
 
