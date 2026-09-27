@@ -39,6 +39,9 @@ export function buildProfileResponse(
     // New-device verification is not supported without an email delivery channel.
     // Always report disabled so clients do not present a false security posture.
     verifyDevices: false,
+    // Bitwarden key-management: mirrors back the id clients reported via the
+    // user-key-id backfill endpoint so they can detect key migrations.
+    userKeyId: user.userKeyId ?? null,
     role: user.role,
     status: user.status,
     object: 'profile',

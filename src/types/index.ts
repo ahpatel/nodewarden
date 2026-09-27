@@ -51,6 +51,10 @@ export interface User {
   role: UserRole;
   status: UserStatus;
   verifyDevices?: boolean;
+  /* Bitwarden key-management: id of the user's current user key, reported by
+     official clients via POST /api/accounts/key-management/user-key-id and
+     returned to them in the profile response. */
+  userKeyId?: string | null;
   totpSecret: string | null;
   totpRecoveryCode: string | null;
   yubikeyKey1: string | null;
@@ -660,6 +664,10 @@ export interface ProfileResponse {
   avatarColor: string | null;
   creationDate: string;
   verifyDevices: boolean;
+  /* Bitwarden key-management: id of the user key the server has on record
+     (from the client backfill). Clients compare it against their current key
+     to decide whether key-management migrations are needed. */
+  userKeyId?: string | null;
   role?: UserRole;
   status?: UserStatus;
   object: string;

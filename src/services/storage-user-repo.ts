@@ -4,6 +4,7 @@ type SafeBind = (stmt: D1PreparedStatement, ...values: any[]) => D1PreparedState
 const USER_SELECT_COLUMNS =
   'id, email, name, master_password_hint, master_password_hash, key, private_key, public_key, ' +
   'kdf_type, kdf_iterations, kdf_memory, kdf_parallelism, security_stamp, role, status, verify_devices, ' +
+  'user_key_id, ' +
   'totp_secret, totp_recovery_code, yubikey_key1, yubikey_key2, yubikey_key3, yubikey_key4, yubikey_key5, yubikey_nfc, api_key, created_at, updated_at';
 
 function mapUserRow(row: any): User {
@@ -24,6 +25,7 @@ function mapUserRow(row: any): User {
     role: row.role === 'admin' ? 'admin' : 'user',
     status: row.status === 'banned' ? 'banned' : 'active',
     verifyDevices: row.verify_devices == null ? false : !!row.verify_devices,
+    userKeyId: row.user_key_id ?? null,
     totpSecret: row.totp_secret ?? null,
     totpRecoveryCode: row.totp_recovery_code ?? null,
     yubikeyKey1: row.yubikey_key1 ?? null,
