@@ -632,3 +632,79 @@ test('org repair runs app-wide and offers an explicit owner action', () => {
   );
 });
 
+// ─── Plaintext organization names ───────────────────────────────────────────
+// Current official Bitwarden clients send org names in PLAINTEXT at creation
+// and rename, store them server-side in the clear, and render
+// profile.organizations[].name verbatim — there is NO org-key decryption of
+// the name anywhere in the current client crypto (verified: org items and
+// collection names decrypt with the org key while the name stays raw). An
+// org-key-encrypted name therefore displays as the raw "2." cipherstring in
+// the extension and desktop app. The org name must be plaintext end-to-end.
+
+test('organization create and rename accept plaintext names', () => {
+  const orgs = read('src/handlers/organizations.ts');
+  const create = orgs.slice(orgs.indexOf('handleCreateOrganization'));
+  const update = orgs.slice(orgs.indexOf('handleUpdateOrganization'));
+  for (const [src, name] of [[create, 'create'], [update, 'rename']] as const) {
+    assert.ok(
+      src.includes('optionalOrgName(body.name)'),
+      `${name} handler validates the name with optionalOrgName (plaintext-first)`
+    );
+    assert.ok(
+      !src.includes('optionalEncString(body.name)'),
+      `${name} handler does not require an encrypted name`
+    );
+  }
+  assert.ok(
+    orgs.includes('const collectionName = optionalEncString(body.collectionName'),
+    'the default collection name remains org-key encrypted'
+  );
+});
+
+test('webapp creates and renames organizations with plaintext names', () => {
+  const page = read('webapp/src/components/OrganizationsPage.tsx');
+  assert.ok(
+    /createOrganization\(authedFetch, \{\s*name,/.test(page),
+    'create sends the plaintext org name (shorthand name, not encName)'
+  );
+  assert.ok(
+    /updateOrganization\(authedFetch, selectedOrgId, next\.trim\(\)\)/.test(page),
+    'rename sends the plaintext name'
+  );
+});
+
+test('webapp migrates legacy encrypted org names to plaintext', () => {
+  const repair = read('webapp/src/lib/org-key-repair.ts');
+  assert.ok(
+    repair.includes('migrateLegacyEncryptedOrgNames'),
+    'repair module exposes the name migration'
+  );
+  const repairFn = repair.slice(repair.indexOf('export async function migrateLegacyEncryptedOrgNames'));
+  assert.ok(
+    repairFn.includes('looksLikeEncString(org.name)'),
+    'migration only targets EncString-shaped names'
+  );
+  assert.ok(
+    repairFn.includes('WIRE_TYPE_OWNER'),
+    'migration is owner-gated (rename endpoint is owner-only)'
+  );
+  assert.ok(
+    repairFn.includes('updateOrganization(context.authedFetch, org.id, plain)'),
+    'migration rewrites the plaintext name via the rename endpoint'
+  );
+  const app = read('webapp/src/App.tsx');
+  assert.ok(
+    app.includes('migrateLegacyEncryptedOrgNames(profileOrganizations'),
+    'app shell migrates names without visiting the org page'
+  );
+  assert.ok(
+    app.includes("looksLikeEncString(org.name) ? '' : String(org.name || '')"),
+    'app renders plaintext org names before org keys resolve'
+  );
+  const page = read('webapp/src/components/OrganizationsPage.tsx');
+  assert.ok(
+    page.includes('migrateLegacyEncryptedOrgNames(list'),
+    'org page migrates names on refresh'
+  );
+});
+

@@ -35,6 +35,14 @@ export function bytesToBase64(bytes: Uint8Array): string {
   return btoa(s);
 }
 
+// Matches the "<encType>.<body>" EncString prefix shape ("2.iv|ct|mac",
+// "4.key"). Current official Bitwarden clients store the ORGANIZATION name
+// in plaintext (the server returns it in the clear and clients render it
+// verbatim), so org names that do not match this shape are plaintext.
+export function looksLikeEncString(value: string | null | undefined): boolean {
+  return !!value && /^\d+\./.test(value);
+}
+
 export function base64ToBytes(b64: string): Uint8Array {
   const bin = atob(b64);
   const out = new Uint8Array(bin.length);

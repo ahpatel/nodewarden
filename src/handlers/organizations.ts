@@ -64,6 +64,22 @@ export function optionalEncString(value: unknown): string | null {
   return isValidEncString(trimmed) ? trimmed : null;
 }
 
+// Current official Bitwarden clients send the organization name in
+// PLAINTEXT: org names are treated as non-secret account metadata in the
+// current Bitwarden architecture (billing-visible), the server stores them
+// in the clear, and clients render profile.organizations[].name verbatim
+// with no decryption. Only the default collection name is org-key
+// encrypted. Legacy NodeWarden webapp bundles sent the name org-key
+// encrypted (matching old Bitwarden clients, which decrypted it with the
+// org key), so EncString-shaped names are passed through unchanged to keep
+// those bundles rendering correctly while the webapp migrates them.
+function optionalOrgName(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  if (!trimmed || trimmed.length > 300) return null;
+  return trimmed;
+}
+
 export async function readJsonBody(request: Request): Promise<any | null> {
   try {
     return await request.json();
@@ -308,7 +324,9 @@ export async function handleListMyOrganizations(request: Request, env: Env, user
 }
 
 // POST /api/organizations
-// Body: { name (enc w/ org key), key (org key enc w/ creator pubkey),
+// Body: { name (plaintext — current official clients send it in the clear;
+//         EncString values from legacy webapp bundles pass through),
+//         key (org key enc w/ creator pubkey),
 //         keys: { publicKey, encryptedPrivateKey }, collectionName (enc w/ org key),
 //         billingEmail? }
 export async function handleCreateOrganization(request: Request, env: Env, userId: string): Promise<Response> {
@@ -316,13 +334,13 @@ export async function handleCreateOrganization(request: Request, env: Env, userI
   const body = await readJsonBody(request);
   if (!body) return errorResponse('Invalid JSON', 400);
 
-  const name = optionalEncString(body.name);
+  const name = optionalOrgName(body.name);
   const key = optionalEncString(body.key);
   const collectionName = optionalEncString(body.collectionName ?? body.defaultCollectionName);
   const publicKey = typeof body.keys?.publicKey === 'string' ? body.keys.publicKey.trim() : null;
   const privateKey = optionalEncString(body.keys?.encryptedPrivateKey ?? body.keys?.privateKey);
 
-  if (!name) return errorResponse('name must be an encrypted string', 400);
+  if (!name) return errorResponse('name is required', 400);
   if (!key) return errorResponse('key must be an encrypted string', 400);
   if (!publicKey) return errorResponse('keys.publicKey is required', 400);
   if (!privateKey) return errorResponse('keys.encryptedPrivateKey must be an encrypted string', 400);
@@ -386,7 +404,7 @@ export async function handleGetOrganization(request: Request, env: Env, userId: 
   return jsonResponse(organizationToResponse(owner.organization, { includeBillingEmail: true }));
 }
 
-// PUT /api/organizations/:id (owners) — { name (enc w/ org key) }
+// PUT /api/organizations/:id (owners) — { name (plaintext; current clients) }
 export async function handleUpdateOrganization(request: Request, env: Env, userId: string, organizationId: string): Promise<Response> {
   const storage = new StorageService(env.DB);
   const owner = await requireOrganizationOwner(storage, organizationId, userId);
@@ -395,8 +413,8 @@ export async function handleUpdateOrganization(request: Request, env: Env, userI
   const body = await readJsonBody(request);
   if (!body) return errorResponse('Invalid JSON', 400);
 
-  const name = optionalEncString(body.name);
-  if (!name) return errorResponse('name must be an encrypted string', 400);
+  const name = optionalOrgName(body.name);
+  if (!name) return errorResponse('name is required', 400);
 
   const organization = owner.organization;
   organization.name = name;

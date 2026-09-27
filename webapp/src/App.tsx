@@ -70,9 +70,9 @@ import { dispatchBackupProgress, type BackupProgressDetail } from '@/lib/backup-
 import { clearOfflineUnlockRecord } from '@/lib/offline-auth';
 import { clearPasswordSecurityCache } from '@/lib/password-security-cache';
 import { decryptSends, decryptVaultCore, type OrgKeyMap } from '@/lib/vault-decrypt';
-import { base64ToBytes, decryptStr } from '@/lib/crypto';
+import { base64ToBytes, decryptStr, looksLikeEncString } from '@/lib/crypto';
 import { decryptPrivateKeyPkcs8, unwrapOrganizationKey, clearUnwrappedOrgKeyCache } from '@/lib/org-crypto';
-import { isLegacyOrgKeyWrap, repairLegacyOrganizationKeysForSelf } from '@/lib/org-key-repair';
+import { isLegacyOrgKeyWrap, migrateLegacyEncryptedOrgNames, repairLegacyOrganizationKeysForSelf } from '@/lib/org-key-repair';
 import { listMyOrganizations } from '@/lib/api/organizations';
 import { decryptSendsInWorker, decryptVaultCoreInWorker } from '@/lib/vault-worker';
 import {
@@ -1346,7 +1346,14 @@ export default function App() {
     if (IS_DEMO_MODE || !organizations.length || !session?.symEncKey || !session?.symMacKey || !profile?.privateKey) {
       if (!IS_DEMO_MODE) {
         setOrgKeys(null);
-        setDecryptedOrganizations(profileOrganizations.map((org) => ({ id: org.id, name: '', keyAvailable: false, type: Number.isFinite(Number(org.type)) ? Number(org.type) : 2 })));
+        // Current official Bitwarden clients keep org names in plaintext, so
+        // a non-EncString name renders immediately even without the org key.
+        setDecryptedOrganizations(profileOrganizations.map((org) => ({
+          id: org.id,
+          name: looksLikeEncString(org.name) ? '' : String(org.name || ''),
+          keyAvailable: false,
+          type: Number.isFinite(Number(org.type)) ? Number(org.type) : 2,
+        })));
       }
       return;
     }
@@ -1358,7 +1365,12 @@ export default function App() {
       if (!privateKeyPkcs8) {
         if (active) {
           setOrgKeys(null);
-          setDecryptedOrganizations(organizations.map((org) => ({ id: org.id, name: '', keyAvailable: false, type: Number.isFinite(Number(org.type)) ? Number(org.type) : 2 })));
+          setDecryptedOrganizations(organizations.map((org) => ({
+            id: org.id,
+            name: looksLikeEncString(org.name) ? '' : String(org.name || ''),
+            keyAvailable: false,
+            type: Number.isFinite(Number(org.type)) ? Number(org.type) : 2,
+          })));
         }
         return;
       }
@@ -1367,12 +1379,19 @@ export default function App() {
       for (const org of organizations) {
         const parts = await unwrapOrganizationKey(org.id, org.key, privateKeyPkcs8);
         let name = '';
-        if (parts) {
-          try {
-            name = await decryptStr(org.name, parts.encBytes, parts.macBytes);
-          } catch {
-            name = '';
+        if (looksLikeEncString(org.name)) {
+          // Legacy org-key-encrypted name (pre-plaintext-migration webapp);
+          // current official clients would show the raw cipherstring.
+          if (parts) {
+            try {
+              name = await decryptStr(org.name, parts.encBytes, parts.macBytes);
+            } catch {
+              name = '';
+            }
           }
+        } else {
+          // Plaintext org name: current Bitwarden stores names in the clear.
+          name = String(org.name || '');
         }
         if (parts) {
           nextKeys[org.id] = { encB64: parts.encB64, macB64: parts.macB64 };
@@ -1382,6 +1401,22 @@ export default function App() {
       if (active) {
         setOrgKeys(Object.keys(nextKeys).length ? nextKeys : null);
         setDecryptedOrganizations(nextOrganizations);
+        // Rewrite legacy encrypted org names as plaintext so official clients
+        // render them (they never decrypt names). Owner-gated and
+        // session-guarded inside; a rewrite bumps member revisions so
+        // connected official clients resync automatically.
+        if (Object.keys(nextKeys).length) {
+          void migrateLegacyEncryptedOrgNames(profileOrganizations, { authedFetch, orgKeys: nextKeys })
+            .then(async (migrated) => {
+              if (migrated) {
+                await invalidateVaultCoreSyncSnapshot(vaultCacheKey);
+                void refetchVaultCoreData();
+              }
+            })
+            .catch(() => {
+              // Best-effort migration must never interrupt the app.
+            });
+        }
       }
     })();
     return () => {

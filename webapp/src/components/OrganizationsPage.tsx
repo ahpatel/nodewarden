@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { KeyRound, Plus, RefreshCw, SlidersHorizontal, Trash2 } from 'lucide-preact';
 import ConfirmDialog from '@/components/ConfirmDialog';
-import { base64ToBytes, decryptStr } from '@/lib/crypto';
+import { base64ToBytes, decryptStr, looksLikeEncString } from '@/lib/crypto';
 import {
   type OrganizationCollection,
   type OrganizationMember,
@@ -33,6 +33,7 @@ import {
 } from '@/lib/org-crypto';
 import {
   isLegacyOrgKeyWrap,
+  migrateLegacyEncryptedOrgNames,
   reencryptOrganizationMemberKeys,
   repairLegacyOrganizationKeysForSelf,
 } from '@/lib/org-key-repair';
@@ -85,6 +86,10 @@ function orgKeyMaterialFromMap(orgKeys: OrgKeyMap | null, organizationId: string
 }
 
 async function decryptOrgName(value: string, orgKeys: OrgKeyMap | null, organizationId: string): Promise<string> {
+  // Current official Bitwarden clients keep org names in plaintext; anything
+  // that does not look like an EncString is one and renders as-is. Legacy
+  // org-key-encrypted names (pre-migration webapp) still need the org key.
+  if (!looksLikeEncString(value)) return value;
   const material = orgKeyMaterialFromMap(orgKeys, organizationId);
   if (!material) return '';
   try {
@@ -176,6 +181,21 @@ export default function OrganizationsPage(props: OrganizationsPageProps) {
     setLegacyOwnKeyOrgIds(legacy);
   }, [props.profile, props.session?.symEncKey, props.session?.symMacKey]);
 
+  // Legacy org-key-encrypted org names are garbage in official clients (they
+  // render names verbatim, no decryption). Owners rewrite them as plaintext
+  // via the rename endpoint; session-guarded and owner-gated inside.
+  const migrateOrgNames = useCallback(async (list: OrganizationSummary[]) => {
+    if (!orgKeys) return;
+    try {
+      const migrated = await migrateLegacyEncryptedOrgNames(list, { authedFetch, orgKeys });
+      if (migrated) {
+        await onRefreshVault();
+      }
+    } catch {
+      // Best-effort migration must never break the org console.
+    }
+  }, [authedFetch, orgKeys, onRefreshVault]);
+
   const refreshOrganizations = useCallback(async () => {
     try {
       setError('');
@@ -190,17 +210,20 @@ export default function OrganizationsPage(props: OrganizationsPageProps) {
             (await decryptOrgName(org.name, orgKeys, org.id)) ||
             displayNamesRef.current[org.id] ||
             '';
+        } else if (Number(org.status) === STATUS_CONFIRMED) {
+          names[org.id] = looksLikeEncString(org.name) ? '' : String(org.name || '');
         }
       }
       setDisplayNames(names);
       void detectLegacyOwnKeys(list);
       void repairLegacyOrgKeys(list);
+      void migrateOrgNames(list);
     } catch (err) {
       setError(err instanceof Error ? err.message : t('txt_organizations_load_failed'));
     } finally {
       setLoading(false);
     }
-  }, [authedFetch, orgKeys, repairLegacyOrgKeys, detectLegacyOwnKeys]);
+  }, [authedFetch, orgKeys, repairLegacyOrgKeys, detectLegacyOwnKeys, migrateOrgNames]);
 
   useEffect(() => {
     void refreshOrganizations();
@@ -258,10 +281,12 @@ export default function OrganizationsPage(props: OrganizationsPageProps) {
         throw new Error(t('txt_organizations_missing_public_key'));
       }
       const wrappedKey = await wrapOrganizationKeyForUser(rawKey, props.profile.publicKey);
-      const encName = await encryptWithOrgKey(name, parts);
+      // Current official Bitwarden clients send the org name in plaintext
+      // (names are non-secret metadata rendered verbatim); only the default
+      // collection name is org-key encrypted.
       const encCollectionName = await encryptWithOrgKey(name, parts);
       const created = await createOrganization(authedFetch, {
-        name: encName,
+        name,
         key: wrappedKey,
         keys: { publicKey: keyPair.publicKeyB64, encryptedPrivateKey: keyPair.encryptedPrivateKey },
         collectionName: encCollectionName,
@@ -499,19 +524,13 @@ export default function OrganizationsPage(props: OrganizationsPageProps) {
 
   async function handleRenameOrganization() {
     if (!selectedOrgId || !orgKeys?.[selectedOrgId] || !selectedOrganization) return;
-    const material = orgKeys[selectedOrgId];
     const current = displayNames[selectedOrgId] || '';
     const next = window.prompt(t('txt_organizations_rename_prompt'), current);
     if (!next || next.trim() === current) return;
     setBusy('rename');
     try {
-      const encName = await encryptWithOrgKey(next.trim(), {
-        encB64: material.encB64,
-        macB64: material.macB64,
-        encBytes: base64ToBytes(material.encB64),
-        macBytes: base64ToBytes(material.macB64),
-      });
-      await updateOrganization(authedFetch, selectedOrgId, encName);
+      // Plaintext org name, matching current official Bitwarden clients.
+      await updateOrganization(authedFetch, selectedOrgId, next.trim());
       notify('success', t('txt_organizations_renamed'));
       await refreshOrganizations();
       await onRefreshVault();

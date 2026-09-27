@@ -26,10 +26,13 @@ import {
   confirmOrganizationMember,
   getOrganizationMember,
   listOrganizationMembers,
+  updateOrganization,
   type OrganizationMember,
   type OrganizationSummary,
 } from './api/organizations';
 import { unwrapOrganizationKeyDetailed, wrapOrganizationKeyForUser } from './org-crypto';
+import { base64ToBytes, decryptStr, looksLikeEncString } from './crypto';
+import type { OrgKeyMap } from './vault-decrypt';
 import type { AuthedFetch } from './api/shared';
 
 // Bitwarden OrganizationUserStatusType.Confirmed / OrganizationUserType.Owner.
@@ -50,6 +53,8 @@ export interface OrgKeyRepairContext {
 // double-confirming the same rows.
 const repairedOrgIds = new Set<string>();
 const sweepingOrgIds = new Set<string>();
+// Orgs whose legacy encrypted name has been rewritten as plaintext.
+const migratedOrgNameIds = new Set<string>();
 
 /** True when this member's wrapped org key uses the legacy SHA-256 OAEP hash. */
 export async function isLegacyOrgKeyWrap(
@@ -147,4 +152,42 @@ export async function repairLegacyOrganizationKeysForSelf(
     }
   }
   return anyRepaired;
+}
+
+// Migrate legacy org-key-encrypted org names to plaintext. Current official
+// Bitwarden clients render profile.organizations[].name verbatim (no
+// decryption), so an EncString name shows up as raw "2.xxx" garbage in the
+// extension and desktop app. The server never decrypts, so only a member
+// holding the org key can rewrite it — and only an owner may rename. For
+// every owned confirmed org whose name still looks like an EncString,
+// decrypt it with the org key and PUT the plaintext name back (which bumps
+// every member's revision date, so connected clients resync immediately).
+export async function migrateLegacyEncryptedOrgNames(
+  organizations: Array<{ id: string; name: string; key?: string | null; status: number; type: number }>,
+  context: { authedFetch: AuthedFetch; orgKeys: OrgKeyMap | null }
+): Promise<boolean> {
+  if (!context.orgKeys) return false;
+  let anyMigrated = false;
+  for (const org of organizations) {
+    if (Number(org.status) !== WIRE_STATUS_CONFIRMED) continue;
+    if (Number(org.type) !== WIRE_TYPE_OWNER) continue; // rename is owner-gated
+    if (!looksLikeEncString(org.name)) continue;
+    if (migratedOrgNameIds.has(org.id)) continue;
+    const material = context.orgKeys[org.id];
+    if (!material) continue;
+    try {
+      const plain = await decryptStr(
+        org.name,
+        base64ToBytes(material.encB64),
+        base64ToBytes(material.macB64)
+      );
+      if (!plain) continue;
+      await updateOrganization(context.authedFetch, org.id, plain);
+      migratedOrgNameIds.add(org.id);
+      anyMigrated = true;
+    } catch {
+      // Best-effort: leave unmarked so a later pass retries.
+    }
+  }
+  return anyMigrated;
 }
