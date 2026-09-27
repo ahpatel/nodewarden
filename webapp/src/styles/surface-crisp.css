@@ -1,0 +1,98 @@
+/* Surface theme: "Crisp" — flat precision surfaces, hairline edges, and a
+   pointer-tracked spotlight on cards and vault rows. Additive by design: it
+   applies only when the user selects it (Settings → Appearance → Surface
+   style); the default look is untouched. Scoped with
+   :root[data-surface='crisp'] so it outranks the refinement layer's
+   plain-class rules on cascade ties. The spotlight is hand-built — the
+   visuals are CSS only; lib/spotlight.ts feeds --spot-x/--spot-y from one
+   delegated passive pointer listener (no libraries, no dependencies). */
+
+:root[data-surface='crisp'] {
+  --radius-sm: 2px;
+  --radius-md: 3px;
+  --radius-lg: 3px;
+  --radius-xl: 4px;
+  --radius-2xl: 4px;
+  --panel: #fcfcfd;
+  --panel-soft: #f8fafc;
+  --panel-muted: #eef1f5;
+  --panel-subtle: #fdfdfe;
+  --bg-accent: #f5f7fa;
+  --line: rgba(100, 116, 139, 0.32);
+  --line-soft: rgba(100, 116, 139, 0.18);
+  --shadow-sm: none;
+  --shadow-md: 0 1px 2px rgba(15, 23, 42, 0.05);
+  --shadow-lg: 0 1px 3px rgba(15, 23, 42, 0.07);
+  --spot-hue: 218;
+}
+
+:root[data-surface='crisp'][data-theme='dark'] {
+  --panel: #161c26;
+  --panel-soft: #121822;
+  --panel-muted: #0e131b;
+  --panel-subtle: #1a2130;
+  --bg-accent: #0a0e13;
+  --line: rgba(148, 163, 184, 0.26);
+  --line-soft: rgba(148, 163, 184, 0.15);
+  --shadow-sm: none;
+  --shadow-md: 0 1px 2px rgba(0, 0, 0, 0.45);
+  --shadow-lg: 0 1px 3px rgba(0, 0, 0, 0.55);
+}
+
+/* The refinement layer hardcodes a handful of surface literals that the
+   token system can't reach (audit finding 6); scope corrections here so the
+   finish reads consistently. Each selector carries the data-surface
+   attribute, so nothing changes when the theme is off. */
+:root[data-surface='crisp'] .list-item { background: var(--panel); border-color: var(--line-soft); }
+:root[data-surface='crisp'] .list-item:hover { background: var(--panel-soft); }
+:root[data-surface='crisp'] .list-item.active,
+:root[data-surface='crisp'] .list-item.active:hover {
+  background: hsl(218 60% 97%);
+  border-color: rgba(37, 99, 235, 0.38);
+}
+:root[data-surface='crisp'][data-theme='dark'] .list-item.active,
+:root[data-surface='crisp'][data-theme='dark'] .list-item.active:hover {
+  background: hsl(218 45% 22%);
+  border-color: rgba(96, 165, 250, 0.45);
+}
+:root[data-surface='crisp'] .list-badge { background: #e9edf4; color: #3b4a63; }
+:root[data-surface='crisp'][data-theme='dark'] .list-badge { background: rgba(148, 163, 184, 0.14); color: #cbd5e1; }
+:root[data-surface='crisp'] .search-input { border-color: var(--line); }
+:root[data-surface='crisp'] .search-input:focus {
+  border-color: rgba(37, 99, 235, 0.55);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.14);
+}
+:root[data-surface='crisp'] .btn-secondary { border-color: rgba(37, 99, 235, 0.26); }
+:root[data-surface='crisp'] .btn-primary { background: var(--primary); }
+:root[data-surface='crisp'] .btn-primary:hover:not(:disabled) { background: var(--primary-hover); }
+:root[data-surface='crisp'][data-theme='dark'] .btn-primary { color: #0b1220; }
+:root[data-surface='crisp'] .list-sub { color: var(--muted); }
+:root[data-surface='crisp'] .detail-sub { color: var(--muted); }
+:root[data-surface='crisp'] .list-title { color: var(--text); }
+:root[data-surface='crisp'] .sort-menu-item { color: var(--text); }
+
+/* Spotlight — pointer-tracked radial highlight. The overlay is inset: 0, so
+   it never overflows its host; border-radius: inherit keeps the crisp edge. */
+:root[data-surface='crisp'] .card,
+:root[data-surface='crisp'] .list-item {
+  position: relative;
+}
+:root[data-surface='crisp'] .card::after,
+:root[data-surface='crisp'] .list-item::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: radial-gradient(340px circle at var(--spot-x, 50%) var(--spot-y, 50%),
+    hsl(var(--spot-hue) 85% 60% / 0.12), transparent 65%);
+  opacity: 0;
+  transition: opacity var(--dur-fast) var(--ease-out-soft);
+  pointer-events: none;
+}
+:root[data-surface='crisp'] .card:hover::after,
+:root[data-surface='crisp'] .list-item:hover::after { opacity: 1; }
+:root[data-surface='crisp'][data-theme='dark'] .card::after,
+:root[data-surface='crisp'][data-theme='dark'] .list-item::after {
+  background: radial-gradient(340px circle at var(--spot-x, 50%) var(--spot-y, 50%),
+    hsl(var(--spot-hue) 80% 65% / 0.10), transparent 65%);
+}

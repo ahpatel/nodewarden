@@ -12,9 +12,11 @@ interface SettingsPageProps {
   yubikeyEnabled: boolean;
   passkey2faEnabled: boolean;
   themePreference: ThemePreference;
+  surfacePreference: SurfacePreference;
   lockTimeoutMinutes: 0 | 1 | 5 | 15 | 30;
   sessionTimeoutAction: 'lock' | 'logout';
   onThemePreferenceChange: (preference: ThemePreference) => void;
+  onSurfacePreferenceChange: (preference: SurfacePreference) => void;
   onVerifyMasterPassword: (email: string, password: string) => Promise<void>;
   onChangePassword: (currentPassword: string, nextPassword: string, nextPassword2: string) => Promise<void>;
   onSavePasswordHint: (masterPasswordHint: string) => Promise<void>;
@@ -43,6 +45,7 @@ interface SettingsPageProps {
 }
 
 type ThemePreference = 'system' | 'light' | 'dark';
+type SurfacePreference = 'default' | 'crisp';
 type SettingsSection = 'appearance' | 'session' | 'masterPassword' | 'twoStep' | 'keys';
 
 type MasterPasswordPromptAction =
@@ -569,6 +572,18 @@ export default function SettingsPage(props: SettingsPageProps) {
                     <option value="dark">{t('txt_dark_theme')}</option>
                   </select>
                   <div className="field-help">{t('txt_theme_saved_locally')}</div>
+                </label>
+                <label className="field">
+                  <span>{t('txt_surface_style')}</span>
+                  <select
+                    className="input"
+                    value={props.surfacePreference}
+                    onInput={(e) => props.onSurfacePreferenceChange((e.currentTarget as HTMLSelectElement).value as SurfacePreference)}
+                  >
+                    <option value="default">{t('txt_surface_default')}</option>
+                    <option value="crisp">{t('txt_surface_crisp')}</option>
+                  </select>
+                  <div className="field-help">{t('txt_surface_saved_locally')}</div>
                 </label>
               </section>
 

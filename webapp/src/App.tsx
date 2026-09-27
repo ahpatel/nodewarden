@@ -5,6 +5,7 @@ import AppAuthenticatedShell from '@/components/AppAuthenticatedShell';
 import AppGlobalOverlays, { type AppConfirmState } from '@/components/AppGlobalOverlays';
 import AuthRequestApprovalDialog from '@/components/AuthRequestApprovalDialog';
 import AuthViews from '@/components/AuthViews';
+import { initSpotlight } from '@/lib/spotlight';
 import NotFoundPage from '@/components/NotFoundPage';
 import PublicSendPage from '@/components/PublicSendPage';
 import RecoverTwoFactorPage from '@/components/RecoverTwoFactorPage';
@@ -163,9 +164,11 @@ const TWO_FACTOR_PROVIDER_YUBIKEY = 3;
 const TWO_FACTOR_PROVIDER_WEBAUTHN = 7;
 
 type ThemePreference = 'system' | 'light' | 'dark';
+type SurfacePreference = 'default' | 'crisp';
 type LockTimeoutMinutes = 0 | 1 | 5 | 15 | 30;
 type SessionTimeoutAction = 'lock' | 'logout';
 
+const SURFACE_STORAGE_KEY = 'nodewarden.surface.preference.v1';
 const LOCK_TIMEOUT_STORAGE_KEY = 'nodewarden.lock.timeout-minutes.v1';
 const SESSION_TIMEOUT_ACTION_STORAGE_KEY = 'nodewarden.session.timeout-action.v1';
 const LOCK_TIMEOUT_VALUES = new Set<LockTimeoutMinutes>([0, 1, 5, 15, 30]);
@@ -174,6 +177,13 @@ function readThemePreference(): ThemePreference {
   const stored = String(window.localStorage.getItem(THEME_STORAGE_KEY) || '').trim();
   if (stored === 'light' || stored === 'dark' || stored === 'system') return stored;
   return 'system';
+}
+
+function readSurfacePreference(): SurfacePreference {
+  if (typeof window === 'undefined') return 'default';
+  const stored = String(window.localStorage.getItem(SURFACE_STORAGE_KEY) || '').trim();
+  if (stored === 'crisp') return stored;
+  return 'default';
 }
 
 function resolveSystemTheme(): 'light' | 'dark' {
@@ -252,6 +262,7 @@ export default function App() {
   const [authRequestSubmittingId, setAuthRequestSubmittingId] = useState<string | null>(null);
   const [recoverValues, setRecoverValues] = useState({ email: '', password: '', recoveryCode: '' });
   const [themePreference, setThemePreference] = useState<ThemePreference>(() => readThemePreference());
+  const [surfacePreference, setSurfacePreference] = useState<SurfacePreference>(() => readSurfacePreference());
   const [systemTheme, setSystemTheme] = useState<'light' | 'dark'>(() => resolveSystemTheme());
   const [lockTimeoutMinutes, setLockTimeoutMinutesState] = useState<LockTimeoutMinutes>(() => readLockTimeoutMinutes());
   const [sessionTimeoutAction, setSessionTimeoutActionState] = useState<SessionTimeoutAction>(() => readSessionTimeoutAction());
@@ -383,9 +394,24 @@ export default function App() {
   }, [resolvedTheme]);
 
   useEffect(() => {
+    if (typeof document === 'undefined') return;
+    if (surfacePreference === 'crisp') document.documentElement.dataset.surface = 'crisp';
+    else delete document.documentElement.dataset.surface;
+  }, [surfacePreference]);
+
+  useEffect(() => {
     if (typeof window === 'undefined') return;
     window.localStorage.setItem(THEME_STORAGE_KEY, themePreference);
   }, [themePreference]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem(SURFACE_STORAGE_KEY, surfacePreference);
+  }, [surfacePreference]);
+
+  useEffect(() => {
+    initSpotlight();
+  }, []);
 
   useEffect(() => {
     if (IS_DEMO_MODE) return;
@@ -2138,6 +2164,7 @@ export default function App() {
     mobileLayout,
     mobileSidebarToggleKey,
     themePreference,
+    surfacePreference,
     importRoute: IMPORT_ROUTE,
     settingsHomeRoute: SETTINGS_HOME_ROUTE,
     settingsAccountRoute: SETTINGS_ACCOUNT_ROUTE,
@@ -2172,6 +2199,7 @@ export default function App() {
     onLogout: handleLogout,
     onNotify: pushToast,
     onThemePreferenceChange: setThemePreference,
+    onSurfacePreferenceChange: setSurfacePreference,
     onImport: vaultSendActions.importVault,
     onImportEncryptedRaw: vaultSendActions.importEncryptedRaw,
     onExport: vaultSendActions.exportVault,

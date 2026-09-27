@@ -83,6 +83,8 @@ export interface AppMainRoutesProps {
   onLogout: () => void;
   onNotify: (type: 'success' | 'error' | 'warning', text: string) => void;
   onThemePreferenceChange: (preference: 'system' | 'light' | 'dark') => void;
+  surfacePreference: 'default' | 'crisp';
+  onSurfacePreferenceChange: (preference: 'default' | 'crisp') => void;
   onImport: (
     payload: CiphersImportPayload,
     options: { folderMode: 'original' | 'none' | 'target'; targetFolderId: string | null },
@@ -336,9 +338,11 @@ export default function AppMainRoutes(props: AppMainRoutesProps) {
                 yubikeyEnabled={props.yubikeyEnabled}
                 passkey2faEnabled={props.passkey2faEnabled}
                 themePreference={props.themePreference}
+                surfacePreference={props.surfacePreference}
                 lockTimeoutMinutes={props.lockTimeoutMinutes}
                 sessionTimeoutAction={props.sessionTimeoutAction}
                 onThemePreferenceChange={props.onThemePreferenceChange}
+                onSurfacePreferenceChange={props.onSurfacePreferenceChange}
                 onVerifyMasterPassword={props.onVerifyMasterPassword}
                 onChangePassword={props.onChangePassword}
                 onSavePasswordHint={props.onSavePasswordHint}

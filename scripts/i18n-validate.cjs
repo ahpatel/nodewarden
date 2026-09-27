@@ -17,6 +17,8 @@ const intentionallyEnglishKeys = new Set([
   // "Admin" and "Manager" are legitimate German words.
   'txt_organizations_role_admin',
   'txt_organizations_role_manager',
+  // "Crisp" is the proper name of the surface theme (kept untranslated, like a brand).
+  'txt_surface_crisp',
   'txt_backup_destination_detail_note',
   'txt_backup_protocol_webdav',
   'txt_backup_protocol_s3',
