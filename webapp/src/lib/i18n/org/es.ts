@@ -108,7 +108,13 @@ const orgEs: Record<string, string> = {
   "txt_organizations_role_custom": "Personalizado",
   "txt_export_org_select": "Organización a exportar",
   "txt_export_org_required": "Selecciona una organización para exportar",
-  "txt_export_org_unassigned_skipped": "Se omitieron {count} elemento(s) sin una colección accesible (Bitwarden rechaza importaciones de organización con elementos sin asignar)."
+  "txt_export_org_unassigned_skipped": "Se omitieron {count} elemento(s) sin una colección accesible (Bitwarden rechaza importaciones de organización con elementos sin asignar).",
+  "txt_organizations_legacy_key_banner": "Las apps oficiales de Bitwarden (extensión del navegador, escritorio) aún no pueden descifrar esta organización: su clave de pertenencia usa un formato antiguo. Pida a un propietario que vuelva a cifrar las claves de los miembros.",
+  "txt_organizations_legacy_key_repaired": "Las claves de los miembros se volvieron a cifrar para la compatibilidad con las apps oficiales de Bitwarden. Si la extensión o la app de escritorio sigue mostrando cadenas cifradas, cierre sesión y vuelva a iniciarla allí.",
+  "txt_organizations_reencrypt_keys": "Volver a cifrar claves de miembros",
+  "txt_organizations_reencrypt_keys_message": "Esto vuelve a cifrar la clave de la organización para cada miembro confirmado con el formato que esperan las apps oficiales de Bitwarden. Úselo cuando la extensión o la app de escritorio muestre cadenas cifradas en lugar del nombre o los elementos de esta organización. Las apps de los miembros se resincronizan automáticamente después.",
+  "txt_organizations_reencrypt_keys_done": "Se volvieron a cifrar {count} clave(s) de miembro(s). Las apps oficiales de Bitwarden ya pueden descifrar esta organización.",
+  "txt_organizations_reencrypt_keys_failed": "No se pudieron volver a cifrar las claves de los miembros"
 };
 
 export default orgEs;

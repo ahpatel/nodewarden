@@ -108,7 +108,13 @@ const orgFr: Record<string, string> = {
   "txt_organizations_role_custom": "Personnalisé",
   "txt_export_org_select": "Organisation à exporter",
   "txt_export_org_required": "Sélectionnez une organisation à exporter",
-  "txt_export_org_unassigned_skipped": "{count} élément(s) sans collection accessible ont été ignorés (Bitwarden rejette les importations d'organisation contenant des éléments non attribués)."
+  "txt_export_org_unassigned_skipped": "{count} élément(s) sans collection accessible ont été ignorés (Bitwarden rejette les importations d'organisation contenant des éléments non attribués).",
+  "txt_organizations_legacy_key_banner": "Les applications Bitwarden officielles (extension de navigateur, bureau) ne peuvent pas encore déchiffrer cette organisation — votre clé d'adhésion utilise un format obsolète. Demandez à un propriétaire de rechiffrer les clés des membres.",
+  "txt_organizations_legacy_key_repaired": "Les clés des membres ont été rechiffrées pour la compatibilité avec les applications Bitwarden officielles. Si l'extension ou l'application de bureau affiche encore des chaînes chiffrées, déconnectez-vous puis reconnectez-vous.",
+  "txt_organizations_reencrypt_keys": "Rechiffrer les clés des membres",
+  "txt_organizations_reencrypt_keys_message": "Cette action rechiffre la clé de l'organisation pour chaque membre confirmé avec le format attendu par les applications Bitwarden officielles. Utilisez-la lorsque l'extension ou l'application de bureau affiche des chaînes chiffrées brutes au lieu du nom ou des éléments de cette organisation. Les applications des membres se resynchronisent automatiquement ensuite.",
+  "txt_organizations_reencrypt_keys_done": "{count} clé(s) de membre(s) rechiffrée(s). Les applications Bitwarden officielles peuvent désormais déchiffrer cette organisation.",
+  "txt_organizations_reencrypt_keys_failed": "Échec du rechiffrement des clés des membres"
 };
 
 export default orgFr;

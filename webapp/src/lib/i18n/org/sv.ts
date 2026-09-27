@@ -108,7 +108,13 @@ const orgSv: Record<string, string> = {
   "txt_organizations_role_custom": "Anpassad",
   "txt_export_org_select": "Organisation att exportera",
   "txt_export_org_required": "Välj en organisation att exportera",
-  "txt_export_org_unassigned_skipped": "{count} post(er) utan en tillgänglig samling hoppades över (Bitwarden avvisar organisationsimporter med otilldelade poster)."
+  "txt_export_org_unassigned_skipped": "{count} post(er) utan en tillgänglig samling hoppades över (Bitwarden avvisar organisationsimporter med otilldelade poster).",
+  "txt_organizations_legacy_key_banner": "Officiella Bitwarden-appar (webbläsartillägg, skrivbord) kan ännu inte dekryptera denna organisation — din medlemsnyckel använder ett föråldrat format. Be en ägare att kryptera om medlemsnycklarna.",
+  "txt_organizations_legacy_key_repaired": "Medlemsnycklarna har krypterats om för kompatibilitet med officiella Bitwarden-appar. Om tillägget eller skrivbordsappen fortfarande visar krypterade strängar, logga ut och in igen där.",
+  "txt_organizations_reencrypt_keys": "Kryptera om medlemsnycklar",
+  "txt_organizations_reencrypt_keys_message": "Detta krypterar om organisationsnyckeln för varje bekräftad medlem med det format som officiella Bitwarden-appar förväntar sig. Använd det när tillägget eller skrivbordsappen visar råa krypterade strängar i stället för organisationens namn eller objekt. Medlemmarnas appar synkroniseras om automatiskt efteråt.",
+  "txt_organizations_reencrypt_keys_done": "{count} medlemsnyckel/ar krypterades om. Officiella Bitwarden-appar kan nu dekryptera denna organisation.",
+  "txt_organizations_reencrypt_keys_failed": "Misslyckades med att kryptera om medlemsnycklar"
 };
 
 export default orgSv;

@@ -108,7 +108,13 @@ const orgZhTW: Record<string, string> = {
   "txt_organizations_role_custom": "自訂",
   "txt_export_org_select": "要匯出的組織",
   "txt_export_org_required": "請選擇要匯出的組織",
-  "txt_export_org_unassigned_skipped": "已略過 {count} 個沒有可存取集合的項目（Bitwarden 會拒絕包含未指派項目的組織匯入）。"
+  "txt_export_org_unassigned_skipped": "已略過 {count} 個沒有可存取集合的項目（Bitwarden 會拒絕包含未指派項目的組織匯入）。",
+  "txt_organizations_legacy_key_banner": "官方 Bitwarden 應用程式（瀏覽器擴充功能、桌面版）目前無法解密此組織——您的成員金鑰使用了舊格式。請讓擁有者重新加密成員金鑰。",
+  "txt_organizations_legacy_key_repaired": "組織成員金鑰已重新加密，以相容官方 Bitwarden 應用程式。如果擴充功能或桌面應用程式仍顯示原始加密字串，請在該應用程式中登出後重新登入。",
+  "txt_organizations_reencrypt_keys": "重新加密成員金鑰",
+  "txt_organizations_reencrypt_keys_message": "這將以官方 Bitwarden 應用程式所要求的格式，為每個已確認的成員重新加密組織金鑰。當瀏覽器擴充功能或桌面應用程式顯示原始加密字串而不是此組織的名稱或項目時，請使用此功能。成員的應用程式之後會自動重新同步。",
+  "txt_organizations_reencrypt_keys_done": "已重新加密 {count} 個成員金鑰。官方 Bitwarden 應用程式現在可以解密此組織。",
+  "txt_organizations_reencrypt_keys_failed": "重新加密成員金鑰失敗"
 };
 
 export default orgZhTW;

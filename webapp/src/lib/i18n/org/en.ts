@@ -108,7 +108,13 @@ const orgEn: Record<string, string> = {
   "txt_organizations_role_custom": "Custom",
   "txt_export_org_select": "Organization to export",
   "txt_export_org_required": "Select an organization to export",
-  "txt_export_org_unassigned_skipped": "{count} item(s) without an accessible collection were skipped (Bitwarden rejects organization imports with unassigned items)."
+  "txt_export_org_unassigned_skipped": "{count} item(s) without an accessible collection were skipped (Bitwarden rejects organization imports with unassigned items).",
+  "txt_organizations_legacy_key_banner": "Official Bitwarden apps (browser extension, desktop) cannot decrypt this organization yet — your membership key uses a legacy format. Ask an owner to re-encrypt member keys.",
+  "txt_organizations_legacy_key_repaired": "Organization member keys were re-encrypted for official Bitwarden app compatibility. If the extension or desktop app still shows raw encrypted strings, log out and back in there.",
+  "txt_organizations_reencrypt_keys": "Re-encrypt member keys",
+  "txt_organizations_reencrypt_keys_message": "This re-wraps the organization key for every confirmed member using the format official Bitwarden apps expect. Use it when the browser extension or desktop app shows raw encrypted strings instead of this organization's name or items. Members' apps resync automatically afterwards.",
+  "txt_organizations_reencrypt_keys_done": "{count} member key(s) re-encrypted. Official Bitwarden apps can now decrypt this organization.",
+  "txt_organizations_reencrypt_keys_failed": "Failed to re-encrypt member keys"
 };
 
 export default orgEn;

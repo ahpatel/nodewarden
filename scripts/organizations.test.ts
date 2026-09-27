@@ -579,3 +579,56 @@ test('all organization management handlers pass the owner gate', () => {
     );
   }
 });
+
+// ─── Legacy org-key wrap repair ──────────────────────────────────────────────
+// Members whose organizations_users.key row is a legacy RSA-OAEP SHA-256
+// wrap can sync but every org field (org name included) fails to decrypt in
+// official Bitwarden clients, showing as raw "2." cipherstrings. The wrap
+// is opaque to the server, so only the member detects legacy-ness and only
+// owners can repair (confirm endpoint). The repair must therefore sweep
+// every confirmed member, not just the owner's own row.
+
+test('legacy org-key repair re-wraps every confirmed member, not just the owner', () => {
+  const repair = read('webapp/src/lib/org-key-repair.ts');
+  assert.ok(
+    repair.includes('reencryptOrganizationMemberKeys'),
+    'shared repair module exposes a member sweep'
+  );
+  assert.ok(repair.includes('listOrganizationMembers'), 'sweep lists org members');
+  assert.ok(repair.includes('getOrganizationMember'), 'sweep fetches each member public key');
+  assert.ok(
+    repair.includes('wrapOrganizationKeyForUser(orgRawKey, details.publicKey)'),
+    'sweep re-wraps with each member public key'
+  );
+  assert.ok(
+    repair.includes('exceptOrganizationUserId'),
+    'auto path skips only the already-repaired owner row'
+  );
+  const repairFn = repair.slice(repair.indexOf('export async function repairLegacyOrganizationKeysForSelf'));
+  assert.ok(
+    repairFn.includes('WIRE_TYPE_OWNER'),
+    'auto repair is owner-scoped (confirm is owner-gated)'
+  );
+});
+
+test('org repair runs app-wide and offers an explicit owner action', () => {
+  const app = read('webapp/src/App.tsx');
+  assert.ok(
+    app.includes('repairLegacyOrganizationKeysForSelf'),
+    'app shell repairs legacy wraps without visiting the org page'
+  );
+  const page = read('webapp/src/components/OrganizationsPage.tsx');
+  assert.ok(
+    page.includes('reencryptOrganizationMemberKeys'),
+    'org page offers the manual member-key re-encrypt action'
+  );
+  assert.ok(
+    page.includes('txt_organizations_reencrypt_keys'),
+    'manual action is user-visible'
+  );
+  assert.ok(
+    page.includes('isLegacyOrgKeyWrap'),
+    'page detects the member own legacy wrap for the banner'
+  );
+});
+

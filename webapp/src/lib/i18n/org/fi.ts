@@ -108,7 +108,13 @@ const orgFi: Record<string, string> = {
   "txt_organizations_role_custom": "Mukautettu",
   "txt_export_org_select": "Vietävä organisaatio",
   "txt_export_org_required": "Valitse vietävä organisaatio",
-  "txt_export_org_unassigned_skipped": "{count} kohde(tta) ilman käytettävissä olevaa kokoelmaa ohitettiin (Bitwarden hylkää organisaatioinnit, joissa on kohdistamattomia kohteita)."
+  "txt_export_org_unassigned_skipped": "{count} kohde(tta) ilman käytettävissä olevaa kokoelmaa ohitettiin (Bitwarden hylkää organisaatioinnit, joissa on kohdistamattomia kohteita).",
+  "txt_organizations_legacy_key_banner": "Viralliset Bitwarden-sovellukset (selainlaajennus, työpöytä) eivät voi vielä purkaa tämän organisaation salausta — jäsenavain käyttää vanhaa muotoa. Pyydä omistajaa salaamaan jäsenavaimet uudelleen.",
+  "txt_organizations_legacy_key_repaired": "Organisaation jäsenavaimet salattiin uudelleen virallisten Bitwarden-sovellusten yhteensopivuuden varmistamiseksi. Jos laajennus tai työpöytäsovellus näyttää yhä salattuja merkkijonoja, kirjaudu siinä ulos ja takaisin sisään.",
+  "txt_organizations_reencrypt_keys": "Salaa jäsenavaimet uudelleen",
+  "txt_organizations_reencrypt_keys_message": "Tämä salaa organisaatioavaimen jokaiselle vahvistetulle jäsenellä muodossa, jota viralliset Bitwarden-sovellukset odottavat. Käytä tätä, kun laajennus tai työpöytäsovellus näyttää salattuja merkkijonoja organisaation nimen tai kohteiden sijaan. Jäsenten sovellukset synkronoituvat sen jälkeen automaattisesti.",
+  "txt_organizations_reencrypt_keys_done": "{count} jäsenavain salattiin uudelleen. Viralliset Bitwarden-sovellukset voivat nyt purkaa tämän organisaation salauksen.",
+  "txt_organizations_reencrypt_keys_failed": "Jäsenavainten uudelleensalaus epäonnistui"
 };
 
 export default orgFi;

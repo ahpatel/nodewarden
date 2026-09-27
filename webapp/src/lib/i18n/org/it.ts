@@ -108,7 +108,13 @@ const orgIt: Record<string, string> = {
   "txt_organizations_role_custom": "Personalizzato",
   "txt_export_org_select": "Organizzazione da esportare",
   "txt_export_org_required": "Seleziona un'organizzazione da esportare",
-  "txt_export_org_unassigned_skipped": "{count} elemento/i senza una raccolta accessibile sono stati saltati (Bitwarden rifiuta importazioni di organizzazione con elementi non assegnati)."
+  "txt_export_org_unassigned_skipped": "{count} elemento/i senza una raccolta accessibile sono stati saltati (Bitwarden rifiuta importazioni di organizzazione con elementi non assegnati).",
+  "txt_organizations_legacy_key_banner": "Le app Bitwarden ufficiali (estensione del browser, desktop) non possono ancora decifrare questa organizzazione: la chiave di appartenenza usa un formato obsoleto. Chiedi a un proprietario di ricifrare le chiavi dei membri.",
+  "txt_organizations_legacy_key_repaired": "Le chiavi dei membri sono state ricifrate per la compatibilità con le app Bitwarden ufficiali. Se l'estensione o l'app desktop mostra ancora stringhe cifrate, disconnettiti e accedi di nuovo.",
+  "txt_organizations_reencrypt_keys": "Ricifra le chiavi dei membri",
+  "txt_organizations_reencrypt_keys_message": "Questa azione ricifra la chiave dell'organizzazione per ogni membro confermato usando il formato previsto dalle app Bitwarden ufficiali. Usala quando l'estensione o l'app desktop mostra stringhe cifrate grezze al posto del nome o degli elementi di questa organizzazione. Le app dei membri si risincronizzano automaticamente in seguito.",
+  "txt_organizations_reencrypt_keys_done": "{count} chiave/i di membri ricifrata/e. Le app Bitwarden ufficiali ora possono decifrare questa organizzazione.",
+  "txt_organizations_reencrypt_keys_failed": "Impossibile ricifrare le chiavi dei membri"
 };
 
 export default orgIt;

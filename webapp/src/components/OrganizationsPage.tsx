@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'preact/hooks';
-import { Plus, RefreshCw, SlidersHorizontal, Trash2 } from 'lucide-preact';
+import { KeyRound, Plus, RefreshCw, SlidersHorizontal, Trash2 } from 'lucide-preact';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import { base64ToBytes, decryptStr } from '@/lib/crypto';
 import {
@@ -29,9 +29,13 @@ import {
   generateOrganizationKeyBytes,
   generateOrganizationKeyPair,
   orgKeyBytesToParts,
-  unwrapOrganizationKeyDetailed,
   wrapOrganizationKeyForUser,
 } from '@/lib/org-crypto';
+import {
+  isLegacyOrgKeyWrap,
+  reencryptOrganizationMemberKeys,
+  repairLegacyOrganizationKeysForSelf,
+} from '@/lib/org-key-repair';
 import type { OrgKeyMap } from '@/lib/vault-decrypt';
 import type { AuthedFetch } from '@/lib/api/shared';
 import type { Profile, SessionState } from '@/lib/types';
@@ -112,6 +116,8 @@ export default function OrganizationsPage(props: OrganizationsPageProps) {
   const [permissionsRows, setPermissionsRows] = useState<Array<{ id: string; name: string; enabled: boolean; readOnly: boolean; hidePasswords: boolean }>>([]);
   const [permissionsAccessAll, setPermissionsAccessAll] = useState(false);
   const [permissionsSubmitting, setPermissionsSubmitting] = useState(false);
+  const [legacyOwnKeyOrgIds, setLegacyOwnKeyOrgIds] = useState<Record<string, boolean>>({});
+  const [reencryptKeysDialogOpen, setReencryptKeysDialogOpen] = useState(false);
 
   const selectedOrganization = useMemo(
     () => organizations.find((org) => org.id === selectedOrgId) || null,
@@ -132,35 +138,43 @@ export default function OrganizationsPage(props: OrganizationsPageProps) {
   }, [displayNames]);
 
   // Repair legacy org-key wraps: keys wrapped with the legacy SHA-256 OAEP
-  // hash are unreadable by official Bitwarden clients. Owners re-wrap the
-  // key with the official SHA-1 hash via the (idempotent) confirm endpoint.
-  const repairedLegacyOrgKeysRef = useRef<Set<string>>(new Set());
+  // hash are unreadable by official Bitwarden clients (they show the raw
+  // encrypted org name and items). Owners repair their own row and then
+  // re-wrap every confirmed member; the session-scoped guards inside the
+  // shared module keep repeat passes cheap.
   const repairLegacyOrgKeys = useCallback(async (list: OrganizationSummary[]) => {
     if (!props.session?.symEncKey || !props.session?.symMacKey || !props.profile?.privateKey) return;
     const userEnc = base64ToBytes(props.session.symEncKey);
     const userMac = base64ToBytes(props.session.symMacKey);
     const pkcs8 = await decryptPrivateKeyPkcs8(props.profile.privateKey, userEnc, userMac);
     if (!pkcs8) return;
-    for (const org of list) {
-      if (Number(org.status) !== STATUS_CONFIRMED) continue;
-      if (Number(org.type) !== TYPE_OWNER) continue;
-      if (repairedLegacyOrgKeysRef.current.has(org.id)) continue;
-      try {
-        const unwrapped = await unwrapOrganizationKeyDetailed(org.id, org.key, pkcs8);
-        if (!unwrapped) continue;
-        if (!unwrapped.legacySha256Wrap) continue;
-        const publicKey = props.profile?.publicKey;
-        if (!publicKey) continue;
-        const rewrapped = await wrapOrganizationKeyForUser(unwrapped.raw, publicKey);
-        await confirmOrganizationMember(authedFetch, org.id, org.organizationUserId, rewrapped);
-        repairedLegacyOrgKeysRef.current.add(org.id);
-        await onRefreshVault();
-      } catch {
-        // Best-effort repair; surface nothing on failure.
-      }
+    const repaired = await repairLegacyOrganizationKeysForSelf(list, {
+      authedFetch,
+      pkcs8,
+      publicKey: props.profile?.publicKey ?? null,
+    });
+    if (repaired) {
+      await onRefreshVault();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authedFetch, onRefreshVault, props.profile, props.session?.symEncKey, props.session?.symMacKey]);
+
+  // Non-owner members cannot repair their own legacy wrap (only owners can
+  // confirm members). Detect the legacy state so the org detail shows a
+  // banner asking them to contact an owner.
+  const detectLegacyOwnKeys = useCallback(async (list: OrganizationSummary[]) => {
+    if (!props.session?.symEncKey || !props.session?.symMacKey || !props.profile?.privateKey) return;
+    const userEnc = base64ToBytes(props.session.symEncKey);
+    const userMac = base64ToBytes(props.session.symMacKey);
+    const pkcs8 = await decryptPrivateKeyPkcs8(props.profile.privateKey, userEnc, userMac);
+    if (!pkcs8) return;
+    const legacy: Record<string, boolean> = {};
+    for (const org of list) {
+      if (Number(org.status) !== STATUS_CONFIRMED || !org.key) continue;
+      if (Number(org.type) === TYPE_OWNER) continue; // owners self-repair silently
+      legacy[org.id] = await isLegacyOrgKeyWrap(org.id, org.key, pkcs8);
+    }
+    setLegacyOwnKeyOrgIds(legacy);
+  }, [props.profile, props.session?.symEncKey, props.session?.symMacKey]);
 
   const refreshOrganizations = useCallback(async () => {
     try {
@@ -179,13 +193,14 @@ export default function OrganizationsPage(props: OrganizationsPageProps) {
         }
       }
       setDisplayNames(names);
+      void detectLegacyOwnKeys(list);
       void repairLegacyOrgKeys(list);
     } catch (err) {
       setError(err instanceof Error ? err.message : t('txt_organizations_load_failed'));
     } finally {
       setLoading(false);
     }
-  }, [authedFetch, orgKeys, repairLegacyOrgKeys]);
+  }, [authedFetch, orgKeys, repairLegacyOrgKeys, detectLegacyOwnKeys]);
 
   useEffect(() => {
     void refreshOrganizations();
@@ -299,6 +314,31 @@ export default function OrganizationsPage(props: OrganizationsPageProps) {
       await onRefreshVault();
     } catch (err) {
       notify('error', err instanceof Error ? err.message : t('txt_organizations_confirm_failed'));
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  // Manual member-key re-encrypt: unconditionally re-wraps the org key
+  // (SHA-1) for every confirmed member — including the owner's own row.
+  // Legacy wraps on other members' rows are undetectable from outside, so
+  // this is the repair path for orgs whose owner row is already healthy but
+  // whose pre-2026-09 members still show raw cipherstrings in official apps.
+  async function handleReencryptMemberKeys() {
+    if (!selectedOrgId || !orgKeys?.[selectedOrgId]) return;
+    setBusy('reencrypt-keys');
+    try {
+      const material = orgKeys[selectedOrgId];
+      const raw = new Uint8Array(64);
+      raw.set(base64ToBytes(material.encB64), 0);
+      raw.set(base64ToBytes(material.macB64), 32);
+      const count = await reencryptOrganizationMemberKeys(authedFetch, selectedOrgId, raw);
+      setReencryptKeysDialogOpen(false);
+      notify('success', t('txt_organizations_reencrypt_keys_done', { count: String(count) }));
+      await refreshOrgDetail(selectedOrgId);
+      await onRefreshVault();
+    } catch (err) {
+      notify('error', err instanceof Error ? err.message : t('txt_organizations_reencrypt_keys_failed'));
     } finally {
       setBusy(null);
     }
@@ -634,6 +674,17 @@ export default function OrganizationsPage(props: OrganizationsPageProps) {
                 {t('txt_organizations_leave')}
               </button>
               {selectedIsOwner && (
+                <button
+                  type="button"
+                  className="btn btn-secondary small"
+                  disabled={busy === 'reencrypt-keys' || detailLoading}
+                  onClick={() => setReencryptKeysDialogOpen(true)}
+                >
+                  <KeyRound size={14} className="btn-icon" />
+                  {busy === 'reencrypt-keys' ? t('txt_saving') : t('txt_organizations_reencrypt_keys')}
+                </button>
+              )}
+              {selectedIsOwner && (
                 <button type="button" className="btn btn-danger small" disabled={busy === 'delete-org'} onClick={() => void handleDeleteOrganization()}>
                   <Trash2 size={14} className="btn-icon" />
                   {t('txt_organizations_delete')}
@@ -641,6 +692,10 @@ export default function OrganizationsPage(props: OrganizationsPageProps) {
               )}
             </div>
           </div>
+
+          {legacyOwnKeyOrgIds[selectedOrganization.id] && Number(selectedOrganization.type) !== TYPE_OWNER && (
+            <p className="local-error">{t('txt_organizations_legacy_key_banner')}</p>
+          )}
 
           {!orgKeys?.[selectedOrganization.id] ? (
             <p className="muted">{t('txt_organizations_key_unavailable_note')}</p>
@@ -880,6 +935,18 @@ export default function OrganizationsPage(props: OrganizationsPageProps) {
           )}
         </div>
       </ConfirmDialog>
+
+      <ConfirmDialog
+        open={reencryptKeysDialogOpen}
+        title={t('txt_organizations_reencrypt_keys')}
+        message={t('txt_organizations_reencrypt_keys_message')}
+        confirmText={t('txt_organizations_reencrypt_keys')}
+        cancelText={t('txt_cancel')}
+        confirmDisabled={busy === 'reencrypt-keys'}
+        cancelDisabled={busy === 'reencrypt-keys'}
+        onConfirm={() => void handleReencryptMemberKeys()}
+        onCancel={() => setReencryptKeysDialogOpen(false)}
+      />
     </div>
   );
 }
