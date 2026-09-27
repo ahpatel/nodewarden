@@ -15,6 +15,11 @@ let dbInitialized = false;
 let dbInitError: string | null = null;
 let dbInitPromise: Promise<void> | null = null;
 
+/* Endpoints served without touching D1 anywhere on their path (see
+   router-public.ts). They skip the per-isolate database-init gate and use the
+   isolate-local rate limiter. */
+const DATABASE_FREE_PATHS = new Set(['/config', '/api/config', '/api/version']);
+
 /* Server-Timing attribution: lets clients (and production probes) split every
    backend response into the per-isolate database-init wait and the request
    handler itself. The db_init leg drops to ~0 on warm isolates and shows the
@@ -117,7 +122,13 @@ export default {
     }
 
     const timingStart = performance.now();
-    await ensureDatabaseInitialized(env);
+    /* Database-free endpoints (config/version build metadata) skip the
+       per-isolate init gate entirely: nothing on their path touches D1, so
+       cold isolates must not charge the Bitwarden clients' hot path for it. */
+    const databaseFree = DATABASE_FREE_PATHS.has(requestPath);
+    if (!databaseFree) {
+      await ensureDatabaseInitialized(env);
+    }
     const dbInitMs = performance.now() - timingStart;
     if (dbInitError) {
       // Log full error server-side, return generic message to client.
@@ -139,9 +150,12 @@ export default {
     const handlerStart = performance.now();
     const resp = await handleRequest(normalizedRequest, env);
     const handlerMs = performance.now() - handlerStart;
+    const dbInitEntry = databaseFree
+      ? `db_init;dur=0;desc="database-free path"`
+      : `db_init;dur=${dbInitMs.toFixed(1)}`;
     return applyCors(
       normalizedRequest,
-      withServerTiming(resp, `db_init;dur=${dbInitMs.toFixed(1)}, handler;dur=${handlerMs.toFixed(1)}`),
+      withServerTiming(resp, `${dbInitEntry}, handler;dur=${handlerMs.toFixed(1)}`),
       env
     );
   },

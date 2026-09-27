@@ -39,6 +39,42 @@ import { getConfiguredWebAuthnAllowedOrigins } from './utils/origins';
 import { buildConfigResponse } from './config-response';
 
 type PublicRateLimiter = (category?: string, maxRequests?: number) => Promise<Response | null>;
+
+/* Isolate-local rate limiter for database-free endpoints. Deliberately
+   approximate (per-isolate state, cleared when the map grows past a bound):
+   these endpoints build static responses without touching D1, so protecting
+   the database from them is meaningless — this only guards worker CPU while
+   keeping the path free of database round-trips. */
+const isolateRateBuckets = new Map<string, { count: number; resetAt: number }>();
+
+function enforceIsolateRateLimit(request: Request, maxRequests: number): Response | null {
+  const clientId = request.headers.get('CF-Connecting-IP') || 'unknown';
+  const now = Date.now();
+  const bucket = isolateRateBuckets.get(clientId);
+  if (!bucket || now > bucket.resetAt) {
+    if (isolateRateBuckets.size > 10000) isolateRateBuckets.clear();
+    isolateRateBuckets.set(clientId, { count: 1, resetAt: now + 60000 });
+    return null;
+  }
+  bucket.count += 1;
+  if (bucket.count > maxRequests) {
+    return new Response(
+      JSON.stringify({
+        error: 'Too many requests',
+        error_description: `Rate limit exceeded. Try again in ${Math.ceil((bucket.resetAt - now) / 1000)} seconds.`,
+      }),
+      {
+        status: 429,
+        headers: {
+          'Content-Type': 'application/json',
+          'Retry-After': String(Math.ceil((bucket.resetAt - now) / 1000)),
+          'X-RateLimit-Remaining': '0',
+        },
+      }
+    );
+  }
+  return null;
+}
 type JwtUnsafeReason = 'missing' | 'too_short' | null;
 
 export interface WebBootstrapResponse {
@@ -475,15 +511,20 @@ export async function handlePublicRoute(
     return handleGetPasswordHint(request, env);
   }
 
+  /* Config/version are pure build metadata: no D1 anywhere on the path, so
+     they skip the per-isolate database-init gate (src/index.ts) and use an
+     isolate-local rate limiter instead of the D1-backed one. This removes the
+     cold-isolate DB wait from the hot path the Bitwarden clients hit on every
+     popup open (see docs/perf/bitwarden-popup.md). */
   if ((path === '/config' || path === '/api/config') && method === 'GET') {
-    const blocked = await enforcePublicRateLimit('public-read', LIMITS.rateLimit.publicReadRequestsPerMinute);
+    const blocked = enforceIsolateRateLimit(request, LIMITS.rateLimit.publicReadRequestsPerMinute);
     if (blocked) return blocked;
     const origin = new URL(request.url).origin;
     return jsonResponse(buildConfigResponse(origin), 200, { 'Cache-Control': 'no-store' });
   }
 
   if (path === '/api/version' && method === 'GET') {
-    const blocked = await enforcePublicRateLimit('public-read', LIMITS.rateLimit.publicReadRequestsPerMinute);
+    const blocked = enforceIsolateRateLimit(request, LIMITS.rateLimit.publicReadRequestsPerMinute);
     if (blocked) return blocked;
     return jsonResponse(LIMITS.compatibility.bitwardenServerVersion);
   }
