@@ -30,6 +30,35 @@ export type SidebarFilter =
   | { kind: 'folder'; folderId: string | null }
   | { kind: 'collection'; collectionId: string; organizationId: string };
 
+/**
+ * MIME type carrying vault-item ids between the list (drag source) and the
+ * sidebar folders (drop target). Custom types are refused for external drags
+ * (files, text, cross-app content), so only our own rows can land on a folder.
+ * Never set a text/plain payload: drags must not leak anything to other pages.
+ */
+export const CIPHER_IDS_DRAG_MIME = 'application/x-nodewarden-cipher-ids';
+
+/** Parse and validate a drag payload. Returns unique, non-empty ids only. */
+export function parseCipherIdsDragPayload(dataTransfer: DataTransfer | null | undefined): string[] {
+  if (!dataTransfer) return [];
+  let raw: unknown;
+  try {
+    raw = JSON.parse(dataTransfer.getData(CIPHER_IDS_DRAG_MIME));
+  } catch {
+    return [];
+  }
+  if (!Array.isArray(raw)) return [];
+  const ids: string[] = [];
+  const seen = new Set<string>();
+  for (const entry of raw) {
+    const id = String(entry || '').trim();
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    ids.push(id);
+  }
+  return ids;
+}
+
 interface TypeOption {
   type: number;
   label: string;

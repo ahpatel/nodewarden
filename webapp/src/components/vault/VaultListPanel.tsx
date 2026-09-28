@@ -66,6 +66,9 @@ interface VaultListPanelProps {
   sidebarFilter: SidebarFilter;
   isMobileLayout: boolean;
   mobileFabVisible: boolean;
+  dragEnabled: boolean;
+  onRowDragStart: (event: DragEvent, cipherId: string, isSelected: boolean) => void;
+  onRowDragEnd: () => void;
   createMenuOpen: boolean;
   createMenuRef: RefObject<HTMLDivElement>;
   sortMenuRef: RefObject<HTMLDivElement>;
@@ -102,6 +105,9 @@ interface CipherListItemProps {
   checked: boolean;
   duplicateGroupIndex: number | null;
   subtitle: string;
+  dragEnabled: boolean;
+  onRowDragStart: (event: DragEvent, cipherId: string, isSelected: boolean) => void;
+  onRowDragEnd: () => void;
   onToggleSelected: (cipherId: string, checked: boolean) => void;
   onSelectCipher: (cipherId: string) => void;
 }
@@ -122,6 +128,9 @@ const CipherListItem = memo(function CipherListItem(props: CipherListItemProps) 
     <div
       className={`list-item ${props.selected ? 'active' : ''} ${duplicateGroupHue === null ? '' : 'duplicate-group-item'}`}
       style={duplicateGroupHue === null ? undefined : { '--duplicate-group-hue': `${duplicateGroupHue}deg` }}
+      draggable={props.dragEnabled}
+      onDragStart={(event) => props.onRowDragStart(event, props.cipher.id, props.checked)}
+      onDragEnd={props.onRowDragEnd}
       onClick={(event) => {
         const target = event.target as HTMLElement;
         if (target.closest('.row-check')) return;
@@ -432,6 +441,9 @@ export default function VaultListPanel(props: VaultListPanelProps) {
                 checked={!!props.selectedMap[cipher.id]}
                 duplicateGroupIndex={props.sidebarFilter.kind === 'duplicates' ? props.duplicateGroupIndexById.get(cipher.id) ?? null : null}
                 subtitle={props.listSubtitle(cipher)}
+                dragEnabled={props.dragEnabled}
+                onRowDragStart={props.onRowDragStart}
+                onRowDragEnd={props.onRowDragEnd}
                 onToggleSelected={props.onToggleSelected}
                 onSelectCipher={props.onSelectCipher}
               />

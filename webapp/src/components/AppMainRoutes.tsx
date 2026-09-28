@@ -107,7 +107,7 @@ export interface AppMainRoutesProps {
   onBulkRestoreVaultItems: (ids: string[]) => Promise<void>;
   onBulkArchiveVaultItems: (ids: string[]) => Promise<void>;
   onBulkUnarchiveVaultItems: (ids: string[]) => Promise<void>;
-  onBulkMoveVaultItems: (ids: string[], folderId: string | null) => Promise<void>;
+  onBulkMoveVaultItems: (ids: string[], folderId: string | null, folderName?: string) => Promise<void>;
   onShareVaultItemToOrganization: (cipher: Cipher, organizationId: string, collectionIds: string[]) => Promise<void>;
   onVerifyMasterPassword: (email: string, password: string) => Promise<void>;
   onCreateFolder: (name: string) => Promise<void>;

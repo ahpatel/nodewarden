@@ -252,7 +252,40 @@
 }
 
 .toast-text {
-  @apply pr-2.5 font-bold;
+  @apply min-w-0 pr-2.5 font-bold;
+  /* Long folder/item names must not blow the toast; clamp instead. */
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  word-break: break-word;
+}
+
+.toast-action {
+  @apply flex shrink-0 cursor-pointer items-center justify-center border-0 bg-transparent;
+  height: 36px;
+  padding-inline: 10px;
+  border-radius: 8px;
+  color: inherit;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  -webkit-tap-highlight-color: transparent;
+  transition: background var(--dur-quick) var(--ease-smooth);
+}
+
+.toast-action:hover {
+  background: rgba(0, 0, 0, 0.08);
+}
+
+.toast-action:active {
+  background: rgba(0, 0, 0, 0.14);
+}
+
+.toast-action:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: -2px;
+  border-radius: 8px;
 }
 
 .toast-close {
@@ -284,6 +317,7 @@
 .toast-progress {
   @apply absolute bottom-0 left-0 h-[3px] w-full;
   background: rgba(15, 23, 42, 0.2);
-  /* keep in sync with TOAST_LIFE_MS in useToastManager.ts */
-  animation: toast-life 4.5s linear forwards;
+  /* Lifetime defaults to TOAST_LIFE_MS (4.5s) and can be overridden per toast
+     via the --toast-life custom property set from useToastManager. */
+  animation: toast-life var(--toast-life, 4.5s) linear forwards;
 }

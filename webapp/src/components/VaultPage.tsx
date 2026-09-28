@@ -10,6 +10,7 @@ import {
   VAULT_LIST_OVERSCAN,
   VAULT_LIST_ROW_HEIGHT,
   cardListSubtitle,
+  CIPHER_IDS_DRAG_MIME,
   FOLDER_SORT_STORAGE_KEY,
   VAULT_SORT_STORAGE_KEY,
   bankAccountListSubtitle,
@@ -59,7 +60,7 @@ interface VaultPageProps {
   onBulkRestore: (ids: string[]) => Promise<void>;
   onBulkArchive: (ids: string[]) => Promise<void>;
   onBulkUnarchive: (ids: string[]) => Promise<void>;
-  onBulkMove: (ids: string[], folderId: string | null) => Promise<void>;
+  onBulkMove: (ids: string[], folderId: string | null, folderName?: string) => Promise<void>;
   onShareVaultItemToOrganization?: (cipher: Cipher, organizationId: string, collectionIds: string[]) => Promise<void>;
   onVerifyMasterPassword: (email: string, password: string) => Promise<void>;
   onNotify: (type: 'success' | 'error' | 'warning', text: string) => void;
@@ -644,6 +645,91 @@ const folderName = useCallback((id: string | null | undefined): string => {
   return folder?.decName || folder?.name || id;
 }, [folderById]);
 
+  /* ---- Drag-and-drop filing ----
+     Rows are draggable in the normal vault views only (trash, archive, and
+     duplicates have their own bulk flows), and never while an action runs. */
+  const canDragRows =
+    !busy &&
+    !props.loading &&
+    sidebarFilter.kind !== 'trash' &&
+    sidebarFilter.kind !== 'archive' &&
+    sidebarFilter.kind !== 'duplicates';
+
+  const dragGhostHostRef = useRef<HTMLElement | null>(null);
+
+  const removeDragGhost = useCallback((): void => {
+    const host = dragGhostHostRef.current;
+    dragGhostHostRef.current = null;
+    if (host && host.parentNode) host.parentNode.removeChild(host);
+  }, []);
+
+  /* Multi-item drags show a cloned row with a count badge as the ghost. */
+  const applyMultiDragGhost = useCallback((source: Element, count: number, dataTransfer: DataTransfer): void => {
+    if (typeof document === 'undefined' || !source) return;
+    const host = document.createElement('div');
+    host.className = 'drag-ghost-host';
+    const ghost = source.cloneNode(true) as HTMLElement;
+    ghost.classList.add('drag-ghost');
+    const badge = document.createElement('span');
+    badge.className = 'drag-ghost-badge';
+    badge.textContent = String(count);
+    host.appendChild(ghost);
+    /* The badge is a sibling of the row, not a child: .list-item clips its own
+       contents (overflow hidden + contain paint), which would cut the badge
+       off. Pinned to the host, it rides on top of the row's corner. */
+    host.appendChild(badge);
+    document.body.appendChild(host);
+    dragGhostHostRef.current = host;
+    /* The node must be in the DOM when setDragImage captures it. */
+    dataTransfer.setDragImage(host, 24, 18);
+  }, []);
+
+  /* Finder semantics: dragging a row inside the current selection moves the
+     whole selection; dragging a row outside it moves only that row and leaves
+     the selection intact. The payload carries cipher ids only — never names,
+     secrets, or decrypted data. */
+  const handleRowDragStart = useCallback(
+    (event: DragEvent, cipherId: string, isSelected: boolean): void => {
+      if (!canDragRows || !event.dataTransfer) {
+        event.preventDefault();
+        return;
+      }
+      const selectedIds = Object.keys(selectedMap).filter((id) => !!selectedMap[id]);
+      /* checked ⇒ the row is inside selectedIds, so the whole selection moves. */
+      const dragIds = isSelected && selectedIds.length > 0 ? selectedIds : [cipherId];
+      event.dataTransfer.setData(CIPHER_IDS_DRAG_MIME, JSON.stringify(dragIds));
+      event.dataTransfer.effectAllowed = 'move';
+      if (dragIds.length > 1) {
+        applyMultiDragGhost(event.currentTarget as Element, dragIds.length, event.dataTransfer);
+      }
+    },
+    [canDragRows, selectedMap, applyMultiDragGhost]
+  );
+
+  const handleRowDragEnd = useCallback((): void => {
+    removeDragGhost();
+  }, [removeDragGhost]);
+
+  const handleDropToFolder = useCallback(
+    (ids: string[], folderId: string | null): void => {
+      if (!canDragRows || !ids.length) return;
+      /* Clear the selection only when the drag moved the selection itself. */
+      const wasGroupDrag = ids.every((id) => !!selectedMap[id]);
+      const targetName = folderId === null ? t('txt_no_folder') : folderName(folderId);
+      setBusy(true);
+      props
+        .onBulkMove(ids, folderId, targetName)
+        .then(() => {
+          if (wasGroupDrag) setSelectedMap({});
+        })
+        .catch(() => {
+          /* The action layer already shows the user-facing error toast. */
+        })
+        .finally(() => setBusy(false));
+    },
+    [canDragRows, selectedMap, folderName]
+  );
+
   const listSubtitle = useCallback((cipher: Cipher): string => {
     if (Number(cipher.type || 1) === 1) {
       return cipher.login?.decUsername || cipherMetaById.get(cipher.id)?.firstUri || '';
@@ -967,7 +1053,7 @@ const folderName = useCallback((id: string | null | undefined): string => {
     const folderId = moveFolderId === '__none__' ? null : moveFolderId;
     setBusy(true);
     try {
-      await props.onBulkMove(ids, folderId);
+      await props.onBulkMove(ids, folderId, folderName(folderId));
       setSelectedMap({});
       setMoveOpen(false);
     } catch {
@@ -1276,6 +1362,7 @@ const folderName = useCallback((id: string | null | undefined): string => {
           onOpenDeleteFolder={setPendingDeleteFolder}
           onToggleFolderSortMenu={handleToggleFolderSortMenu}
           onSelectFolderSortMode={handleSelectFolderSortMode}
+          onDropToFolder={handleDropToFolder}
         />
 
         <VaultListPanel
@@ -1298,6 +1385,9 @@ const folderName = useCallback((id: string | null | undefined): string => {
           sidebarFilter={sidebarFilter}
           isMobileLayout={isMobileLayout}
           mobileFabVisible={!isMobileLayout || mobilePanel === 'list'}
+          dragEnabled={canDragRows}
+          onRowDragStart={handleRowDragStart}
+          onRowDragEnd={handleRowDragEnd}
           createMenuOpen={createMenuOpen}
           createMenuRef={createMenuRef}
           sortMenuRef={sortMenuRef}

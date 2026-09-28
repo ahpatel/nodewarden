@@ -21,6 +21,7 @@ export interface AppConfirmState {
 interface AppGlobalOverlaysProps {
   toasts: ManagedToast[];
   onCloseToast: (id: string) => void;
+  onRunToastAction: (id: string) => void;
   confirm: AppConfirmState | null;
   onCancelConfirm: () => void;
   pendingTotpOpen: boolean;
@@ -211,7 +212,7 @@ export default function AppGlobalOverlays(props: AppGlobalOverlaysProps) {
         </label>
       </ConfirmDialog>
 
-      <ToastHost toasts={props.toasts} onClose={props.onCloseToast} />
+      <ToastHost toasts={props.toasts} onClose={props.onCloseToast} onAction={props.onRunToastAction} />
     </>
   );
 }

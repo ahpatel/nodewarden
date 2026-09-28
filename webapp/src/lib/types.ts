@@ -560,10 +560,20 @@ export interface AccountPasskeyPrfOption {
   transports?: string[];
 }
 
+export interface ToastAction {
+  label: string;
+  /** Runs when the action control is activated; the toast closes afterwards. */
+  onAction: () => void | Promise<void>;
+}
+
 export interface ToastMessage {
   id: string;
   type: 'success' | 'error' | 'warning';
   text: string;
+  /** Optional inline action (e.g. Undo). */
+  action?: ToastAction;
+  /** Overrides the default toast lifetime (TOAST_LIFE_MS in useToastManager). */
+  durationMs?: number;
 }
 
 export interface AdminUser {

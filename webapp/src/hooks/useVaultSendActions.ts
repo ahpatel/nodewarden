@@ -58,10 +58,17 @@ import {
 import { deriveLoginHash, getPreloginKdfConfig, verifyMasterPassword } from '@/lib/api/auth';
 import type { AuthedFetch } from '@/lib/api/shared';
 import { downloadBytesAsFile } from '@/lib/download';
-import type { Cipher, Folder as VaultFolder, Profile, Send, SendDraft, SessionState, VaultDraft } from '@/lib/types';
+import type { Cipher, Folder as VaultFolder, Profile, Send, SendDraft, SessionState, ToastAction, VaultDraft } from '@/lib/types';
 import type { OrgKeyMap } from '@/lib/vault-decrypt';
 
-type Notify = (type: 'success' | 'error' | 'warning', text: string) => void;
+type Notify = (
+  type: 'success' | 'error' | 'warning',
+  text: string,
+  options?: { durationMs?: number; action?: ToastAction }
+) => void;
+
+/* How long the move-undo toast stays actionable. */
+const MOVE_UNDO_TOAST_LIFE_MS = 10000;
 
 interface UseVaultSendActionsOptions {
   authedFetch: AuthedFetch;
@@ -876,22 +883,103 @@ export default function useVaultSendActions(options: UseVaultSendActionsOptions)
         }
       },
 
-      async bulkMoveVaultItems(ids: string[], folderId: string | null) {
+      async bulkMoveVaultItems(ids: string[], folderId: string | null, targetFolderName?: string) {
         try {
           requireOnlineWrite();
         } catch (error) {
           onNotify('error', error instanceof Error ? error.message : t('txt_offline_vault_readonly'));
           throw error;
         }
+
+        // Drop stale ids (item removed by a background sync) and read-only
+        // organization items — the server rejects the whole bulk move if a
+        // single non-writable cipher rides along.
+        const cipherById = new Map((encryptedCiphers || []).map((cipher) => [cipher.id, cipher] as const));
+        const requestedIds: string[] = [];
+        for (const id of ids) {
+          const normalized = String(id || '').trim();
+          if (normalized && cipherById.has(normalized) && !requestedIds.includes(normalized)) {
+            requestedIds.push(normalized);
+          }
+        }
+        let skippedReadonlyCount = 0;
+        const movableIds: string[] = [];
+        for (const id of requestedIds) {
+          const cipher = cipherById.get(id);
+          if (!cipher) continue;
+          if (cipher.organizationId && cipher.edit === false) {
+            skippedReadonlyCount += 1;
+            continue;
+          }
+          movableIds.push(id);
+        }
+        if (skippedReadonlyCount) {
+          onNotify('warning', t('txt_move_skipped_readonly', { count: skippedReadonlyCount }));
+        }
+        // No-op filter: items already filed in the target folder never move.
+        const toMove = movableIds.filter((id) => {
+          const cipher = cipherById.get(id);
+          return !!cipher && (cipher.folderId || null) !== (folderId || null);
+        });
+        if (!toMove.length) return;
+
+        // Snapshot per-item folders so Undo can restore mixed-origin groups:
+        // one drag can pull items from several different folders (or none).
+        const previousFolderById = new Map<string, string | null>();
+        for (const id of toMove) {
+          const cipher = cipherById.get(id);
+          previousFolderById.set(id, cipher?.folderId || null);
+        }
+
         try {
-          await bulkMoveCiphers(authedFetch, ids, folderId);
-          patchCipherBatch(ids, (cipher) => ({ ...cipher, folderId }));
-          void refreshVaultRevisionStamp();
-          onNotify('success', t('txt_moved_selected_items'));
+          await bulkMoveCiphers(authedFetch, toMove, folderId);
         } catch (error) {
+          // The server applies moves chunk-by-chunk, so a mid-batch failure can
+          // leave earlier chunks moved while this cache is behind. Reconcile.
+          void refetchCiphers().catch(() => undefined);
           onNotify('error', error instanceof Error ? error.message : t('txt_bulk_move_failed'));
           throw error;
         }
+        patchCipherBatch(toMove, (cipher) => ({ ...cipher, folderId }));
+        void refreshVaultRevisionStamp();
+
+        const undo: ToastAction = {
+          label: t('txt_undo'),
+          onAction: async () => {
+            try {
+              requireOnlineWrite();
+            } catch (error) {
+              onNotify('error', error instanceof Error ? error.message : t('txt_offline_vault_readonly'));
+              return;
+            }
+            // bulkMoveCiphers takes one folder per call, so group the items
+            // back by the folder they lived in before the move.
+            const byPreviousFolder = new Map<string | null, string[]>();
+            for (const id of toMove) {
+              const previous = previousFolderById.get(id) ?? null;
+              const group = byPreviousFolder.get(previous);
+              if (group) group.push(id);
+              else byPreviousFolder.set(previous, [id]);
+            }
+            try {
+              for (const [previousFolderId, groupIds] of byPreviousFolder) {
+                await bulkMoveCiphers(authedFetch, groupIds, previousFolderId);
+              }
+            } catch (error) {
+              void refetchCiphers().catch(() => undefined);
+              onNotify('error', error instanceof Error ? error.message : t('txt_bulk_move_failed'));
+              return;
+            }
+            patchCipherBatch(toMove, (cipher) => ({ ...cipher, folderId: previousFolderById.get(cipher.id) || null }));
+            void refreshVaultRevisionStamp();
+            onNotify('success', t('txt_move_undone', { count: toMove.length }));
+          },
+        };
+        const toastText =
+          typeof targetFolderName === 'string'
+            ? t('txt_moved_count_items_to', { count: toMove.length, name: targetFolderName })
+            : t('txt_moved_selected_items');
+        onNotify('success', toastText, { durationMs: MOVE_UNDO_TOAST_LIFE_MS, action: undo });
       },
 
       async createFolder(name: string) {

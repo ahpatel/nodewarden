@@ -136,6 +136,48 @@
   font-weight: 600;
 }
 
+/* Drag-and-drop filing: the hovered folder row accepts the payload. */
+.tree-btn.drop-hover {
+  background: rgba(37, 99, 235, 0.16);
+  color: var(--primary-strong);
+  font-weight: 600;
+  box-shadow: inset 0 0 0 2px rgba(37, 99, 235, 0.35);
+}
+
+/* Offscreen host for the multi-item drag ghost (built in VaultPage). The
+   badge is a sibling of the cloned row, so the row's own clipping cannot cut
+   it off; it overlaps the row's top-right corner instead. */
+.drag-ghost-host {
+  position: fixed;
+  top: 0;
+  left: -9999px;
+  width: 280px;
+  pointer-events: none;
+}
+
+.drag-ghost-host .drag-ghost {
+  opacity: 0.92;
+  user-select: none;
+}
+
+.drag-ghost-badge {
+  position: absolute;
+  top: -10px;
+  right: -10px;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 9999px;
+  background: var(--primary-strong, #2563eb);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 20px;
+  text-align: center;
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.25);
+  border: 2px solid var(--bg, #fff);
+}
+
 .tree-icon {
   @apply shrink-0;
 }

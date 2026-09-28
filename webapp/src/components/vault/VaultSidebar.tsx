@@ -1,4 +1,4 @@
-import { useMemo } from 'preact/hooks';
+import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import type { RefObject } from 'preact';
 import {
   Archive,
@@ -26,7 +26,16 @@ import {
 import { Link } from 'wouter';
 import type { Folder, VaultCollection } from '@/lib/types';
 import { t } from '@/lib/i18n';
-import { getFolderSortOptions, type SidebarFilter, type VaultSortMode } from '@/components/vault/vault-page-helpers';
+import {
+  CIPHER_IDS_DRAG_MIME,
+  getFolderSortOptions,
+  parseCipherIdsDragPayload,
+  type SidebarFilter,
+  type VaultSortMode,
+} from '@/components/vault/vault-page-helpers';
+
+/** Sentinel drop-target key for the "No Folder" row (folderId is null). */
+const NO_FOLDER_KEY = '__no_folder__';
 
 interface VaultSidebarProps {
   folders: Folder[];
@@ -49,10 +58,71 @@ interface VaultSidebarProps {
   onOpenDeleteFolder: (folder: Folder) => void;
   onToggleFolderSortMenu: () => void;
   onSelectFolderSortMode: (value: VaultSortMode) => void;
+  /** Move the dragged vault items into the target folder. */
+  onDropToFolder: (ids: string[], folderId: string | null) => void;
 }
 
 export default function VaultSidebar(props: VaultSidebarProps) {
   const folderSortOptions = getFolderSortOptions();
+  /* undefined = no drag hovering; NO_FOLDER_KEY or a folder id = hovered row. */
+  const [dropHoverKey, setDropHoverKey] = useState<string | undefined>(undefined);
+  const sidebarScrollRef = useRef<HTMLElement | null>(null);
+
+  /* A canceled drag never reaches the rows' dragleave, so clear the highlight
+     from the source's dragend (it bubbles up to the document). */
+  useEffect(() => {
+    const clearHover = () => setDropHoverKey(undefined);
+    document.addEventListener('dragend', clearHover);
+    return () => document.removeEventListener('dragend', clearHover);
+  }, []);
+
+  const acceptsCipherDrag = (event: DragEvent): boolean => {
+    const types = event.dataTransfer?.types;
+    return !!types && Array.prototype.includes.call(types, CIPHER_IDS_DRAG_MIME);
+  };
+
+  /* The sidebar scrolls independently; keep long folder lists reachable by
+     scrolling while the pointer hovers near the top/bottom edge. */
+  const autoScrollSidebar = (event: DragEvent) => {
+    const sidebar = sidebarScrollRef.current;
+    if (!sidebar) return;
+    const bounds = sidebar.getBoundingClientRect();
+    const edge = 36;
+    const step = 16;
+    if (event.clientY - bounds.top < edge) sidebar.scrollTop -= step;
+    else if (bounds.bottom - event.clientY < edge) sidebar.scrollTop += step;
+  };
+
+  const folderDropHandlers = (hoverKey: string, folderId: string | null) => ({
+    onDragEnter: (event: DragEvent) => {
+      if (!acceptsCipherDrag(event)) return;
+      event.preventDefault();
+      setDropHoverKey((current) => (current === hoverKey ? current : hoverKey));
+    },
+    onDragOver: (event: DragEvent) => {
+      if (!acceptsCipherDrag(event)) return;
+      event.preventDefault();
+      if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
+      autoScrollSidebar(event);
+      setDropHoverKey((current) => (current === hoverKey ? current : hoverKey));
+    },
+    onDragLeave: (event: DragEvent) => {
+      /* dragenter fires on the new row before dragleave on the old one, so
+         only clear when the pointer truly left this row. */
+      const related = event.relatedTarget as Node | null;
+      const row = event.currentTarget as HTMLElement | null;
+      if (related && row && row.contains(related)) return;
+      setDropHoverKey((current) => (current === hoverKey ? undefined : current));
+    },
+    onDrop: (event: DragEvent) => {
+      if (!acceptsCipherDrag(event)) return;
+      event.preventDefault();
+      setDropHoverKey(undefined);
+      const ids = parseCipherIdsDragPayload(event.dataTransfer);
+      if (ids.length) props.onDropToFolder(ids, folderId);
+    },
+  });
+
   const nameCollator = useMemo(
     () => new Intl.Collator(undefined, { sensitivity: 'base', numeric: true }),
     []
@@ -91,7 +161,10 @@ export default function VaultSidebar(props: VaultSidebarProps) {
   }, [props.folders, props.folderSortMode, nameCollator]);
 
   return (
-    <aside className={`sidebar ${props.isMobileLayout ? 'mobile-sidebar-sheet' : ''} ${props.isMobileLayout && props.mobileSidebarOpen ? 'open' : ''}`}>
+    <aside
+      ref={sidebarScrollRef}
+      className={`sidebar ${props.isMobileLayout ? 'mobile-sidebar-sheet' : ''} ${props.isMobileLayout && props.mobileSidebarOpen ? 'open' : ''}`}
+    >
       {props.isMobileLayout && (
         <div className="mobile-sidebar-head">
           <div className="mobile-sidebar-title">{t('txt_folders')}</div>
@@ -192,15 +265,21 @@ export default function VaultSidebar(props: VaultSidebarProps) {
             </button>
           </div>
         </div>
-        <button type="button" className={`tree-btn ${props.sidebarFilter.kind === 'folder' && props.sidebarFilter.folderId === null ? 'active' : ''}`} onClick={() => props.onChangeFilter({ kind: 'folder', folderId: null })}>
+        <button
+          type="button"
+          className={`tree-btn ${props.sidebarFilter.kind === 'folder' && props.sidebarFilter.folderId === null ? 'active' : ''} ${dropHoverKey === NO_FOLDER_KEY ? 'drop-hover' : ''}`}
+          onClick={() => props.onChangeFilter({ kind: 'folder', folderId: null })}
+          {...folderDropHandlers(NO_FOLDER_KEY, null)}
+        >
           <FolderX size={14} className="tree-icon" /> <span className="tree-label">{t('txt_no_folder')}</span>
         </button>
         {sortedFolders.map((folder) => (
           <div key={folder.id} className="folder-row">
             <button
               type="button"
-              className={`tree-btn ${props.sidebarFilter.kind === 'folder' && props.sidebarFilter.folderId === folder.id ? 'active' : ''}`}
+              className={`tree-btn ${props.sidebarFilter.kind === 'folder' && props.sidebarFilter.folderId === folder.id ? 'active' : ''} ${dropHoverKey === folder.id ? 'drop-hover' : ''}`}
               onClick={() => props.onChangeFilter({ kind: 'folder', folderId: folder.id })}
+              {...folderDropHandlers(folder.id, folder.id)}
             >
               <FolderIcon size={14} className="tree-icon" />
               <span className="tree-label" title={folder.decName || folder.name || folder.id}>

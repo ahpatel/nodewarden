@@ -117,7 +117,7 @@
   }
 
   .toast-progress {
-    animation: toast-life 4.5s linear forwards !important;
+    animation: toast-life var(--toast-life, 4.5s) linear forwards !important;
   }
 
   /* Shimmer overlays (decorative) stop; the pulse above carries the
