@@ -105,7 +105,24 @@ const orgEs: Record<string, string> = {
   "txt_organizations_access_per_collection": "Por colección",
   "txt_organizations_role_admin": "Administrador",
   "txt_organizations_role_manager": "Gerente",
-  "txt_organizations_role_custom": "Personalizado"
+  "txt_organizations_role_custom": "Personalizado",
+  "txt_export_org_select": "Organización a exportar",
+  "txt_export_org_required": "Selecciona una organización para exportar",
+  "txt_export_org_unassigned_skipped": "Se omitieron {count} elemento(s) sin una colección accesible (Bitwarden rechaza importaciones de organización con elementos sin asignar).",
+  "txt_organizations_legacy_key_banner": "Las apps oficiales de Bitwarden (extensión del navegador, escritorio) aún no pueden descifrar esta organización: su clave de pertenencia usa un formato antiguo. Pida a un propietario que vuelva a cifrar las claves de los miembros.",
+  "txt_organizations_legacy_key_repaired": "Las claves de los miembros se volvieron a cifrar para la compatibilidad con las apps oficiales de Bitwarden. Si la extensión o la app de escritorio sigue mostrando cadenas cifradas, cierre sesión y vuelva a iniciarla allí.",
+  "txt_organizations_reencrypt_keys": "Volver a cifrar claves de miembros",
+  "txt_organizations_reencrypt_keys_message": "Esto vuelve a cifrar la clave de la organización para cada miembro confirmado con el formato que esperan las apps oficiales de Bitwarden. Úselo cuando la extensión o la app de escritorio muestre cadenas cifradas en lugar del nombre o los elementos de esta organización. Las apps de los miembros se resincronizan automáticamente después.",
+  "txt_organizations_reencrypt_keys_done": "Se volvieron a cifrar {count} clave(s) de miembro(s). Las apps oficiales de Bitwarden ya pueden descifrar esta organización.",
+  "txt_organizations_reencrypt_keys_failed": "No se pudieron volver a cifrar las claves de los miembros",
+  "txt_organizations_delete_collection_confirm": "¿Eliminar la colección {name}?",
+  "txt_organizations_delete_collection_title": "Eliminar colección",
+  "txt_organizations_delete_collection_with_items": "Esta colección contiene {count} elemento(s). Elija a dónde moverlos antes de eliminarla.",
+  "txt_organizations_delete_collection_move_to": "Mover elementos a:",
+  "txt_organizations_delete_collection_leave_unassigned": "Dejar elementos sin asignar (no mover)",
+  "txt_organizations_delete_collection_no_target": "Esta organización no tiene otra colección. Los elementos sin asignar solo son visibles para los miembros con acceso a todos los elementos.",
+  "txt_organizations_delete_collection_moved": "Colección eliminada. {count} elemento(s) movido(s) a {name}.",
+  "txt_organizations_delete_collection_failed": "No se pudo eliminar la colección"
 };
 
 export default orgEs;

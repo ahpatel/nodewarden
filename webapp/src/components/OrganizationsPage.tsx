@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'preact/hooks';
-import { Plus, RefreshCw, SlidersHorizontal, Trash2 } from 'lucide-preact';
+import { KeyRound, Plus, RefreshCw, SlidersHorizontal, Trash2 } from 'lucide-preact';
 import ConfirmDialog from '@/components/ConfirmDialog';
-import { base64ToBytes, decryptStr } from '@/lib/crypto';
+import { base64ToBytes, decryptStr, looksLikeEncString } from '@/lib/crypto';
 import {
   type OrganizationCollection,
   type OrganizationMember,
@@ -29,9 +29,16 @@ import {
   generateOrganizationKeyBytes,
   generateOrganizationKeyPair,
   orgKeyBytesToParts,
-  unwrapOrganizationKeyDetailed,
   wrapOrganizationKeyForUser,
 } from '@/lib/org-crypto';
+import {
+  isLegacyOrgKeyWrap,
+  migrateLegacyEncryptedOrgNames,
+  reencryptOrganizationMemberKeys,
+  repairLegacyOrganizationKeysForSelf,
+} from '@/lib/org-key-repair';
+import { updateCipherCollections } from '@/lib/api/vault';
+import type { Cipher } from '@/lib/types';
 import type { OrgKeyMap } from '@/lib/vault-decrypt';
 import type { AuthedFetch } from '@/lib/api/shared';
 import type { Profile, SessionState } from '@/lib/types';
@@ -42,6 +49,8 @@ interface OrganizationsPageProps {
   session: SessionState | null;
   authedFetch: AuthedFetch;
   orgKeys: OrgKeyMap | null;
+  /** Decrypted vault ciphers; used to resolve which items a collection delete would orphan. */
+  ciphers: Cipher[];
   onNotify: (type: 'success' | 'error' | 'warning', text: string) => void;
   onRefresh: () => Promise<void>;
   onNavigate: (path: string) => void;
@@ -81,6 +90,10 @@ function orgKeyMaterialFromMap(orgKeys: OrgKeyMap | null, organizationId: string
 }
 
 async function decryptOrgName(value: string, orgKeys: OrgKeyMap | null, organizationId: string): Promise<string> {
+  // Current official Bitwarden clients keep org names in plaintext; anything
+  // that does not look like an EncString is one and renders as-is. Legacy
+  // org-key-encrypted names (pre-migration webapp) still need the org key.
+  if (!looksLikeEncString(value)) return value;
   const material = orgKeyMaterialFromMap(orgKeys, organizationId);
   if (!material) return '';
   try {
@@ -112,6 +125,10 @@ export default function OrganizationsPage(props: OrganizationsPageProps) {
   const [permissionsRows, setPermissionsRows] = useState<Array<{ id: string; name: string; enabled: boolean; readOnly: boolean; hidePasswords: boolean }>>([]);
   const [permissionsAccessAll, setPermissionsAccessAll] = useState(false);
   const [permissionsSubmitting, setPermissionsSubmitting] = useState(false);
+  const [legacyOwnKeyOrgIds, setLegacyOwnKeyOrgIds] = useState<Record<string, boolean>>({});
+  const [reencryptKeysDialogOpen, setReencryptKeysDialogOpen] = useState(false);
+  const [deleteCollectionState, setDeleteCollectionState] = useState<{ collection: OrganizationCollection; affected: Cipher[] } | null>(null);
+  const [moveTargetCollectionId, setMoveTargetCollectionId] = useState<string>('');
 
   const selectedOrganization = useMemo(
     () => organizations.find((org) => org.id === selectedOrgId) || null,
@@ -132,35 +149,58 @@ export default function OrganizationsPage(props: OrganizationsPageProps) {
   }, [displayNames]);
 
   // Repair legacy org-key wraps: keys wrapped with the legacy SHA-256 OAEP
-  // hash are unreadable by official Bitwarden clients. Owners re-wrap the
-  // key with the official SHA-1 hash via the (idempotent) confirm endpoint.
-  const repairedLegacyOrgKeysRef = useRef<Set<string>>(new Set());
+  // hash are unreadable by official Bitwarden clients (they show the raw
+  // encrypted org name and items). Owners repair their own row and then
+  // re-wrap every confirmed member; the session-scoped guards inside the
+  // shared module keep repeat passes cheap.
   const repairLegacyOrgKeys = useCallback(async (list: OrganizationSummary[]) => {
     if (!props.session?.symEncKey || !props.session?.symMacKey || !props.profile?.privateKey) return;
     const userEnc = base64ToBytes(props.session.symEncKey);
     const userMac = base64ToBytes(props.session.symMacKey);
     const pkcs8 = await decryptPrivateKeyPkcs8(props.profile.privateKey, userEnc, userMac);
     if (!pkcs8) return;
-    for (const org of list) {
-      if (Number(org.status) !== STATUS_CONFIRMED) continue;
-      if (Number(org.type) !== TYPE_OWNER) continue;
-      if (repairedLegacyOrgKeysRef.current.has(org.id)) continue;
-      try {
-        const unwrapped = await unwrapOrganizationKeyDetailed(org.id, org.key, pkcs8);
-        if (!unwrapped) continue;
-        if (!unwrapped.legacySha256Wrap) continue;
-        const publicKey = props.profile?.publicKey;
-        if (!publicKey) continue;
-        const rewrapped = await wrapOrganizationKeyForUser(unwrapped.raw, publicKey);
-        await confirmOrganizationMember(authedFetch, org.id, org.organizationUserId, rewrapped);
-        repairedLegacyOrgKeysRef.current.add(org.id);
-        await onRefreshVault();
-      } catch {
-        // Best-effort repair; surface nothing on failure.
-      }
+    const repaired = await repairLegacyOrganizationKeysForSelf(list, {
+      authedFetch,
+      pkcs8,
+      publicKey: props.profile?.publicKey ?? null,
+    });
+    if (repaired) {
+      await onRefreshVault();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authedFetch, onRefreshVault, props.profile, props.session?.symEncKey, props.session?.symMacKey]);
+
+  // Non-owner members cannot repair their own legacy wrap (only owners can
+  // confirm members). Detect the legacy state so the org detail shows a
+  // banner asking them to contact an owner.
+  const detectLegacyOwnKeys = useCallback(async (list: OrganizationSummary[]) => {
+    if (!props.session?.symEncKey || !props.session?.symMacKey || !props.profile?.privateKey) return;
+    const userEnc = base64ToBytes(props.session.symEncKey);
+    const userMac = base64ToBytes(props.session.symMacKey);
+    const pkcs8 = await decryptPrivateKeyPkcs8(props.profile.privateKey, userEnc, userMac);
+    if (!pkcs8) return;
+    const legacy: Record<string, boolean> = {};
+    for (const org of list) {
+      if (Number(org.status) !== STATUS_CONFIRMED || !org.key) continue;
+      if (Number(org.type) === TYPE_OWNER) continue; // owners self-repair silently
+      legacy[org.id] = await isLegacyOrgKeyWrap(org.id, org.key, pkcs8);
+    }
+    setLegacyOwnKeyOrgIds(legacy);
+  }, [props.profile, props.session?.symEncKey, props.session?.symMacKey]);
+
+  // Legacy org-key-encrypted org names are garbage in official clients (they
+  // render names verbatim, no decryption). Owners rewrite them as plaintext
+  // via the rename endpoint; session-guarded and owner-gated inside.
+  const migrateOrgNames = useCallback(async (list: OrganizationSummary[]) => {
+    if (!orgKeys) return;
+    try {
+      const migrated = await migrateLegacyEncryptedOrgNames(list, { authedFetch, orgKeys });
+      if (migrated) {
+        await onRefreshVault();
+      }
+    } catch {
+      // Best-effort migration must never break the org console.
+    }
+  }, [authedFetch, orgKeys, onRefreshVault]);
 
   const refreshOrganizations = useCallback(async () => {
     try {
@@ -176,16 +216,20 @@ export default function OrganizationsPage(props: OrganizationsPageProps) {
             (await decryptOrgName(org.name, orgKeys, org.id)) ||
             displayNamesRef.current[org.id] ||
             '';
+        } else if (Number(org.status) === STATUS_CONFIRMED) {
+          names[org.id] = looksLikeEncString(org.name) ? '' : String(org.name || '');
         }
       }
       setDisplayNames(names);
+      void detectLegacyOwnKeys(list);
       void repairLegacyOrgKeys(list);
+      void migrateOrgNames(list);
     } catch (err) {
       setError(err instanceof Error ? err.message : t('txt_organizations_load_failed'));
     } finally {
       setLoading(false);
     }
-  }, [authedFetch, orgKeys, repairLegacyOrgKeys]);
+  }, [authedFetch, orgKeys, repairLegacyOrgKeys, detectLegacyOwnKeys, migrateOrgNames]);
 
   useEffect(() => {
     void refreshOrganizations();
@@ -243,10 +287,12 @@ export default function OrganizationsPage(props: OrganizationsPageProps) {
         throw new Error(t('txt_organizations_missing_public_key'));
       }
       const wrappedKey = await wrapOrganizationKeyForUser(rawKey, props.profile.publicKey);
-      const encName = await encryptWithOrgKey(name, parts);
+      // Current official Bitwarden clients send the org name in plaintext
+      // (names are non-secret metadata rendered verbatim); only the default
+      // collection name is org-key encrypted.
       const encCollectionName = await encryptWithOrgKey(name, parts);
       const created = await createOrganization(authedFetch, {
-        name: encName,
+        name,
         key: wrappedKey,
         keys: { publicKey: keyPair.publicKeyB64, encryptedPrivateKey: keyPair.encryptedPrivateKey },
         collectionName: encCollectionName,
@@ -299,6 +345,31 @@ export default function OrganizationsPage(props: OrganizationsPageProps) {
       await onRefreshVault();
     } catch (err) {
       notify('error', err instanceof Error ? err.message : t('txt_organizations_confirm_failed'));
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  // Manual member-key re-encrypt: unconditionally re-wraps the org key
+  // (SHA-1) for every confirmed member — including the owner's own row.
+  // Legacy wraps on other members' rows are undetectable from outside, so
+  // this is the repair path for orgs whose owner row is already healthy but
+  // whose pre-2026-09 members still show raw cipherstrings in official apps.
+  async function handleReencryptMemberKeys() {
+    if (!selectedOrgId || !orgKeys?.[selectedOrgId]) return;
+    setBusy('reencrypt-keys');
+    try {
+      const material = orgKeys[selectedOrgId];
+      const raw = new Uint8Array(64);
+      raw.set(base64ToBytes(material.encB64), 0);
+      raw.set(base64ToBytes(material.macB64), 32);
+      const count = await reencryptOrganizationMemberKeys(authedFetch, selectedOrgId, raw);
+      setReencryptKeysDialogOpen(false);
+      notify('success', t('txt_organizations_reencrypt_keys_done', { count: String(count) }));
+      await refreshOrgDetail(selectedOrgId);
+      await onRefreshVault();
+    } catch (err) {
+      notify('error', err instanceof Error ? err.message : t('txt_organizations_reencrypt_keys_failed'));
     } finally {
       setBusy(null);
     }
@@ -388,19 +459,63 @@ export default function OrganizationsPage(props: OrganizationsPageProps) {
     }
   }
 
-  async function handleDeleteCollection(collection: OrganizationCollection) {
+  // Collection delete flow: an empty collection confirms once and deletes.
+  // A collection with items opens a dialog offering to move the affected
+  // items to another collection first — items left unassigned disappear
+  // from every non-accessAll member's vault, so the move is the safe path.
+  function handleDeleteCollection(collection: OrganizationCollection) {
+    if (!selectedOrgId) return;
+    const affected = props.ciphers.filter(
+      (cipher) => cipher.organizationId === selectedOrgId && !!cipher.collectionIds?.includes(collection.id)
+    );
+    if (affected.length === 0) {
+      const name = collectionNames[collection.id] || collection.id.slice(0, 8);
+      if (!window.confirm(t('txt_organizations_delete_collection_confirm', { name }))) return;
+      void deleteCollectionNow(collection, [], null);
+      return;
+    }
+    setDeleteCollectionState({ collection, affected });
+    setMoveTargetCollectionId('');
+  }
+
+  async function deleteCollectionNow(collection: OrganizationCollection, affected: Cipher[], moveTargetId: string | null) {
     if (!selectedOrgId) return;
     setBusy(collection.id);
     try {
+      if (moveTargetId) {
+        for (const cipher of affected) {
+          // Replace the deleted collection with the chosen destination,
+          // keeping every other collection the item already belongs to.
+          const nextIds = Array.from(
+            new Set((cipher.collectionIds || []).map((id) => (id === collection.id ? moveTargetId : id)))
+          );
+          await updateCipherCollections(authedFetch, cipher.id, nextIds);
+        }
+      }
       await deleteOrganizationCollection(authedFetch, selectedOrgId, collection.id);
-      notify('success', t('txt_organizations_collection_deleted'));
+      notify('success', moveTargetId
+        ? t('txt_organizations_delete_collection_moved', {
+            count: String(affected.length),
+            name: collectionNames[moveTargetId] || moveTargetId.slice(0, 8),
+          })
+        : t('txt_organizations_collection_deleted'));
+      setDeleteCollectionState(null);
       await refreshOrgDetail(selectedOrgId);
       await onRefreshVault();
     } catch (err) {
-      notify('error', err instanceof Error ? err.message : t('txt_organizations_collection_delete_failed'));
+      notify('error', err instanceof Error ? err.message : t('txt_organizations_delete_collection_failed'));
     } finally {
       setBusy(null);
     }
+  }
+
+  function confirmDeleteCollectionWithItems() {
+    if (!deleteCollectionState) return;
+    void deleteCollectionNow(
+      deleteCollectionState.collection,
+      deleteCollectionState.affected,
+      moveTargetCollectionId || null
+    );
   }
 
   // Per-collection permission editor: seed a row per org collection from the
@@ -459,19 +574,13 @@ export default function OrganizationsPage(props: OrganizationsPageProps) {
 
   async function handleRenameOrganization() {
     if (!selectedOrgId || !orgKeys?.[selectedOrgId] || !selectedOrganization) return;
-    const material = orgKeys[selectedOrgId];
     const current = displayNames[selectedOrgId] || '';
     const next = window.prompt(t('txt_organizations_rename_prompt'), current);
     if (!next || next.trim() === current) return;
     setBusy('rename');
     try {
-      const encName = await encryptWithOrgKey(next.trim(), {
-        encB64: material.encB64,
-        macB64: material.macB64,
-        encBytes: base64ToBytes(material.encB64),
-        macBytes: base64ToBytes(material.macB64),
-      });
-      await updateOrganization(authedFetch, selectedOrgId, encName);
+      // Plaintext org name, matching current official Bitwarden clients.
+      await updateOrganization(authedFetch, selectedOrgId, next.trim());
       notify('success', t('txt_organizations_renamed'));
       await refreshOrganizations();
       await onRefreshVault();
@@ -634,6 +743,17 @@ export default function OrganizationsPage(props: OrganizationsPageProps) {
                 {t('txt_organizations_leave')}
               </button>
               {selectedIsOwner && (
+                <button
+                  type="button"
+                  className="btn btn-secondary small"
+                  disabled={busy === 'reencrypt-keys' || detailLoading}
+                  onClick={() => setReencryptKeysDialogOpen(true)}
+                >
+                  <KeyRound size={14} className="btn-icon" />
+                  {busy === 'reencrypt-keys' ? t('txt_saving') : t('txt_organizations_reencrypt_keys')}
+                </button>
+              )}
+              {selectedIsOwner && (
                 <button type="button" className="btn btn-danger small" disabled={busy === 'delete-org'} onClick={() => void handleDeleteOrganization()}>
                   <Trash2 size={14} className="btn-icon" />
                   {t('txt_organizations_delete')}
@@ -641,6 +761,10 @@ export default function OrganizationsPage(props: OrganizationsPageProps) {
               )}
             </div>
           </div>
+
+          {legacyOwnKeyOrgIds[selectedOrganization.id] && Number(selectedOrganization.type) !== TYPE_OWNER && (
+            <p className="local-error">{t('txt_organizations_legacy_key_banner')}</p>
+          )}
 
           {!orgKeys?.[selectedOrganization.id] ? (
             <p className="muted">{t('txt_organizations_key_unavailable_note')}</p>
@@ -877,6 +1001,58 @@ export default function OrganizationsPage(props: OrganizationsPageProps) {
                 </div>
               ))}
             </>
+          )}
+        </div>
+      </ConfirmDialog>
+
+      <ConfirmDialog
+        open={reencryptKeysDialogOpen}
+        title={t('txt_organizations_reencrypt_keys')}
+        message={t('txt_organizations_reencrypt_keys_message')}
+        confirmText={t('txt_organizations_reencrypt_keys')}
+        cancelText={t('txt_cancel')}
+        confirmDisabled={busy === 'reencrypt-keys'}
+        cancelDisabled={busy === 'reencrypt-keys'}
+        onConfirm={() => void handleReencryptMemberKeys()}
+        onCancel={() => setReencryptKeysDialogOpen(false)}
+      />
+
+      <ConfirmDialog
+        open={!!deleteCollectionState}
+        title={t('txt_organizations_delete_collection_title')}
+        message={t('txt_organizations_delete_collection_with_items', {
+          count: String(deleteCollectionState?.affected.length || 0),
+        })}
+        confirmText={t('txt_delete')}
+        cancelText={t('txt_cancel')}
+        danger
+        confirmDisabled={!!deleteCollectionState && busy === deleteCollectionState.collection.id}
+        cancelDisabled={!!deleteCollectionState && busy === deleteCollectionState.collection.id}
+        onConfirm={() => confirmDeleteCollectionWithItems()}
+        onCancel={() => setDeleteCollectionState(null)}
+      >
+        <div className="org-delete-collection-body">
+          {collections.some((collection) => collection.id !== deleteCollectionState?.collection.id) ? (
+            <label className="field">
+              <span>{t('txt_organizations_delete_collection_move_to')}</span>
+              <select
+                className="input"
+                value={moveTargetCollectionId}
+                disabled={!!deleteCollectionState && busy === deleteCollectionState.collection.id}
+                onChange={(event) => setMoveTargetCollectionId((event.target as HTMLSelectElement).value)}
+              >
+                <option value="">{t('txt_organizations_delete_collection_leave_unassigned')}</option>
+                {collections
+                  .filter((collection) => collection.id !== deleteCollectionState?.collection.id)
+                  .map((collection) => (
+                    <option key={collection.id} value={collection.id}>
+                      {collectionNames[collection.id] || collection.id.slice(0, 8)}
+                    </option>
+                  ))}
+              </select>
+            </label>
+          ) : (
+            <p className="small-note">{t('txt_organizations_delete_collection_no_target')}</p>
           )}
         </div>
       </ConfirmDialog>

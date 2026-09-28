@@ -105,7 +105,24 @@ const orgDe: Record<string, string> = {
   "txt_organizations_access_per_collection": "Pro Sammlung",
   "txt_organizations_role_admin": "Admin",
   "txt_organizations_role_manager": "Manager",
-  "txt_organizations_role_custom": "Benutzerdefiniert"
+  "txt_organizations_role_custom": "Benutzerdefiniert",
+  "txt_export_org_select": "Zu exportierende Organisation",
+  "txt_export_org_required": "Wählen Sie eine Organisation zum Exportieren aus",
+  "txt_export_org_unassigned_skipped": "{count} Eintrag/Einträge ohne zugängliche Sammlung wurden übersprungen (Bitwarden verwirft Organisationsimporte mit nicht zugewiesenen Einträgen).",
+  "txt_organizations_legacy_key_banner": "Offizielle Bitwarden-Apps (Browser-Erweiterung, Desktop) können diese Organisation noch nicht entschlüsseln — Ihr Mitgliedschaftsschlüssel verwendet ein veraltetes Format. Bitten Sie einen Eigentümer, die Mitgliedsschlüssel neu zu verschlüsseln.",
+  "txt_organizations_legacy_key_repaired": "Organisationsschlüssel der Mitglieder wurden für die Kompatibilität mit offiziellen Bitwarden-Apps neu verschlüsselt. Wenn die Erweiterung oder Desktop-App weiterhin unverschlüsselte Zeichenfolgen zeigt, melden Sie sich dort ab und wieder an.",
+  "txt_organizations_reencrypt_keys": "Mitgliedsschlüssel neu verschlüsseln",
+  "txt_organizations_reencrypt_keys_message": "Dadurch wird der Organisationsschlüssel für jedes bestätigte Mitglied mit dem Format neu verschlüsselt, das offizielle Bitwarden-Apps erwarten. Verwenden Sie dies, wenn die Erweiterung oder Desktop-App anstelle des Namens oder der Einträge dieser Organisation rohe verschlüsselte Zeichenfolgen anzeigt. Die Apps der Mitglieder synchronisieren danach automatisch.",
+  "txt_organizations_reencrypt_keys_done": "{count} Mitgliedsschlüssel neu verschlüsselt. Offizielle Bitwarden-Apps können diese Organisation jetzt entschlüsseln.",
+  "txt_organizations_reencrypt_keys_failed": "Mitgliedsschlüssel konnten nicht neu verschlüsselt werden",
+  "txt_organizations_delete_collection_confirm": "Sammlung {name} löschen?",
+  "txt_organizations_delete_collection_title": "Sammlung löschen",
+  "txt_organizations_delete_collection_with_items": "Diese Sammlung enthält {count} Eintrag/Einträge. Wählen Sie, wohin sie vor dem Löschen verschoben werden sollen.",
+  "txt_organizations_delete_collection_move_to": "Einträge verschieben nach:",
+  "txt_organizations_delete_collection_leave_unassigned": "Einträge unzugeordnet lassen (nicht verschieben)",
+  "txt_organizations_delete_collection_no_target": "Diese Organisation hat keine weitere Sammlung. Unzugeordnete Einträge sind nur für Mitglieder mit Zugriff auf alle Einträge sichtbar.",
+  "txt_organizations_delete_collection_moved": "Sammlung gelöscht. {count} Eintrag/Einträge nach {name} verschoben.",
+  "txt_organizations_delete_collection_failed": "Sammlung konnte nicht gelöscht werden"
 };
 
 export default orgDe;

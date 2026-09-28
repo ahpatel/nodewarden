@@ -71,8 +71,10 @@ import { dispatchBackupProgress, type BackupProgressDetail } from '@/lib/backup-
 import { clearOfflineUnlockRecord } from '@/lib/offline-auth';
 import { clearPasswordSecurityCache } from '@/lib/password-security-cache';
 import { decryptSends, decryptVaultCore, type OrgKeyMap } from '@/lib/vault-decrypt';
-import { base64ToBytes, decryptStr } from '@/lib/crypto';
+import { base64ToBytes, decryptStr, looksLikeEncString } from '@/lib/crypto';
 import { decryptPrivateKeyPkcs8, unwrapOrganizationKey, clearUnwrappedOrgKeyCache } from '@/lib/org-crypto';
+import { isLegacyOrgKeyWrap, migrateLegacyEncryptedOrgNames, repairLegacyOrganizationKeysForSelf } from '@/lib/org-key-repair';
+import { listMyOrganizations } from '@/lib/api/organizations';
 import { decryptSendsInWorker, decryptVaultCoreInWorker } from '@/lib/vault-worker';
 import {
   DEMO_CIPHERS,
@@ -300,6 +302,7 @@ export default function App() {
   } | null>(null);
   const uriChecksumRepairAttemptRef = useRef<string>('');
   const orgUriRepairAttemptRef = useRef<string>('');
+  const legacyOrgKeyRepairAttemptRef = useRef<string>('');
   const pendingVaultCoreQueryRefreshRef = useRef<Promise<{ data?: VaultCoreSnapshot } | unknown> | null>(null);
   const pendingVaultCoreRefreshRef = useRef<Promise<unknown> | null>(null);
   const notificationRefreshTimerRef = useRef<number | null>(null);
@@ -1354,6 +1357,7 @@ export default function App() {
     repairAttemptRef.current = '';
     loginScopedBackupRepairAuthRef.current = null;
     uriChecksumRepairAttemptRef.current = '';
+    legacyOrgKeyRepairAttemptRef.current = '';
   }, [session?.accessToken]);
 
   // Resolve organization decryption keys: each confirmed org's key arrives in
@@ -1369,7 +1373,14 @@ export default function App() {
     if (IS_DEMO_MODE || !organizations.length || !session?.symEncKey || !session?.symMacKey || !profile?.privateKey) {
       if (!IS_DEMO_MODE) {
         setOrgKeys(null);
-        setDecryptedOrganizations(profileOrganizations.map((org) => ({ id: org.id, name: '', keyAvailable: false, type: Number.isFinite(Number(org.type)) ? Number(org.type) : 2 })));
+        // Current official Bitwarden clients keep org names in plaintext, so
+        // a non-EncString name renders immediately even without the org key.
+        setDecryptedOrganizations(profileOrganizations.map((org) => ({
+          id: org.id,
+          name: looksLikeEncString(org.name) ? '' : String(org.name || ''),
+          keyAvailable: false,
+          type: Number.isFinite(Number(org.type)) ? Number(org.type) : 2,
+        })));
       }
       return;
     }
@@ -1381,7 +1392,12 @@ export default function App() {
       if (!privateKeyPkcs8) {
         if (active) {
           setOrgKeys(null);
-          setDecryptedOrganizations(organizations.map((org) => ({ id: org.id, name: '', keyAvailable: false, type: Number.isFinite(Number(org.type)) ? Number(org.type) : 2 })));
+          setDecryptedOrganizations(organizations.map((org) => ({
+            id: org.id,
+            name: looksLikeEncString(org.name) ? '' : String(org.name || ''),
+            keyAvailable: false,
+            type: Number.isFinite(Number(org.type)) ? Number(org.type) : 2,
+          })));
         }
         return;
       }
@@ -1390,12 +1406,19 @@ export default function App() {
       for (const org of organizations) {
         const parts = await unwrapOrganizationKey(org.id, org.key, privateKeyPkcs8);
         let name = '';
-        if (parts) {
-          try {
-            name = await decryptStr(org.name, parts.encBytes, parts.macBytes);
-          } catch {
-            name = '';
+        if (looksLikeEncString(org.name)) {
+          // Legacy org-key-encrypted name (pre-plaintext-migration webapp);
+          // current official clients would show the raw cipherstring.
+          if (parts) {
+            try {
+              name = await decryptStr(org.name, parts.encBytes, parts.macBytes);
+            } catch {
+              name = '';
+            }
           }
+        } else {
+          // Plaintext org name: current Bitwarden stores names in the clear.
+          name = String(org.name || '');
         }
         if (parts) {
           nextKeys[org.id] = { encB64: parts.encB64, macB64: parts.macB64 };
@@ -1405,6 +1428,22 @@ export default function App() {
       if (active) {
         setOrgKeys(Object.keys(nextKeys).length ? nextKeys : null);
         setDecryptedOrganizations(nextOrganizations);
+        // Rewrite legacy encrypted org names as plaintext so official clients
+        // render them (they never decrypt names). Owner-gated and
+        // session-guarded inside; a rewrite bumps member revisions so
+        // connected official clients resync automatically.
+        if (Object.keys(nextKeys).length) {
+          void migrateLegacyEncryptedOrgNames(profileOrganizations, { authedFetch, orgKeys: nextKeys })
+            .then(async (migrated) => {
+              if (migrated) {
+                await invalidateVaultCoreSyncSnapshot(vaultCacheKey);
+                void refetchVaultCoreData();
+              }
+            })
+            .catch(() => {
+              // Best-effort migration must never interrupt the app.
+            });
+        }
       }
     })();
     return () => {
@@ -1442,6 +1481,62 @@ export default function App() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orgUriRepairKey, encryptedCiphers, session?.symEncKey, session?.symMacKey, session?.accessToken, vaultCacheKey]);
+
+  // Repair legacy RSA-OAEP SHA-256 org-key wraps (pre-2026-09 webapp): a
+  // member with a legacy wrap is invisible to official Bitwarden clients —
+  // the org key decapsulation fails, so the org name and shared items render
+  // as raw "2." cipherstrings in the extension/desktop app (the webapp
+  // itself still decrypts via its SHA-256 fallback). Owners repair their own
+  // row and re-wrap every confirmed member once per login; non-owners can
+  // only ask an owner (the org page shows them a banner). Runs without
+  // visiting the Organizations page.
+  useEffect(() => {
+    if (IS_DEMO_MODE) return;
+    if (phase !== 'app' || !session?.accessToken || !session?.symEncKey || !session?.symMacKey) return;
+    if (!vaultInitialDecryptDone) return;
+    if (!profile?.privateKey) return;
+    if (legacyOrgKeyRepairAttemptRef.current === session.accessToken) return;
+    legacyOrgKeyRepairAttemptRef.current = session.accessToken;
+
+    const ownedConfirmedOrgs = profileOrganizations.filter(
+      (org) => Number(org.status) === 2 && !!org.key && Number(org.type) === 0
+    );
+    if (!ownedConfirmedOrgs.length) return;
+
+    let active = true;
+    (async () => {
+      try {
+        const userEnc = base64ToBytes(session.symEncKey!);
+        const userMac = base64ToBytes(session.symMacKey!);
+        const pkcs8 = await decryptPrivateKeyPkcs8(profile!.privateKey, userEnc, userMac);
+        if (!pkcs8) return;
+        // Cheap screen on the sync profile (no extra API calls): only when
+        // an owned org is actually legacy-wrapped do we fetch memberships.
+        const legacyFlags = await Promise.all(
+          ownedConfirmedOrgs.map((org) => isLegacyOrgKeyWrap(org.id, org.key, pkcs8))
+        );
+        if (!legacyFlags.some(Boolean)) return;
+        const memberships = await listMyOrganizations(authedFetch);
+        const repaired = await repairLegacyOrganizationKeysForSelf(memberships, {
+          authedFetch,
+          pkcs8,
+          publicKey: profile?.publicKey ?? null,
+        });
+        if (!active || !repaired) return;
+        pushToast('success', t('txt_organizations_legacy_key_repaired'));
+        // Each confirm bumped every member's revision date; resync so
+        // connected clients pick up the re-wrapped keys.
+        await invalidateVaultCoreSyncSnapshot(vaultCacheKey);
+        void refetchVaultCoreData();
+      } catch {
+        // Best-effort repair must never interrupt the app.
+      }
+    })();
+    return () => {
+      active = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase, session?.accessToken, session?.symEncKey, session?.symMacKey, profile?.privateKey, vaultInitialDecryptDone]);
 
   useEffect(() => {
     if (IS_DEMO_MODE) return;

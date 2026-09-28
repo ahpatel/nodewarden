@@ -295,3 +295,8 @@
 .org-self-service-password {
   max-width: 240px;
 }
+
+.org-delete-collection-body {
+  display: grid;
+  gap: 8px;
+}

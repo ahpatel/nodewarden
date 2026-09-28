@@ -259,8 +259,12 @@ test('profile org response shape has required client fields', () => {
   assert.ok(orgs.includes('usePasswordManager'), 'usePasswordManager');
   assert.ok(orgs.includes('permissions: {'), 'permissions object');
 
-  // billingEmail must NOT be in the profile response
+  // Required by the official Android app's Organization DTO (non-nullable, no
+  // default): a missing key fails deserialization of the whole sync response.
   const profileFn = orgs.slice(orgs.indexOf('profileOrganizationResponse'), orgs.indexOf('organizationUserToResponse'));
+  assert.ok(profileFn.includes('keyConnectorEnabled'), 'keyConnectorEnabled');
+
+  // billingEmail must NOT be in the profile response
   assert.ok(
     !profileFn.includes('billingEmail'),
     'billingEmail must be absent from profileOrganizationResponse (member-visible shape)'
@@ -575,3 +579,167 @@ test('all organization management handlers pass the owner gate', () => {
     );
   }
 });
+
+// ─── Legacy org-key wrap repair ──────────────────────────────────────────────
+// Members whose organizations_users.key row is a legacy RSA-OAEP SHA-256
+// wrap can sync but every org field (org name included) fails to decrypt in
+// official Bitwarden clients, showing as raw "2." cipherstrings. The wrap
+// is opaque to the server, so only the member detects legacy-ness and only
+// owners can repair (confirm endpoint). The repair must therefore sweep
+// every confirmed member, not just the owner's own row.
+
+test('legacy org-key repair re-wraps every confirmed member, not just the owner', () => {
+  const repair = read('webapp/src/lib/org-key-repair.ts');
+  assert.ok(
+    repair.includes('reencryptOrganizationMemberKeys'),
+    'shared repair module exposes a member sweep'
+  );
+  assert.ok(repair.includes('listOrganizationMembers'), 'sweep lists org members');
+  assert.ok(repair.includes('getOrganizationMember'), 'sweep fetches each member public key');
+  assert.ok(
+    repair.includes('wrapOrganizationKeyForUser(orgRawKey, details.publicKey)'),
+    'sweep re-wraps with each member public key'
+  );
+  assert.ok(
+    repair.includes('exceptOrganizationUserId'),
+    'auto path skips only the already-repaired owner row'
+  );
+  const repairFn = repair.slice(repair.indexOf('export async function repairLegacyOrganizationKeysForSelf'));
+  assert.ok(
+    repairFn.includes('WIRE_TYPE_OWNER'),
+    'auto repair is owner-scoped (confirm is owner-gated)'
+  );
+});
+
+test('org repair runs app-wide and offers an explicit owner action', () => {
+  const app = read('webapp/src/App.tsx');
+  assert.ok(
+    app.includes('repairLegacyOrganizationKeysForSelf'),
+    'app shell repairs legacy wraps without visiting the org page'
+  );
+  const page = read('webapp/src/components/OrganizationsPage.tsx');
+  assert.ok(
+    page.includes('reencryptOrganizationMemberKeys'),
+    'org page offers the manual member-key re-encrypt action'
+  );
+  assert.ok(
+    page.includes('txt_organizations_reencrypt_keys'),
+    'manual action is user-visible'
+  );
+  assert.ok(
+    page.includes('isLegacyOrgKeyWrap'),
+    'page detects the member own legacy wrap for the banner'
+  );
+});
+
+// ─── Plaintext organization names ───────────────────────────────────────────
+// Current official Bitwarden clients send org names in PLAINTEXT at creation
+// and rename, store them server-side in the clear, and render
+// profile.organizations[].name verbatim — there is NO org-key decryption of
+// the name anywhere in the current client crypto (verified: org items and
+// collection names decrypt with the org key while the name stays raw). An
+// org-key-encrypted name therefore displays as the raw "2." cipherstring in
+// the extension and desktop app. The org name must be plaintext end-to-end.
+
+test('organization create and rename accept plaintext names', () => {
+  const orgs = read('src/handlers/organizations.ts');
+  const create = orgs.slice(orgs.indexOf('handleCreateOrganization'));
+  const update = orgs.slice(orgs.indexOf('handleUpdateOrganization'));
+  for (const [src, name] of [[create, 'create'], [update, 'rename']] as const) {
+    assert.ok(
+      src.includes('optionalOrgName(body.name)'),
+      `${name} handler validates the name with optionalOrgName (plaintext-first)`
+    );
+    assert.ok(
+      !src.includes('optionalEncString(body.name)'),
+      `${name} handler does not require an encrypted name`
+    );
+    // A stale webapp bundle sends org-key-encrypted names; storing them
+    // renders as raw cipherstrings in current official clients, so both
+    // handlers must reject EncString-shaped names loudly.
+    assert.ok(
+      src.includes('isEncStringShapedName'),
+      `${name} handler rejects EncString-shaped names`
+    );
+  }
+  assert.ok(
+    orgs.includes('const collectionName = optionalEncString(body.collectionName'),
+    'the default collection name remains org-key encrypted'
+  );
+  assert.ok(
+    !orgs.includes('isEncStringShapedName(value: unknown)'),
+    'the shape check is string-typed (trimmed at call sites)'
+  );
+});
+
+test('webapp creates and renames organizations with plaintext names', () => {
+  const page = read('webapp/src/components/OrganizationsPage.tsx');
+  assert.ok(
+    /createOrganization\(authedFetch, \{\s*name,/.test(page),
+    'create sends the plaintext org name (shorthand name, not encName)'
+  );
+  assert.ok(
+    /updateOrganization\(authedFetch, selectedOrgId, next\.trim\(\)\)/.test(page),
+    'rename sends the plaintext name'
+  );
+});
+
+test('webapp migrates legacy encrypted org names to plaintext', () => {  const repair = read('webapp/src/lib/org-key-repair.ts');
+  assert.ok(
+    repair.includes('migrateLegacyEncryptedOrgNames'),
+    'repair module exposes the name migration'
+  );
+  const repairFn = repair.slice(repair.indexOf('export async function migrateLegacyEncryptedOrgNames'));
+  assert.ok(
+    repairFn.includes('looksLikeEncString(org.name)'),
+    'migration only targets EncString-shaped names'
+  );
+  assert.ok(
+    repairFn.includes('WIRE_TYPE_OWNER'),
+    'migration is owner-gated (rename endpoint is owner-only)'
+  );
+  assert.ok(
+    repairFn.includes('updateOrganization(context.authedFetch, org.id, plain)'),
+    'migration rewrites the plaintext name via the rename endpoint'
+  );
+  const app = read('webapp/src/App.tsx');
+  assert.ok(
+    app.includes('migrateLegacyEncryptedOrgNames(profileOrganizations'),
+    'app shell migrates names without visiting the org page'
+  );
+  assert.ok(
+    app.includes("looksLikeEncString(org.name) ? '' : String(org.name || '')"),
+    'app renders plaintext org names before org keys resolve'
+  );
+  const page = read('webapp/src/components/OrganizationsPage.tsx');
+  assert.ok(
+    page.includes('migrateLegacyEncryptedOrgNames(list'),
+    'org page migrates names on refresh'
+  );
+});
+
+// ─── Collection delete UX ──────────────────────────────────────────────────
+// A collection delete that strands items silently revokes them from every
+// non-accessAll member, so collections with items must offer a move
+// destination first; empty collections delete directly.
+
+test('collection delete offers a move destination when items are assigned', () => {
+  const page = read('webapp/src/components/OrganizationsPage.tsx');
+  assert.ok(
+    /function handleDeleteCollection[\s\S]{0,400}affected\.length === 0/.test(page),
+    'empty collections take the direct delete path'
+  );
+  assert.ok(
+    page.includes('updateCipherCollections(authedFetch, cipher.id, nextIds)'),
+    'collections with items can be moved to a destination before deleting'
+  );
+  assert.ok(
+    page.includes('txt_organizations_delete_collection_move_to'),
+    'the move destination is user-visible'
+  );
+  assert.ok(
+    page.includes('ciphers.filter('),
+    'affected items are resolved from the decrypted vault'
+  );
+});
+

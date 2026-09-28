@@ -449,6 +449,7 @@ export default function ImportPage({ onImport, onImportEncryptedRaw, accountKeys
   const [folderMode, setFolderMode] = useState<'original' | 'none' | 'target'>('original');
   const [targetFolderId, setTargetFolderId] = useState('');
   const [exportFormat, setExportFormat] = useState<ExportFormatId>('bitwarden_json');
+  const [exportOrgId, setExportOrgId] = useState('');
   const [encryptedJsonMode, setEncryptedJsonMode] = useState<EncryptedJsonMode>('account');
   const [exportPassword, setExportPassword] = useState('');
   const [zipPassword, setZipPassword] = useState('');
@@ -717,6 +718,7 @@ export default function ImportPage({ onImport, onImportEncryptedRaw, accountKeys
     exportFormat === 'nodewarden_encrypted_json';
   const exportNeedsFilePassword = exportNeedsMode && encryptedJsonMode === 'password';
   const exportIsZip = exportFormat === 'bitwarden_json_zip' || exportFormat === 'bitwarden_encrypted_json_zip';
+  const exportNeedsOrg = exportFormat === 'bitwarden_org_json';
 
   async function runExportWithMasterPassword(masterPassword: string) {
     const filePassword = exportPassword.trim();
@@ -734,6 +736,7 @@ export default function ImportPage({ onImport, onImportEncryptedRaw, accountKeys
         filePassword,
         zipPassword: exportIsZip ? zipPass : '',
         masterPassword,
+        organizationId: exportNeedsOrg ? exportOrgId : null,
       });
       onNotify('success', t('txt_export_completed'));
     } catch (error) {
@@ -911,6 +914,24 @@ export default function ImportPage({ onImport, onImportEncryptedRaw, accountKeys
             </select>
           </label>
 
+          {exportNeedsOrg && (
+            <label className="field field-span-2">
+              <span>{t('txt_export_org_select')}</span>
+              <select
+                className="input"
+                value={exportOrgId}
+                onChange={(e) => setExportOrgId((e.currentTarget as HTMLSelectElement).value)}
+              >
+                <option value="">{t('txt_org_share_select_org')}</option>
+                {importableOrganizations.map((org) => (
+                  <option key={org.id} value={org.id}>
+                    {org.name || org.id.slice(0, 8)}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+
           {exportNeedsMode && (
             <label className="field field-span-2">
               <span>{t('txt_encrypted_mode')}</span>
@@ -951,7 +972,12 @@ export default function ImportPage({ onImport, onImportEncryptedRaw, accountKeys
         </div>
 
         <div className="actions">
-          <button type="button" className="btn btn-primary" disabled={isExporting} onClick={() => void handleExport()}>
+          <button
+            type="button"
+            className="btn btn-primary"
+            disabled={isExporting || (exportNeedsOrg && !exportOrgId)}
+            onClick={() => void handleExport()}
+          >
             <Download size={15} className="btn-icon" />
             {isExporting ? t('txt_loading') : t('txt_export')}
           </button>

@@ -72,6 +72,48 @@ test('org key SHA-256 OAEP wrap unwraps via fallback (legacy migration path)', a
   assert.equal(unwrapped.legacySha256Wrap, true, 'flagged as legacy SHA-256 wrap');
 });
 
+test('legacy SHA-256 wrap repairs into a SHA-1 wrap (repair flow round-trip)', async () => {
+  // Mirrors webapp/src/lib/org-key-repair.ts: detect the legacy wrap via the
+  // detailed unwrap, re-wrap with the official SHA-1 hash, and verify the
+  // repaired wrap no longer reports legacy and still decrypts to the same
+  // org key material.
+  const { generateOrganizationKeyBytes, orgKeyBytesToParts, generateOrganizationKeyPair,
+          unwrapOrganizationKeyDetailed, wrapOrganizationKeyForUser } =
+    await import('../webapp/src/lib/org-crypto');
+  const { bytesToBase64, base64ToBytes, decryptBw } = await import('../webapp/src/lib/crypto');
+
+  const orgKey = generateOrganizationKeyBytes();
+  const keyPair = await generateOrganizationKeyPair(orgKeyBytesToParts(orgKey));
+
+  // Legacy wrap: RSA-OAEP SHA-256 (pre-2026-09 webapp behavior)
+  const subtle = globalThis.crypto.subtle;
+  const pubKey = await subtle.importKey(
+    'spki',
+    base64ToBytes(keyPair.publicKeyB64),
+    { name: 'RSA-OAEP', hash: 'SHA-256' },
+    false,
+    ['encrypt']
+  );
+  const legacyWrapped = `4.${bytesToBase64(new Uint8Array(await subtle.encrypt({ name: 'RSA-OAEP' }, pubKey, orgKey)))}`;
+
+  const parts = orgKeyBytesToParts(orgKey);
+  const pkcs8 = await decryptBw(keyPair.encryptedPrivateKey, parts.encBytes, parts.macBytes);
+
+  // Detection: the repair flow sees the legacy flag on the member's own row
+  const before = await unwrapOrganizationKeyDetailed('repair-org', legacyWrapped, pkcs8);
+  assert.ok(before, 'legacy wrap unwraps via fallback');
+  assert.equal(before.legacySha256Wrap, true, 'detected as legacy SHA-256 wrap');
+
+  // Repair: re-wrap the org key with the official SHA-1 hash
+  const repairedWrap = await wrapOrganizationKeyForUser(before.raw, keyPair.publicKeyB64);
+  assert.ok(repairedWrap.startsWith('4.'), 'repaired wrap is a type-4 EncString');
+
+  const after = await unwrapOrganizationKeyDetailed('repair-org', repairedWrap, pkcs8);
+  assert.ok(after, 'repaired wrap unwraps with SHA-1 first (no fallback needed)');
+  assert.equal(after.legacySha256Wrap, false, 'repaired wrap is not legacy');
+  assert.equal(bytesToBase64(after.raw), bytesToBase64(orgKey), 'same org key material after repair');
+});
+
 test('org key split into enc/mac parts correctly', async () => {
   const { orgKeyBytesToParts } = await import('../webapp/src/lib/org-crypto');
   const { bytesToBase64 } = await import('../webapp/src/lib/crypto');
@@ -84,6 +126,26 @@ test('org key split into enc/mac parts correctly', async () => {
   assert.equal(parts.macBytes.length, 32, 'mac half is 32 bytes');
   assert.equal(bytesToBase64(parts.encBytes), bytesToBase64(raw.slice(0, 32)));
   assert.equal(bytesToBase64(parts.macBytes), bytesToBase64(raw.slice(32, 64)));
+});
+
+test('looksLikeEncString distinguishes legacy encrypted org names from plaintext', async () => {
+  const { looksLikeEncString, encryptBw } = await import('../webapp/src/lib/crypto');
+  const { generateOrganizationKeyBytes, orgKeyBytesToParts } =
+    await import('../webapp/src/lib/org-crypto');
+
+  // A real type-2 EncString (what legacy org names were stored as)
+  const parts = orgKeyBytesToParts(generateOrganizationKeyBytes());
+  const encName = await encryptBw(new TextEncoder().encode('Family'), parts.encBytes, parts.macBytes);
+  assert.equal(looksLikeEncString(encName), true, 'type-2 EncString is detected');
+
+  // Plaintext names, including digit-dot forms, must render as themselves
+  assert.equal(looksLikeEncString('Family'), false, 'plain name');
+  assert.equal(looksLikeEncString('1. Acme Corp'), false, 'numbered name with spaces');
+  assert.equal(looksLikeEncString('2.Q3 budget'), false, 'digit-dot name, no pipe-separated base64 body');
+  assert.equal(looksLikeEncString('2026. Plans'), false, 'year-dot name');
+  assert.equal(looksLikeEncString(''), false, 'empty');
+  assert.equal(looksLikeEncString(null), false, 'null');
+  assert.equal(looksLikeEncString(undefined), false, 'undefined');
 });
 
 test('unwrapOrganizationKeyDetailed returns null for invalid format', async () => {

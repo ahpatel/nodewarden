@@ -134,19 +134,45 @@ export async function handleCiphersImport(request: Request, env: Env, userId: st
   const now = new Date().toISOString();
   const batchChunkSize = LIMITS.performance.bulkMoveChunkSize;
 
+  // Resolve existing folders up front so imported folders whose (encrypted)
+  // name exactly matches an existing vault folder reuse that row instead of
+  // creating a duplicate. Folder names are opaque ciphertext, so only exact
+  // string matches dedupe here; the first-party webapp additionally matches
+  // decrypted names client-side before sending the payload.
+  const existingFolders = await storage.getAllFolders(userId);
+  const existingFolderIds = new Set(existingFolders.map((folder) => folder.id));
+  const existingFolderIdByName = new Map<string, string>();
+  for (const folder of existingFolders) {
+    if (folder.name && !existingFolderIdByName.has(folder.name)) {
+      existingFolderIdByName.set(folder.name, folder.id);
+    }
+  }
+
   // Create folders and build index -> id mapping
   const folderIdMap = new Map<number, string>();
+  const createdFolderIdByName = new Map<string, string>();
   const folderRows: Folder[] = [];
   
   for (let i = 0; i < folders.length; i++) {
     const importedFolder = folders[i] && typeof folders[i] === 'object' ? folders[i] : null;
+    const name = typeof importedFolder?.name === 'string' && importedFolder.name ? importedFolder.name : 'Folder';
+
+    // Reuse an existing vault folder — or an earlier folder in this payload
+    // with the same name — rather than inserting a duplicate row.
+    const reusedFolderId = existingFolderIdByName.get(name) ?? createdFolderIdByName.get(name);
+    if (reusedFolderId) {
+      folderIdMap.set(i, reusedFolderId);
+      continue;
+    }
+
     const folderId = generateUUID();
+    createdFolderIdByName.set(name, folderId);
     folderIdMap.set(i, folderId);
 
     const folder: Folder = {
       id: folderId,
       userId: userId,
-      name: typeof importedFolder?.name === 'string' && importedFolder.name ? importedFolder.name : 'Folder',
+      name: name,
       createdAt: now,
       updatedAt: now,
     };
@@ -175,7 +201,6 @@ export async function handleCiphersImport(request: Request, env: Env, userId: st
       cipherFolderMap.set(rel.key, folderId);
     }
   }
-  const existingFolderIds = new Set((await storage.getAllFolders(userId)).map((folder) => folder.id));
 
   // Organization support: ciphers may carry organizationId + collectionIds
   // (the webapp import flow re-encrypts org items with the org key before
@@ -207,6 +232,11 @@ export async function handleCiphersImport(request: Request, env: Env, userId: st
   const cipherRows: Cipher[] = [];
   const cipherCollectionRows: Array<{ cipherId: string; collectionId: string }> = [];
   const cipherMapRows: Array<{ index: number; sourceId: string | null; id: string }> = [];
+  // Per-user filing of organization ciphers (mirrors the org create flow in
+  // handlers/ciphers.ts): org rows never persist a personal folder id, so the
+  // folder computed above is filed into cipher_user_folders for the acting
+  // user and overlaid by sync/list responses.
+  const orgFolderFilingRows: Array<{ cipherId: string; folderId: string }> = [];
   for (let i = 0; i < ciphers.length; i++) {
     const c = ciphers[i] && typeof ciphers[i] === 'object' ? ciphers[i] : {} as CiphersImportRequest['ciphers'][number];
     const importedFolderId = normalizeOptionalId(readAliasedImportProp<string | null>(c, ['folderId', 'FolderId']));
@@ -331,6 +361,9 @@ export async function handleCiphersImport(request: Request, env: Env, userId: st
       }
       cipher.userId = null;
       cipher.organizationId = importOrganizationId;
+      // Keep the computed personal folder as a per-user filing; the shared row
+      // itself never carries a personal folder id.
+      if (folderId) orgFolderFilingRows.push({ cipherId: cipher.id, folderId });
       cipher.folderId = null;
       for (const collectionId of importCollectionIds) {
         cipherCollectionRows.push({ cipherId: cipher.id, collectionId });
@@ -373,6 +406,19 @@ export async function handleCiphersImport(request: Request, env: Env, userId: st
         );
     });
     await runBatchInChunks(env.DB, cipherStatements, batchChunkSize);
+  }
+
+  if (orgFolderFilingRows.length > 0) {
+    const now = new Date().toISOString();
+    const filingStatements = orgFolderFilingRows.map((row) =>
+      env.DB
+        .prepare(
+          'INSERT INTO cipher_user_folders(cipher_id, user_id, folder_id, created_at, updated_at) VALUES(?, ?, ?, ?, ?) ' +
+          'ON CONFLICT(cipher_id, user_id) DO UPDATE SET folder_id=excluded.folder_id, updated_at=excluded.updated_at'
+        )
+        .bind(row.cipherId, userId, row.folderId, now, now)
+    );
+    await runBatchInChunks(env.DB, filingStatements, batchChunkSize);
   }
 
   if (cipherCollectionRows.length > 0) {

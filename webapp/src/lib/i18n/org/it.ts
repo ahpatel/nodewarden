@@ -105,7 +105,24 @@ const orgIt: Record<string, string> = {
   "txt_organizations_access_per_collection": "Per raccolta",
   "txt_organizations_role_admin": "Amministratore",
   "txt_organizations_role_manager": "Gestore",
-  "txt_organizations_role_custom": "Personalizzato"
+  "txt_organizations_role_custom": "Personalizzato",
+  "txt_export_org_select": "Organizzazione da esportare",
+  "txt_export_org_required": "Seleziona un'organizzazione da esportare",
+  "txt_export_org_unassigned_skipped": "{count} elemento/i senza una raccolta accessibile sono stati saltati (Bitwarden rifiuta importazioni di organizzazione con elementi non assegnati).",
+  "txt_organizations_legacy_key_banner": "Le app Bitwarden ufficiali (estensione del browser, desktop) non possono ancora decifrare questa organizzazione: la chiave di appartenenza usa un formato obsoleto. Chiedi a un proprietario di ricifrare le chiavi dei membri.",
+  "txt_organizations_legacy_key_repaired": "Le chiavi dei membri sono state ricifrate per la compatibilità con le app Bitwarden ufficiali. Se l'estensione o l'app desktop mostra ancora stringhe cifrate, disconnettiti e accedi di nuovo.",
+  "txt_organizations_reencrypt_keys": "Ricifra le chiavi dei membri",
+  "txt_organizations_reencrypt_keys_message": "Questa azione ricifra la chiave dell'organizzazione per ogni membro confermato usando il formato previsto dalle app Bitwarden ufficiali. Usala quando l'estensione o l'app desktop mostra stringhe cifrate grezze al posto del nome o degli elementi di questa organizzazione. Le app dei membri si risincronizzano automaticamente in seguito.",
+  "txt_organizations_reencrypt_keys_done": "{count} chiave/i di membri ricifrata/e. Le app Bitwarden ufficiali ora possono decifrare questa organizzazione.",
+  "txt_organizations_reencrypt_keys_failed": "Impossibile ricifrare le chiavi dei membri",
+  "txt_organizations_delete_collection_confirm": "Eliminare la raccolta {name}?",
+  "txt_organizations_delete_collection_title": "Elimina raccolta",
+  "txt_organizations_delete_collection_with_items": "Questa raccolta contiene {count} elemento/i. Scegli dove spostarli prima di eliminarla.",
+  "txt_organizations_delete_collection_move_to": "Sposta gli elementi in:",
+  "txt_organizations_delete_collection_leave_unassigned": "Lascia gli elementi non assegnati (nessuno spostamento)",
+  "txt_organizations_delete_collection_no_target": "Questa organizzazione non ha altre raccolte. Gli elementi non assegnati sono visibili solo ai membri con accesso a tutti gli elementi.",
+  "txt_organizations_delete_collection_moved": "Raccolta eliminata. {count} elemento/i spostato/i in {name}.",
+  "txt_organizations_delete_collection_failed": "Impossibile eliminare la raccolta"
 };
 
 export default orgIt;

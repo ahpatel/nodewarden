@@ -105,7 +105,24 @@ const orgSv: Record<string, string> = {
   "txt_organizations_access_per_collection": "Per samling",
   "txt_organizations_role_admin": "Administratör",
   "txt_organizations_role_manager": "Chef",
-  "txt_organizations_role_custom": "Anpassad"
+  "txt_organizations_role_custom": "Anpassad",
+  "txt_export_org_select": "Organisation att exportera",
+  "txt_export_org_required": "Välj en organisation att exportera",
+  "txt_export_org_unassigned_skipped": "{count} post(er) utan en tillgänglig samling hoppades över (Bitwarden avvisar organisationsimporter med otilldelade poster).",
+  "txt_organizations_legacy_key_banner": "Officiella Bitwarden-appar (webbläsartillägg, skrivbord) kan ännu inte dekryptera denna organisation — din medlemsnyckel använder ett föråldrat format. Be en ägare att kryptera om medlemsnycklarna.",
+  "txt_organizations_legacy_key_repaired": "Medlemsnycklarna har krypterats om för kompatibilitet med officiella Bitwarden-appar. Om tillägget eller skrivbordsappen fortfarande visar krypterade strängar, logga ut och in igen där.",
+  "txt_organizations_reencrypt_keys": "Kryptera om medlemsnycklar",
+  "txt_organizations_reencrypt_keys_message": "Detta krypterar om organisationsnyckeln för varje bekräftad medlem med det format som officiella Bitwarden-appar förväntar sig. Använd det när tillägget eller skrivbordsappen visar råa krypterade strängar i stället för organisationens namn eller objekt. Medlemmarnas appar synkroniseras om automatiskt efteråt.",
+  "txt_organizations_reencrypt_keys_done": "{count} medlemsnyckel/ar krypterades om. Officiella Bitwarden-appar kan nu dekryptera denna organisation.",
+  "txt_organizations_reencrypt_keys_failed": "Misslyckades med att kryptera om medlemsnycklar",
+  "txt_organizations_delete_collection_confirm": "Ta bort samlingen {name}?",
+  "txt_organizations_delete_collection_title": "Ta bort samling",
+  "txt_organizations_delete_collection_with_items": "Den här samlingen innehåller {count} post(er). Välj vart de ska flyttas innan den tas bort.",
+  "txt_organizations_delete_collection_move_to": "Flytta poster till:",
+  "txt_organizations_delete_collection_leave_unassigned": "Lämna poster otilldelade (ingen flytt)",
+  "txt_organizations_delete_collection_no_target": "Den här organisationen har ingen annan samling. Otilldelade poster syns bara för medlemmar med åtkomst till alla poster.",
+  "txt_organizations_delete_collection_moved": "Samlingen togs bort. {count} post(er) flyttades till {name}.",
+  "txt_organizations_delete_collection_failed": "Misslyckades med att ta bort samlingen"
 };
 
 export default orgSv;

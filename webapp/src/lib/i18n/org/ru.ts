@@ -105,7 +105,24 @@ const orgRu: Record<string, string> = {
   "txt_organizations_access_per_collection": "По коллекциям",
   "txt_organizations_role_admin": "Администратор",
   "txt_organizations_role_manager": "Менеджер",
-  "txt_organizations_role_custom": "Настраиваемая"
+  "txt_organizations_role_custom": "Настраиваемая",
+  "txt_export_org_select": "Организация для экспорта",
+  "txt_export_org_required": "Выберите организацию для экспорта",
+  "txt_export_org_unassigned_skipped": "Пропущено записей без доступной коллекции: {count} (Bitwarden отклоняет импорт в организацию с неназначенными записями).",
+  "txt_organizations_legacy_key_banner": "Официальные приложения Bitwarden (расширение браузера, настольное) пока не могут расшифровать эту организацию — ваш ключ членства использует устаревший формат. Попросите владельца заново зашифровать ключи участников.",
+  "txt_organizations_legacy_key_repaired": "Ключи участников были заново зашифрованы для совместимости с официальными приложениями Bitwarden. Если расширение или настольное приложение по-прежнему показывает зашифрованные строки, выйдите из аккаунта и войдите снова.",
+  "txt_organizations_reencrypt_keys": "Заново зашифровать ключи участников",
+  "txt_organizations_reencrypt_keys_message": "Это заново шифрует ключ организации для каждого подтверждённого участника в формате, который ожидают официальные приложения Bitwarden. Используйте, если расширение или настольное приложение показывает необработанные зашифрованные строки вместо названия или элементов этой организации. Приложения участников пересинхронизируются автоматически после этого.",
+  "txt_organizations_reencrypt_keys_done": "Заново зашифровано ключей участников: {count}. Официальные приложения Bitwarden теперь могут расшифровать эту организацию.",
+  "txt_organizations_reencrypt_keys_failed": "Не удалось заново зашифровать ключи участников",
+  "txt_organizations_delete_collection_confirm": "Удалить коллекцию {name}?",
+  "txt_organizations_delete_collection_title": "Удаление коллекции",
+  "txt_organizations_delete_collection_with_items": "Эта коллекция содержит {count} запис(ей). Выберите, куда переместить их перед удалением.",
+  "txt_organizations_delete_collection_move_to": "Переместить записи в:",
+  "txt_organizations_delete_collection_leave_unassigned": "Оставить записи без коллекции (не перемещать)",
+  "txt_organizations_delete_collection_no_target": "В этой организации нет другой коллекции. Записи без коллекции видны только участникам с доступом ко всем записям.",
+  "txt_organizations_delete_collection_moved": "Коллекция удалена. {count} запис(ей) перемещено в {name}.",
+  "txt_organizations_delete_collection_failed": "Не удалось удалить коллекцию"
 };
 
 export default orgRu;

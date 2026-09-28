@@ -109,12 +109,12 @@ export async function createOrganization(
 export async function updateOrganization(
   authedFetch: AuthedFetch,
   organizationId: string,
-  nameEnc: string
+  name: string
 ): Promise<OrganizationSummary> {
   return requestJson<OrganizationSummary>(authedFetch, `/api/organizations/${organizationId}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name: nameEnc }),
+    body: JSON.stringify({ name }),
   });
 }
 
