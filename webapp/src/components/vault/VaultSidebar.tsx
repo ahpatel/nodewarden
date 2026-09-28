@@ -60,6 +60,8 @@ interface VaultSidebarProps {
   onSelectFolderSortMode: (value: VaultSortMode) => void;
   /** Move the dragged vault items into the target folder. */
   onDropToFolder: (ids: string[], folderId: string | null) => void;
+  /** File the dragged vault items into the target organization collection. */
+  onDropToCollection: (ids: string[], collectionId: string, organizationId: string) => void;
 }
 
 export default function VaultSidebar(props: VaultSidebarProps) {
@@ -93,7 +95,7 @@ export default function VaultSidebar(props: VaultSidebarProps) {
     else if (bounds.bottom - event.clientY < edge) sidebar.scrollTop += step;
   };
 
-  const folderDropHandlers = (hoverKey: string, folderId: string | null) => ({
+  const cipherDropHandlers = (hoverKey: string, onDrop: (ids: string[]) => void) => ({
     onDragEnter: (event: DragEvent) => {
       if (!acceptsCipherDrag(event)) return;
       event.preventDefault();
@@ -119,7 +121,7 @@ export default function VaultSidebar(props: VaultSidebarProps) {
       event.preventDefault();
       setDropHoverKey(undefined);
       const ids = parseCipherIdsDragPayload(event.dataTransfer);
-      if (ids.length) props.onDropToFolder(ids, folderId);
+      if (ids.length) onDrop(ids);
     },
   });
 
@@ -269,7 +271,7 @@ export default function VaultSidebar(props: VaultSidebarProps) {
           type="button"
           className={`tree-btn ${props.sidebarFilter.kind === 'folder' && props.sidebarFilter.folderId === null ? 'active' : ''} ${dropHoverKey === NO_FOLDER_KEY ? 'drop-hover' : ''}`}
           onClick={() => props.onChangeFilter({ kind: 'folder', folderId: null })}
-          {...folderDropHandlers(NO_FOLDER_KEY, null)}
+          {...cipherDropHandlers(NO_FOLDER_KEY, (ids) => props.onDropToFolder(ids, null))}
         >
           <FolderX size={14} className="tree-icon" /> <span className="tree-label">{t('txt_no_folder')}</span>
         </button>
@@ -279,7 +281,7 @@ export default function VaultSidebar(props: VaultSidebarProps) {
               type="button"
               className={`tree-btn ${props.sidebarFilter.kind === 'folder' && props.sidebarFilter.folderId === folder.id ? 'active' : ''} ${dropHoverKey === folder.id ? 'drop-hover' : ''}`}
               onClick={() => props.onChangeFilter({ kind: 'folder', folderId: folder.id })}
-              {...folderDropHandlers(folder.id, folder.id)}
+              {...cipherDropHandlers(folder.id, (ids) => props.onDropToFolder(ids, folder.id))}
             >
               <FolderIcon size={14} className="tree-icon" />
               <span className="tree-label" title={folder.decName || folder.name || folder.id}>
@@ -331,21 +333,30 @@ export default function VaultSidebar(props: VaultSidebarProps) {
               </div>
               {(props.collections || [])
                 .filter((collection) => collection.organizationId === organization.id)
-                .map((collection) => (
-                  <button
-                    key={collection.id}
-                    type="button"
-                    className={`tree-btn tree-sub ${props.sidebarFilter.kind === 'collection' && props.sidebarFilter.collectionId === collection.id ? 'active' : ''}`}
-                    onClick={() =>
-                      props.onChangeFilter({ kind: 'collection', collectionId: collection.id, organizationId: organization.id })
-                    }
-                  >
-                    <FolderIcon size={14} className="tree-icon" />
-                    <span className="tree-label" title={collection.decName || collection.name || collection.id}>
-                      {collection.decName || collection.name || collection.id.slice(0, 8)}
-                    </span>
-                  </button>
-                ))}
+                .map((collection) => {
+                  /* Read-only collections are filter rows only: the server
+                     rejects moves into them, so they are not drop targets. */
+                  const collectionDropKey = `collection:${collection.id}`;
+                  const dropHandlers = collection.readOnly
+                    ? {}
+                    : cipherDropHandlers(collectionDropKey, (ids) => props.onDropToCollection(ids, collection.id, organization.id));
+                  return (
+                    <button
+                      key={collection.id}
+                      type="button"
+                      className={`tree-btn tree-sub ${props.sidebarFilter.kind === 'collection' && props.sidebarFilter.collectionId === collection.id ? 'active' : ''} ${dropHoverKey === collectionDropKey ? 'drop-hover' : ''}`}
+                      onClick={() =>
+                        props.onChangeFilter({ kind: 'collection', collectionId: collection.id, organizationId: organization.id })
+                      }
+                      {...dropHandlers}
+                    >
+                      <FolderIcon size={14} className="tree-icon" />
+                      <span className="tree-label" title={collection.decName || collection.name || collection.id}>
+                        {collection.decName || collection.name || collection.id.slice(0, 8)}
+                      </span>
+                    </button>
+                  );
+                })}
             </div>
           ))}
         </div>

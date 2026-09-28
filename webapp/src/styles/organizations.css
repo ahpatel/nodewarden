@@ -158,6 +158,14 @@
   color: var(--danger);
 }
 
+/* Multi-collection shared items: "Shared ◈3" — the count of the member's
+   accessible collections for the item. */
+.org-item-badge-count {
+  margin-left: 4px;
+  opacity: 0.8;
+  letter-spacing: 0.02em;
+}
+
 /* Import page: organization mapping selects */
 .org-import-selects {
   display: grid;

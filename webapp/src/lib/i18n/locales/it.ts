@@ -855,6 +855,8 @@ const it: Record<string, string> = {
   "txt_moved_count_items_to": "{count} elemento/i spostato/i in {name}",
   "txt_move_skipped_readonly": "{count} elemento/i di sola lettura non spostato/i",
   "txt_move_undone": "Spostamento annullato",
+  "txt_move_to_collection_skipped": "{count} elemento/i non spostato/i: personali, di un'altra organizzazione o di sola lettura.",
+  "txt_bulk_move_to_collection_failed": "Spostamento nella raccolta non riuscito",
   "txt_moved_selected_items": "Elementi selezionati spostati",
   "txt_name": "Nome",
   "txt_name_is_required": "Il nome è obbligatorio",

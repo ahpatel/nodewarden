@@ -1458,6 +1458,28 @@ export async function updateCipherCollections(
   if (!resp.ok) throw new Error(await parseErrorMessage(resp, 'Update collections failed'));
 }
 
+// POST /api/ciphers/bulk/collections — bulk flexible-collections move. The
+// server replaces each cipher's collection links with the given ids and
+// requires every cipher to belong to a single organization; it rejects
+// read-only members and non-editable targets server-side.
+export async function bulkSetCipherCollections(
+  authedFetch: AuthedFetch,
+  cipherIds: string[],
+  collectionIds: string[]
+): Promise<void> {
+  const uniqueIds = Array.from(new Set(cipherIds.map((id) => String(id || '').trim()).filter(Boolean)));
+  const targets = Array.from(new Set(collectionIds.map((id) => String(id || '').trim()).filter(Boolean)));
+  if (!targets.length) throw new Error('Move to collection failed');
+  for (const chunk of chunkArray(uniqueIds, BULK_API_CHUNK_SIZE)) {
+    const resp = await authedFetch('/api/ciphers/bulk/collections', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ cipherIds: chunk, collectionIds: targets }),
+    });
+    if (!resp.ok) throw new Error(await parseErrorMessage(resp, 'Move to collection failed'));
+  }
+}
+
 // POST /api/ciphers with an organization target. Payload must be encrypted with
 // the organization key (orgSession carries the org key halves).
 export async function createCipherInOrganization(

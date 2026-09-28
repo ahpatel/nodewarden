@@ -855,6 +855,8 @@ const zhCN: Record<string, string> = {
   "txt_moved_count_items_to": "已将 {count} 个项目移动到 {name}",
   "txt_move_skipped_readonly": "{count} 个只读项目未被移动",
   "txt_move_undone": "已撤销移动",
+  "txt_move_to_collection_skipped": "{count} 个项目未被移动——它们是个人项目、属于其他组织或为只读。",
+  "txt_bulk_move_to_collection_failed": "移动到集合失败",
   "txt_moved_selected_items": "已移动所选项目",
   "txt_name": "名称",
   "txt_name_is_required": "名称不能为空",

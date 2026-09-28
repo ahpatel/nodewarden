@@ -855,6 +855,8 @@ const sv: Record<string, string> = {
   "txt_moved_count_items_to": "{count} objekt flyttade till {name}",
   "txt_move_skipped_readonly": "{count} skrivskyddat objekt har inte flyttats",
   "txt_move_undone": "Flytt ångrat",
+  "txt_move_to_collection_skipped": "{count} objekt flyttades inte — de är personliga, tillhör en annan organisation eller är skrivskyddade.",
+  "txt_bulk_move_to_collection_failed": "Det gick inte att flytta till samlingen",
   "txt_moved_selected_items": "Flyttade valda objekt",
   "txt_name": "Namn",
   "txt_name_is_required": "Namn krävs",

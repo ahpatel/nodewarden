@@ -61,6 +61,7 @@ interface VaultPageProps {
   onBulkArchive: (ids: string[]) => Promise<void>;
   onBulkUnarchive: (ids: string[]) => Promise<void>;
   onBulkMove: (ids: string[], folderId: string | null, folderName?: string) => Promise<void>;
+  onBulkMoveToCollection: (ids: string[], collectionId: string, organizationId: string, collectionName?: string) => Promise<void>;
   onShareVaultItemToOrganization?: (cipher: Cipher, organizationId: string, collectionIds: string[]) => Promise<void>;
   onVerifyMasterPassword: (email: string, password: string) => Promise<void>;
   onNotify: (type: 'success' | 'error' | 'warning', text: string) => void;
@@ -730,6 +731,29 @@ const folderName = useCallback((id: string | null | undefined): string => {
     [canDragRows, selectedMap, folderName]
   );
 
+  /* Collection drops file items into an organization collection (add
+     semantics — never removing memberships); the action layer filters
+     eligibility and shows the undo toast. */
+  const handleDropToCollection = useCallback(
+    (ids: string[], collectionId: string, organizationId: string): void => {
+      if (!canDragRows || !ids.length) return;
+      const wasGroupDrag = ids.every((id) => !!selectedMap[id]);
+      const collection = (props.collections || []).find((entry) => entry.id === collectionId);
+      const targetName = collection?.decName || collection?.name || collectionId;
+      setBusy(true);
+      props
+        .onBulkMoveToCollection(ids, collectionId, organizationId, targetName)
+        .then(() => {
+          if (wasGroupDrag) setSelectedMap({});
+        })
+        .catch(() => {
+          /* The action layer already shows the user-facing error toast. */
+        })
+        .finally(() => setBusy(false));
+    },
+    [canDragRows, selectedMap, props.collections]
+  );
+
   const listSubtitle = useCallback((cipher: Cipher): string => {
     if (Number(cipher.type || 1) === 1) {
       return cipher.login?.decUsername || cipherMetaById.get(cipher.id)?.firstUri || '';
@@ -1363,6 +1387,7 @@ const folderName = useCallback((id: string | null | undefined): string => {
           onToggleFolderSortMenu={handleToggleFolderSortMenu}
           onSelectFolderSortMode={handleSelectFolderSortMode}
           onDropToFolder={handleDropToFolder}
+          onDropToCollection={handleDropToCollection}
         />
 
         <VaultListPanel

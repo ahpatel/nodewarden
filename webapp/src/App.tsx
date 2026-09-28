@@ -1979,6 +1979,7 @@ export default function App() {
     defaultKdfIterations,
     encryptedCiphers,
     encryptedFolders,
+    collections: decryptedCollections,
     orgKeys,
     refetchCiphers: async () => {
       const result = await refetchVaultCoreData() as { data?: VaultCoreSnapshot };
@@ -2216,6 +2217,7 @@ export default function App() {
     onBulkArchiveVaultItems: vaultSendActions.bulkArchiveVaultItems,
     onBulkUnarchiveVaultItems: vaultSendActions.bulkUnarchiveVaultItems,
     onBulkMoveVaultItems: vaultSendActions.bulkMoveVaultItems,
+    onBulkMoveToCollectionVaultItems: vaultSendActions.bulkMoveVaultItemsToCollection,
     onShareVaultItemToOrganization: vaultSendActions.shareVaultItemToOrganization,
     onVerifyMasterPassword: vaultSendActions.verifyMasterPassword,
     onCreateFolder: vaultSendActions.createFolder,

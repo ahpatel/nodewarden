@@ -108,6 +108,7 @@ export interface AppMainRoutesProps {
   onBulkArchiveVaultItems: (ids: string[]) => Promise<void>;
   onBulkUnarchiveVaultItems: (ids: string[]) => Promise<void>;
   onBulkMoveVaultItems: (ids: string[], folderId: string | null, folderName?: string) => Promise<void>;
+  onBulkMoveToCollectionVaultItems: (ids: string[], collectionId: string, organizationId: string, collectionName?: string) => Promise<void>;
   onShareVaultItemToOrganization: (cipher: Cipher, organizationId: string, collectionIds: string[]) => Promise<void>;
   onVerifyMasterPassword: (email: string, password: string) => Promise<void>;
   onCreateFolder: (name: string) => Promise<void>;
@@ -304,6 +305,7 @@ export default function AppMainRoutes(props: AppMainRoutesProps) {
             onBulkArchive={props.onBulkArchiveVaultItems}
             onBulkUnarchive={props.onBulkUnarchiveVaultItems}
             onBulkMove={props.onBulkMoveVaultItems}
+            onBulkMoveToCollection={props.onBulkMoveToCollectionVaultItems}
             onShareVaultItemToOrganization={props.onShareVaultItemToOrganization}
             onVerifyMasterPassword={props.onVerifyMasterPassword}
             onNotify={props.onNotify}

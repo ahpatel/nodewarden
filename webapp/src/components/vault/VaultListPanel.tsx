@@ -152,7 +152,14 @@ const CipherListItem = memo(function CipherListItem(props: CipherListItemProps) 
           <span className="list-title" title={props.cipher.decName || t('txt_no_name')}>
             <span className="list-title-text">{props.cipher.decName || t('txt_no_name')}</span>
             {props.cipher.organizationId ? (
-              <span className="org-item-badge" title={t('txt_organizations_shared_item_badge')}>{t('txt_organizations_shared_item_badge')}</span>
+              <span className="org-item-badge" title={t('txt_organizations_shared_item_badge')}>
+                {t('txt_organizations_shared_item_badge')}
+                {(props.cipher.collectionIds?.length || 0) > 1 ? (
+                  <span className="org-item-badge-count" aria-label={`◈ ${props.cipher.collectionIds?.length}`}>
+                    {'\u25c8'}{props.cipher.collectionIds?.length}
+                  </span>
+                ) : null}
+              </span>
             ) : null}
             {props.cipher.organizationId && props.cipher.edit === false ? (
               <span className="org-item-badge org-item-badge-readonly" title={t('txt_organizations_readonly_badge')}>{t('txt_organizations_readonly_badge')}</span>

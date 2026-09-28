@@ -855,6 +855,8 @@ const es: Record<string, string> = {
   "txt_moved_count_items_to": "{count} elemento(s) movido(s) a {name}",
   "txt_move_skipped_readonly": "{count} elemento(s) de solo lectura no se movió(eron)",
   "txt_move_undone": "Movimiento deshecho",
+  "txt_move_to_collection_skipped": "{count} elemento(s) no se movió(eron): son personales, de otra organización o de solo lectura.",
+  "txt_bulk_move_to_collection_failed": "Error al mover a la colección",
   "txt_moved_selected_items": "Elementos seleccionados movidos",
   "txt_name": "Nombre",
   "txt_name_is_required": "El nombre es obligatorio",

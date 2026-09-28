@@ -33,6 +33,7 @@ import {
   bulkMoveCiphers,
   bulkPermanentDeleteCiphers,
   bulkRestoreCiphers,
+  bulkSetCipherCollections,
   bulkUnarchiveCiphers,
   createCipher,
   createCipherInOrganization,
@@ -58,7 +59,7 @@ import {
 import { deriveLoginHash, getPreloginKdfConfig, verifyMasterPassword } from '@/lib/api/auth';
 import type { AuthedFetch } from '@/lib/api/shared';
 import { downloadBytesAsFile } from '@/lib/download';
-import type { Cipher, Folder as VaultFolder, Profile, Send, SendDraft, SessionState, ToastAction, VaultDraft } from '@/lib/types';
+import type { Cipher, Folder as VaultFolder, Profile, Send, SendDraft, SessionState, ToastAction, VaultCollection, VaultDraft } from '@/lib/types';
 import type { OrgKeyMap } from '@/lib/vault-decrypt';
 
 type Notify = (
@@ -78,6 +79,8 @@ interface UseVaultSendActionsOptions {
   defaultKdfIterations: number;
   encryptedCiphers: Cipher[] | undefined;
   encryptedFolders: VaultFolder[] | undefined;
+  /** Decrypted organization collections, carrying the member's user-scoped flags. */
+  collections?: VaultCollection[];
   /** Organization decryption keys by organizationId (org item import support). */
   orgKeys?: OrgKeyMap | null;
   refetchCiphers: () => Promise<{ data?: Cipher[] | undefined } | unknown>;
@@ -315,6 +318,7 @@ export default function useVaultSendActions(options: UseVaultSendActionsOptions)
     defaultKdfIterations,
     encryptedCiphers,
     encryptedFolders,
+    collections,
     orgKeys,
     refetchCiphers,
     refetchFolders,
@@ -982,6 +986,141 @@ export default function useVaultSendActions(options: UseVaultSendActionsOptions)
         onNotify('success', toastText, { durationMs: MOVE_UNDO_TOAST_LIFE_MS, action: undo });
       },
 
+      /* Drag-to-collection uses ADD semantics: the drop files the item into
+         the target collection and never removes other memberships. Removing a
+         collection stays an explicit editor action. The bulk endpoint replaces
+         links wholesale, so each call sends [previous..., target] for a batch
+         of items sharing the same previous set. */
+      async bulkMoveVaultItemsToCollection(
+        ids: string[],
+        collectionId: string,
+        organizationId: string,
+        collectionName?: string
+      ) {
+        try {
+          requireOnlineWrite();
+        } catch (error) {
+          onNotify('error', error instanceof Error ? error.message : t('txt_offline_vault_readonly'));
+          throw error;
+        }
+
+        const targetId = String(collectionId || '').trim();
+        const targetOrgId = String(organizationId || '').trim();
+        if (!targetId || !targetOrgId) return;
+
+        const cipherById = new Map((encryptedCiphers || []).map((cipher) => [cipher.id, cipher] as const));
+        // The server rejects a payload touching any collection the acting
+        // member holds read-only, so items sitting in one are not eligible.
+        const readOnlyCollectionIds = new Set(
+          (collections || [])
+            .filter((collection) => collection.organizationId === targetOrgId && collection.readOnly)
+            .map((collection) => collection.id)
+        );
+
+        const requestedIds: string[] = [];
+        let skippedCount = 0;
+        for (const id of ids) {
+          const normalized = String(id || '').trim();
+          if (!normalized || !cipherById.has(normalized) || requestedIds.includes(normalized)) continue;
+          const cipher = cipherById.get(normalized);
+          if (!cipher) continue;
+          const ineligible =
+            cipher.organizationId !== targetOrgId ||
+            cipher.edit === false ||
+            (Array.isArray(cipher.collectionIds) && cipher.collectionIds.some((collection) => readOnlyCollectionIds.has(collection)));
+          if (ineligible) {
+            skippedCount += 1;
+            continue;
+          }
+          requestedIds.push(normalized);
+        }
+        if (skippedCount) {
+          onNotify('warning', t('txt_move_to_collection_skipped', { count: skippedCount }));
+        }
+
+        // Items already filed in the target collection are no-ops.
+        const previousCollectionIdsById = new Map<string, string[]>();
+        const toMove: string[] = [];
+        for (const id of requestedIds) {
+          const cipher = cipherById.get(id);
+          if (!cipher) continue;
+          const previous = Array.isArray(cipher.collectionIds) ? [...cipher.collectionIds] : [];
+          if (previous.includes(targetId)) continue;
+          previousCollectionIdsById.set(id, previous);
+          toMove.push(id);
+        }
+        if (!toMove.length) return;
+
+        const moveGroupsByPrevious = new Map<string, { ids: string[]; targets: string[] }>();
+        for (const id of toMove) {
+          const previous = previousCollectionIdsById.get(id) || [];
+          const key = [...previous].sort().join('\n');
+          const group = moveGroupsByPrevious.get(key);
+          if (group) group.ids.push(id);
+          else moveGroupsByPrevious.set(key, { ids: [id], targets: [...previous, targetId] });
+        }
+
+        try {
+          for (const group of moveGroupsByPrevious.values()) {
+            await bulkSetCipherCollections(authedFetch, group.ids, group.targets);
+          }
+        } catch (error) {
+          void refetchCiphers().catch(() => undefined);
+          onNotify('error', error instanceof Error ? error.message : t('txt_bulk_move_to_collection_failed'));
+          throw error;
+        }
+        patchCipherBatch(toMove, (cipher) => ({
+          ...cipher,
+          collectionIds: [...(previousCollectionIdsById.get(cipher.id) || []), targetId],
+        }));
+        void refreshVaultRevisionStamp();
+
+        const undo: ToastAction = {
+          label: t('txt_undo'),
+          onAction: async () => {
+            try {
+              requireOnlineWrite();
+            } catch (error) {
+              onNotify('error', error instanceof Error ? error.message : t('txt_offline_vault_readonly'));
+              return;
+            }
+            // Restore each item's pre-drag set. Items that had no collections
+            // before the drop cannot be restored (the server requires at least
+            // one link), so they keep the added collection.
+            const restoreGroups = new Map<string, { ids: string[]; targets: string[] }>();
+            for (const id of toMove) {
+              const previous = previousCollectionIdsById.get(id) || [];
+              if (!previous.length) continue;
+              const key = [...previous].sort().join('\n');
+              const group = restoreGroups.get(key);
+              if (group) group.ids.push(id);
+              else restoreGroups.set(key, { ids: [id], targets: previous });
+            }
+            if (!restoreGroups.size) return;
+            try {
+              for (const group of restoreGroups.values()) {
+                await bulkSetCipherCollections(authedFetch, group.ids, group.targets);
+              }
+            } catch (error) {
+              void refetchCiphers().catch(() => undefined);
+              onNotify('error', error instanceof Error ? error.message : t('txt_bulk_move_to_collection_failed'));
+              return;
+            }
+            patchCipherBatch(toMove, (cipher) => {
+              const previous = previousCollectionIdsById.get(cipher.id) || [];
+              return { ...cipher, collectionIds: previous.length ? [...previous] : [...(cipher.collectionIds || [])] };
+            });
+            void refreshVaultRevisionStamp();
+            onNotify('success', t('txt_move_undone', { count: toMove.length }));
+          },
+        };
+        const toastText =
+          typeof collectionName === 'string'
+            ? t('txt_moved_count_items_to', { count: toMove.length, name: collectionName })
+            : t('txt_moved_selected_items');
+        onNotify('success', toastText, { durationMs: MOVE_UNDO_TOAST_LIFE_MS, action: undo });
+      },
+
       async createFolder(name: string) {
         const folderName = name.trim();
         if (!folderName) {
@@ -1623,6 +1762,7 @@ export default function useVaultSendActions(options: UseVaultSendActionsOptions)
     attachmentDownloadPercent,
     attachmentUploadPercent,
     authedFetch,
+    collections,
     defaultKdfIterations,
     downloadingAttachmentKey,
     encryptedCiphers,

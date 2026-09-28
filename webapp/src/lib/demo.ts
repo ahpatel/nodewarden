@@ -1365,6 +1365,22 @@ export function createDemoMainRoutesProps(base: AppMainRoutesProps, notify: Noti
       state.setCiphers((prev) => prev.map((item) => (idSet.has(item.id) ? { ...item, folderId } : item)));
       notify('success', t('txt_moved_selected_items'));
     },
+    onBulkMoveToCollectionVaultItems: async (ids, collectionId, organizationId) => {
+      // Add semantics, mirroring the real action: only editable items of the
+      // target organization change, and the drop never removes memberships.
+      const idSet = new Set(ids);
+      let moved = 0;
+      state.setCiphers((prev) =>
+        prev.map((item) => {
+          if (!idSet.has(item.id) || item.organizationId !== organizationId || item.edit === false) return item;
+          const previous = Array.isArray(item.collectionIds) ? [...item.collectionIds] : [];
+          if (previous.includes(collectionId)) return item;
+          moved += 1;
+          return { ...item, collectionIds: [...previous, collectionId] };
+        })
+      );
+      if (moved) notify('success', t('txt_moved_count_items_to', { count: moved, name: '' }));
+    },
     onVerifyMasterPassword: async () => {},
     onCreateFolder: async (name) => {
       const trimmed = name.trim();
