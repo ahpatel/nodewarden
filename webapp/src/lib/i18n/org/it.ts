@@ -114,7 +114,15 @@ const orgIt: Record<string, string> = {
   "txt_organizations_reencrypt_keys": "Ricifra le chiavi dei membri",
   "txt_organizations_reencrypt_keys_message": "Questa azione ricifra la chiave dell'organizzazione per ogni membro confermato usando il formato previsto dalle app Bitwarden ufficiali. Usala quando l'estensione o l'app desktop mostra stringhe cifrate grezze al posto del nome o degli elementi di questa organizzazione. Le app dei membri si risincronizzano automaticamente in seguito.",
   "txt_organizations_reencrypt_keys_done": "{count} chiave/i di membri ricifrata/e. Le app Bitwarden ufficiali ora possono decifrare questa organizzazione.",
-  "txt_organizations_reencrypt_keys_failed": "Impossibile ricifrare le chiavi dei membri"
+  "txt_organizations_reencrypt_keys_failed": "Impossibile ricifrare le chiavi dei membri",
+  "txt_organizations_delete_collection_confirm": "Eliminare la raccolta {name}?",
+  "txt_organizations_delete_collection_title": "Elimina raccolta",
+  "txt_organizations_delete_collection_with_items": "Questa raccolta contiene {count} elemento/i. Scegli dove spostarli prima di eliminarla.",
+  "txt_organizations_delete_collection_move_to": "Sposta gli elementi in:",
+  "txt_organizations_delete_collection_leave_unassigned": "Lascia gli elementi non assegnati (nessuno spostamento)",
+  "txt_organizations_delete_collection_no_target": "Questa organizzazione non ha altre raccolte. Gli elementi non assegnati sono visibili solo ai membri con accesso a tutti gli elementi.",
+  "txt_organizations_delete_collection_moved": "Raccolta eliminata. {count} elemento/i spostato/i in {name}.",
+  "txt_organizations_delete_collection_failed": "Impossibile eliminare la raccolta"
 };
 
 export default orgIt;

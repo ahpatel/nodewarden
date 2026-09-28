@@ -78,10 +78,10 @@ export async function deleteCollectionForOwner(
 ): Promise<boolean> {
   const result = await db
     .prepare(
-      'DELETE FROM collections WHERE id = ? AND organization_id = ? AND EXISTS (' +
-        'SELECT 1 FROM organization_users ou ' +
-        'WHERE ou.organization_id = ? AND ou.user_id = ? AND ou.type = ${ORG_USER_TYPE.OWNER} AND ou.status = ${ORG_USER_STATUS.CONFIRMED}' +
-      ')'
+      `DELETE FROM collections WHERE id = ? AND organization_id = ? AND EXISTS (
+         SELECT 1 FROM organization_users ou
+         WHERE ou.organization_id = ? AND ou.user_id = ? AND ou.type = ${ORG_USER_TYPE.OWNER} AND ou.status = ${ORG_USER_STATUS.CONFIRMED}
+       )`
     )
     .bind(collectionId, organizationId, organizationId, ownerUserId)
     .run();

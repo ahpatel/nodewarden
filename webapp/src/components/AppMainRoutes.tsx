@@ -268,6 +268,7 @@ export default function AppMainRoutes(props: AppMainRoutesProps) {
             session={props.session}
             authedFetch={props.authedFetch}
             orgKeys={props.orgKeys}
+            ciphers={props.decryptedCiphers}
             onNotify={props.onNotify}
             onRefresh={props.onRefreshVault}
             onNavigate={props.onNavigate}

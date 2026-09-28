@@ -114,7 +114,15 @@ const orgZhTW: Record<string, string> = {
   "txt_organizations_reencrypt_keys": "重新加密成員金鑰",
   "txt_organizations_reencrypt_keys_message": "這將以官方 Bitwarden 應用程式所要求的格式，為每個已確認的成員重新加密組織金鑰。當瀏覽器擴充功能或桌面應用程式顯示原始加密字串而不是此組織的名稱或項目時，請使用此功能。成員的應用程式之後會自動重新同步。",
   "txt_organizations_reencrypt_keys_done": "已重新加密 {count} 個成員金鑰。官方 Bitwarden 應用程式現在可以解密此組織。",
-  "txt_organizations_reencrypt_keys_failed": "重新加密成員金鑰失敗"
+  "txt_organizations_reencrypt_keys_failed": "重新加密成員金鑰失敗",
+  "txt_organizations_delete_collection_confirm": "刪除集合 {name}？",
+  "txt_organizations_delete_collection_title": "刪除集合",
+  "txt_organizations_delete_collection_with_items": "此集合包含 {count} 個項目。請選擇在刪除前將它們移動到哪裡。",
+  "txt_organizations_delete_collection_move_to": "將項目移動到：",
+  "txt_organizations_delete_collection_leave_unassigned": "保留項目為未指派（不移動）",
+  "txt_organizations_delete_collection_no_target": "此組織沒有其他集合。未指派的項目僅對擁有所有項目存取權限的成員可見。",
+  "txt_organizations_delete_collection_moved": "集合已刪除。{count} 個項目已移動到 {name}。",
+  "txt_organizations_delete_collection_failed": "刪除集合失敗"
 };
 
 export default orgZhTW;

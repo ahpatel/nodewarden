@@ -134,10 +134,10 @@ export async function deleteOrganizationForOwner(
 ): Promise<boolean> {
   const result = await db
     .prepare(
-      'DELETE FROM organizations WHERE id = ? AND EXISTS (' +
-        'SELECT 1 FROM organization_users ou ' +
-        'WHERE ou.organization_id = organizations.id AND ou.user_id = ? AND ou.type = ${ORG_USER_TYPE.OWNER} AND ou.status = ${ORG_USER_STATUS.CONFIRMED}' +
-      ')'
+      `DELETE FROM organizations WHERE id = ? AND EXISTS (
+         SELECT 1 FROM organization_users ou
+         WHERE ou.organization_id = organizations.id AND ou.user_id = ? AND ou.type = ${ORG_USER_TYPE.OWNER} AND ou.status = ${ORG_USER_STATUS.CONFIRMED}
+       )`
     )
     .bind(organizationId, ownerUserId)
     .run();
@@ -246,7 +246,7 @@ export async function countConfirmedOrganizationOwners(
   organizationId: string
 ): Promise<number> {
   const row = await db
-    .prepare('SELECT COUNT(*) AS count FROM organization_users WHERE organization_id = ? AND type = ${ORG_USER_TYPE.OWNER} AND status = ${ORG_USER_STATUS.CONFIRMED}')
+    .prepare(`SELECT COUNT(*) AS count FROM organization_users WHERE organization_id = ? AND type = ${ORG_USER_TYPE.OWNER} AND status = ${ORG_USER_STATUS.CONFIRMED}`)
     .bind(organizationId)
     .first<{ count: number }>();
   return Number(row?.count || 0);

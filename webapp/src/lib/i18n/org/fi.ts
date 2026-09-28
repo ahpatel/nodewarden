@@ -114,7 +114,15 @@ const orgFi: Record<string, string> = {
   "txt_organizations_reencrypt_keys": "Salaa jäsenavaimet uudelleen",
   "txt_organizations_reencrypt_keys_message": "Tämä salaa organisaatioavaimen jokaiselle vahvistetulle jäsenellä muodossa, jota viralliset Bitwarden-sovellukset odottavat. Käytä tätä, kun laajennus tai työpöytäsovellus näyttää salattuja merkkijonoja organisaation nimen tai kohteiden sijaan. Jäsenten sovellukset synkronoituvat sen jälkeen automaattisesti.",
   "txt_organizations_reencrypt_keys_done": "{count} jäsenavain salattiin uudelleen. Viralliset Bitwarden-sovellukset voivat nyt purkaa tämän organisaation salauksen.",
-  "txt_organizations_reencrypt_keys_failed": "Jäsenavainten uudelleensalaus epäonnistui"
+  "txt_organizations_reencrypt_keys_failed": "Jäsenavainten uudelleensalaus epäonnistui",
+  "txt_organizations_delete_collection_confirm": "Poistetaanko kokoelma {name}?",
+  "txt_organizations_delete_collection_title": "Poista kokoelma",
+  "txt_organizations_delete_collection_with_items": "Tämä kokoelma sisältää {count} kohde(tta). Valitse, mihin ne siirretään ennen poistamista.",
+  "txt_organizations_delete_collection_move_to": "Siirrä kohteet kohteeseen:",
+  "txt_organizations_delete_collection_leave_unassigned": "Jätä kohteet kohdistamatta (ei siirtoa)",
+  "txt_organizations_delete_collection_no_target": "Tällä organisaatiolla ei ole muuta kokoelmaa. Kohdistamattomat kohteet näkyvät vain jäsenille, joilla on pääsy kaikkiin kohteisiin.",
+  "txt_organizations_delete_collection_moved": "Kokoelma poistettu. {count} kohde(tta) siirretty kohteeseen {name}.",
+  "txt_organizations_delete_collection_failed": "Kokoelman poistaminen epäonnistui"
 };
 
 export default orgFi;

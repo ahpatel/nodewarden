@@ -37,6 +37,8 @@ import {
   reencryptOrganizationMemberKeys,
   repairLegacyOrganizationKeysForSelf,
 } from '@/lib/org-key-repair';
+import { updateCipherCollections } from '@/lib/api/vault';
+import type { Cipher } from '@/lib/types';
 import type { OrgKeyMap } from '@/lib/vault-decrypt';
 import type { AuthedFetch } from '@/lib/api/shared';
 import type { Profile, SessionState } from '@/lib/types';
@@ -47,6 +49,8 @@ interface OrganizationsPageProps {
   session: SessionState | null;
   authedFetch: AuthedFetch;
   orgKeys: OrgKeyMap | null;
+  /** Decrypted vault ciphers; used to resolve which items a collection delete would orphan. */
+  ciphers: Cipher[];
   onNotify: (type: 'success' | 'error' | 'warning', text: string) => void;
   onRefresh: () => Promise<void>;
   onNavigate: (path: string) => void;
@@ -123,6 +127,8 @@ export default function OrganizationsPage(props: OrganizationsPageProps) {
   const [permissionsSubmitting, setPermissionsSubmitting] = useState(false);
   const [legacyOwnKeyOrgIds, setLegacyOwnKeyOrgIds] = useState<Record<string, boolean>>({});
   const [reencryptKeysDialogOpen, setReencryptKeysDialogOpen] = useState(false);
+  const [deleteCollectionState, setDeleteCollectionState] = useState<{ collection: OrganizationCollection; affected: Cipher[] } | null>(null);
+  const [moveTargetCollectionId, setMoveTargetCollectionId] = useState<string>('');
 
   const selectedOrganization = useMemo(
     () => organizations.find((org) => org.id === selectedOrgId) || null,
@@ -453,19 +459,63 @@ export default function OrganizationsPage(props: OrganizationsPageProps) {
     }
   }
 
-  async function handleDeleteCollection(collection: OrganizationCollection) {
+  // Collection delete flow: an empty collection confirms once and deletes.
+  // A collection with items opens a dialog offering to move the affected
+  // items to another collection first — items left unassigned disappear
+  // from every non-accessAll member's vault, so the move is the safe path.
+  function handleDeleteCollection(collection: OrganizationCollection) {
+    if (!selectedOrgId) return;
+    const affected = props.ciphers.filter(
+      (cipher) => cipher.organizationId === selectedOrgId && !!cipher.collectionIds?.includes(collection.id)
+    );
+    if (affected.length === 0) {
+      const name = collectionNames[collection.id] || collection.id.slice(0, 8);
+      if (!window.confirm(t('txt_organizations_delete_collection_confirm', { name }))) return;
+      void deleteCollectionNow(collection, [], null);
+      return;
+    }
+    setDeleteCollectionState({ collection, affected });
+    setMoveTargetCollectionId('');
+  }
+
+  async function deleteCollectionNow(collection: OrganizationCollection, affected: Cipher[], moveTargetId: string | null) {
     if (!selectedOrgId) return;
     setBusy(collection.id);
     try {
+      if (moveTargetId) {
+        for (const cipher of affected) {
+          // Replace the deleted collection with the chosen destination,
+          // keeping every other collection the item already belongs to.
+          const nextIds = Array.from(
+            new Set((cipher.collectionIds || []).map((id) => (id === collection.id ? moveTargetId : id)))
+          );
+          await updateCipherCollections(authedFetch, cipher.id, nextIds);
+        }
+      }
       await deleteOrganizationCollection(authedFetch, selectedOrgId, collection.id);
-      notify('success', t('txt_organizations_collection_deleted'));
+      notify('success', moveTargetId
+        ? t('txt_organizations_delete_collection_moved', {
+            count: String(affected.length),
+            name: collectionNames[moveTargetId] || moveTargetId.slice(0, 8),
+          })
+        : t('txt_organizations_collection_deleted'));
+      setDeleteCollectionState(null);
       await refreshOrgDetail(selectedOrgId);
       await onRefreshVault();
     } catch (err) {
-      notify('error', err instanceof Error ? err.message : t('txt_organizations_collection_delete_failed'));
+      notify('error', err instanceof Error ? err.message : t('txt_organizations_delete_collection_failed'));
     } finally {
       setBusy(null);
     }
+  }
+
+  function confirmDeleteCollectionWithItems() {
+    if (!deleteCollectionState) return;
+    void deleteCollectionNow(
+      deleteCollectionState.collection,
+      deleteCollectionState.affected,
+      moveTargetCollectionId || null
+    );
   }
 
   // Per-collection permission editor: seed a row per org collection from the
@@ -966,6 +1016,46 @@ export default function OrganizationsPage(props: OrganizationsPageProps) {
         onConfirm={() => void handleReencryptMemberKeys()}
         onCancel={() => setReencryptKeysDialogOpen(false)}
       />
+
+      <ConfirmDialog
+        open={!!deleteCollectionState}
+        title={t('txt_organizations_delete_collection_title')}
+        message={t('txt_organizations_delete_collection_with_items', {
+          count: String(deleteCollectionState?.affected.length || 0),
+        })}
+        confirmText={t('txt_delete')}
+        cancelText={t('txt_cancel')}
+        danger
+        confirmDisabled={!!deleteCollectionState && busy === deleteCollectionState.collection.id}
+        cancelDisabled={!!deleteCollectionState && busy === deleteCollectionState.collection.id}
+        onConfirm={() => confirmDeleteCollectionWithItems()}
+        onCancel={() => setDeleteCollectionState(null)}
+      >
+        <div className="org-delete-collection-body">
+          {collections.some((collection) => collection.id !== deleteCollectionState?.collection.id) ? (
+            <label className="field">
+              <span>{t('txt_organizations_delete_collection_move_to')}</span>
+              <select
+                className="input"
+                value={moveTargetCollectionId}
+                disabled={!!deleteCollectionState && busy === deleteCollectionState.collection.id}
+                onChange={(event) => setMoveTargetCollectionId((event.target as HTMLSelectElement).value)}
+              >
+                <option value="">{t('txt_organizations_delete_collection_leave_unassigned')}</option>
+                {collections
+                  .filter((collection) => collection.id !== deleteCollectionState?.collection.id)
+                  .map((collection) => (
+                    <option key={collection.id} value={collection.id}>
+                      {collectionNames[collection.id] || collection.id.slice(0, 8)}
+                    </option>
+                  ))}
+              </select>
+            </label>
+          ) : (
+            <p className="small-note">{t('txt_organizations_delete_collection_no_target')}</p>
+          )}
+        </div>
+      </ConfirmDialog>
     </div>
   );
 }

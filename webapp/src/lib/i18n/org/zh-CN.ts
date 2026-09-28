@@ -114,7 +114,15 @@ const orgZhCN: Record<string, string> = {
   "txt_organizations_reencrypt_keys": "重新加密成员密钥",
   "txt_organizations_reencrypt_keys_message": "这将以官方 Bitwarden 应用所要求的格式，为每个已确认的成员重新加密组织密钥。当浏览器扩展或桌面应用显示原始加密字符串而不是此组织的名称或项目时，请使用此功能。成员的应用之后会自动重新同步。",
   "txt_organizations_reencrypt_keys_done": "已重新加密 {count} 个成员密钥。官方 Bitwarden 应用现在可以解密此组织。",
-  "txt_organizations_reencrypt_keys_failed": "重新加密成员密钥失败"
+  "txt_organizations_reencrypt_keys_failed": "重新加密成员密钥失败",
+  "txt_organizations_delete_collection_confirm": "删除集合 {name}？",
+  "txt_organizations_delete_collection_title": "删除集合",
+  "txt_organizations_delete_collection_with_items": "此集合包含 {count} 个项目。请选择在删除前将它们移动到哪里。",
+  "txt_organizations_delete_collection_move_to": "将项目移动到：",
+  "txt_organizations_delete_collection_leave_unassigned": "保留项目为未分配（不移动）",
+  "txt_organizations_delete_collection_no_target": "此组织没有其他集合。未分配的项目仅对拥有所有项目访问权限的成员可见。",
+  "txt_organizations_delete_collection_moved": "集合已删除。{count} 个项目已移动到 {name}。",
+  "txt_organizations_delete_collection_failed": "删除集合失败"
 };
 
 export default orgZhCN;

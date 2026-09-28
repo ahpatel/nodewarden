@@ -114,7 +114,15 @@ const orgSv: Record<string, string> = {
   "txt_organizations_reencrypt_keys": "Kryptera om medlemsnycklar",
   "txt_organizations_reencrypt_keys_message": "Detta krypterar om organisationsnyckeln för varje bekräftad medlem med det format som officiella Bitwarden-appar förväntar sig. Använd det när tillägget eller skrivbordsappen visar råa krypterade strängar i stället för organisationens namn eller objekt. Medlemmarnas appar synkroniseras om automatiskt efteråt.",
   "txt_organizations_reencrypt_keys_done": "{count} medlemsnyckel/ar krypterades om. Officiella Bitwarden-appar kan nu dekryptera denna organisation.",
-  "txt_organizations_reencrypt_keys_failed": "Misslyckades med att kryptera om medlemsnycklar"
+  "txt_organizations_reencrypt_keys_failed": "Misslyckades med att kryptera om medlemsnycklar",
+  "txt_organizations_delete_collection_confirm": "Ta bort samlingen {name}?",
+  "txt_organizations_delete_collection_title": "Ta bort samling",
+  "txt_organizations_delete_collection_with_items": "Den här samlingen innehåller {count} post(er). Välj vart de ska flyttas innan den tas bort.",
+  "txt_organizations_delete_collection_move_to": "Flytta poster till:",
+  "txt_organizations_delete_collection_leave_unassigned": "Lämna poster otilldelade (ingen flytt)",
+  "txt_organizations_delete_collection_no_target": "Den här organisationen har ingen annan samling. Otilldelade poster syns bara för medlemmar med åtkomst till alla poster.",
+  "txt_organizations_delete_collection_moved": "Samlingen togs bort. {count} post(er) flyttades till {name}.",
+  "txt_organizations_delete_collection_failed": "Misslyckades med att ta bort samlingen"
 };
 
 export default orgSv;

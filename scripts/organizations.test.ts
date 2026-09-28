@@ -673,8 +673,7 @@ test('webapp creates and renames organizations with plaintext names', () => {
   );
 });
 
-test('webapp migrates legacy encrypted org names to plaintext', () => {
-  const repair = read('webapp/src/lib/org-key-repair.ts');
+test('webapp migrates legacy encrypted org names to plaintext', () => {  const repair = read('webapp/src/lib/org-key-repair.ts');
   assert.ok(
     repair.includes('migrateLegacyEncryptedOrgNames'),
     'repair module exposes the name migration'
@@ -705,6 +704,31 @@ test('webapp migrates legacy encrypted org names to plaintext', () => {
   assert.ok(
     page.includes('migrateLegacyEncryptedOrgNames(list'),
     'org page migrates names on refresh'
+  );
+});
+
+// ─── Collection delete UX ──────────────────────────────────────────────────
+// A collection delete that strands items silently revokes them from every
+// non-accessAll member, so collections with items must offer a move
+// destination first; empty collections delete directly.
+
+test('collection delete offers a move destination when items are assigned', () => {
+  const page = read('webapp/src/components/OrganizationsPage.tsx');
+  assert.ok(
+    /function handleDeleteCollection[\s\S]{0,400}affected\.length === 0/.test(page),
+    'empty collections take the direct delete path'
+  );
+  assert.ok(
+    page.includes('updateCipherCollections(authedFetch, cipher.id, nextIds)'),
+    'collections with items can be moved to a destination before deleting'
+  );
+  assert.ok(
+    page.includes('txt_organizations_delete_collection_move_to'),
+    'the move destination is user-visible'
+  );
+  assert.ok(
+    page.includes('ciphers.filter('),
+    'affected items are resolved from the decrypted vault'
   );
 });
 
