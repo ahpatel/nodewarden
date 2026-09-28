@@ -15,6 +15,7 @@ import {
   encryptZipBytesWithPassword,
 } from '@/lib/export-formats';
 import { base64ToBytes, decryptBw, decryptBwFileData, decryptStr } from '@/lib/crypto';
+import { planBulkCollectionMove } from '@/lib/bulk-collection-groups';
 import { decryptSingleCipher } from '@/lib/decrypt-cipher';
 import { t } from '@/lib/i18n';
 import {
@@ -1061,31 +1062,34 @@ export default function useVaultSendActions(options: UseVaultSendActionsOptions)
           onNotify('warning', t('txt_move_to_collection_skipped', { count: skippedCount }));
         }
 
-        // Items already filed in the target collection are no-ops.
+        // Items already filed in the target collection are no-ops; the plan
+        // groups the rest by their previous collection set so each bulk call
+        // sends [previous..., target] and never drops other memberships.
+        const plan = planBulkCollectionMove(
+          requestedIds.map((id) => ({
+            id,
+            previousCollectionIds: Array.isArray(cipherById.get(id)?.collectionIds)
+              ? [...(cipherById.get(id)!.collectionIds as string[])]
+              : [],
+          })),
+          targetId
+        );
         const previousCollectionIdsById = new Map<string, string[]>();
-        const toMove: string[] = [];
-        for (const id of requestedIds) {
-          const cipher = cipherById.get(id);
-          if (!cipher) continue;
-          const previous = Array.isArray(cipher.collectionIds) ? [...cipher.collectionIds] : [];
-          if (previous.includes(targetId)) continue;
-          previousCollectionIdsById.set(id, previous);
-          toMove.push(id);
+        for (const group of plan.moveGroups) {
+          for (const cipherId of group.cipherIds) {
+            const cipher = cipherById.get(cipherId);
+            previousCollectionIdsById.set(
+              cipherId,
+              Array.isArray(cipher?.collectionIds) ? [...(cipher!.collectionIds as string[])] : []
+            );
+          }
         }
+        const toMove = plan.moveGroups.flatMap((group) => group.cipherIds);
         if (!toMove.length) return;
 
-        const moveGroupsByPrevious = new Map<string, { ids: string[]; targets: string[] }>();
-        for (const id of toMove) {
-          const previous = previousCollectionIdsById.get(id) || [];
-          const key = [...previous].sort().join('\n');
-          const group = moveGroupsByPrevious.get(key);
-          if (group) group.ids.push(id);
-          else moveGroupsByPrevious.set(key, { ids: [id], targets: [...previous, targetId] });
-        }
-
         try {
-          for (const group of moveGroupsByPrevious.values()) {
-            await bulkSetCipherCollections(authedFetch, group.ids, group.targets);
+          for (const group of plan.moveGroups) {
+            await bulkSetCipherCollections(authedFetch, group.cipherIds, group.collectionIds);
           }
         } catch (error) {
           void refetchCiphers().catch(() => undefined);
@@ -1110,31 +1114,26 @@ export default function useVaultSendActions(options: UseVaultSendActionsOptions)
             // Restore each item's pre-drag set. Items that had no collections
             // before the drop cannot be restored (the server requires at least
             // one link), so they keep the added collection.
-            const restoreGroups = new Map<string, { ids: string[]; targets: string[] }>();
-            for (const id of toMove) {
-              const previous = previousCollectionIdsById.get(id) || [];
-              if (!previous.length) continue;
-              const key = [...previous].sort().join('\n');
-              const group = restoreGroups.get(key);
-              if (group) group.ids.push(id);
-              else restoreGroups.set(key, { ids: [id], targets: previous });
+            const restoredCount = plan.undoGroups.reduce((sum, group) => sum + group.cipherIds.length, 0);
+            if (!plan.undoGroups.length) {
+              onNotify('success', t('txt_move_undone', { count: 0 }));
+              return;
             }
-            if (!restoreGroups.size) return;
             try {
-              for (const group of restoreGroups.values()) {
-                await bulkSetCipherCollections(authedFetch, group.ids, group.targets);
+              for (const group of plan.undoGroups) {
+                await bulkSetCipherCollections(authedFetch, group.cipherIds, group.collectionIds);
               }
             } catch (error) {
               void refetchCiphers().catch(() => undefined);
               onNotify('error', error instanceof Error ? error.message : t('txt_bulk_move_to_collection_failed'));
               return;
             }
-            patchCipherBatch(toMove, (cipher) => {
+            patchCipherBatch(plan.undoGroups.flatMap((group) => group.cipherIds), (cipher) => {
               const previous = previousCollectionIdsById.get(cipher.id) || [];
               return { ...cipher, collectionIds: previous.length ? [...previous] : [...(cipher.collectionIds || [])] };
             });
             void refreshVaultRevisionStamp();
-            onNotify('success', t('txt_move_undone', { count: toMove.length }));
+            onNotify('success', t('txt_move_undone', { count: restoredCount }));
           },
         };
         const toastText =

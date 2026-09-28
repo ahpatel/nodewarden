@@ -855,8 +855,6 @@ const en: Record<string, string> = {
   "txt_moved_count_items_to": "Moved {count} item(s) to {name}",
   "txt_move_skipped_readonly": "{count} read-only item(s) were not moved",
   "txt_move_undone": "Move undone",
-  "txt_move_to_collection_skipped": "{count} item(s) were not moved — they are personal, in another organization, or read-only.",
-  "txt_bulk_move_to_collection_failed": "Move to collection failed",
   "txt_moved_selected_items": "Moved selected items",
   "txt_name": "Name",
   "txt_name_is_required": "Name is required",

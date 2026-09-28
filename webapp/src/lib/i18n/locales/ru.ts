@@ -855,8 +855,6 @@ const ru: Record<string, string> = {
   "txt_moved_count_items_to": "Перемещено ({count}) в «{name}»",
   "txt_move_skipped_readonly": "Элементы только для чтения ({count}) не были перемещены",
   "txt_move_undone": "Перемещение отменено",
-  "txt_move_to_collection_skipped": "{count} элемент(ов) не были перемещены — личные, из другой организации или только для чтения.",
-  "txt_bulk_move_to_collection_failed": "Не удалось переместить в коллекцию",
   "txt_moved_selected_items": "Перемещены выбранные элементы",
   "txt_name": "Имя",
   "txt_name_is_required": "Требуется имя",

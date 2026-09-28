@@ -122,7 +122,9 @@ const orgEs: Record<string, string> = {
   "txt_organizations_delete_collection_leave_unassigned": "Dejar elementos sin asignar (no mover)",
   "txt_organizations_delete_collection_no_target": "Esta organización no tiene otra colección. Los elementos sin asignar solo son visibles para los miembros con acceso a todos los elementos.",
   "txt_organizations_delete_collection_moved": "Colección eliminada. {count} elemento(s) movido(s) a {name}.",
-  "txt_organizations_delete_collection_failed": "No se pudo eliminar la colección"
+  "txt_organizations_delete_collection_failed": "No se pudo eliminar la colección",
+  "txt_move_to_collection_skipped": "{count} elemento(s) no se movió(eron): son personales, de otra organización o de solo lectura.",
+  "txt_bulk_move_to_collection_failed": "Error al mover a la colección",
 };
 
 export default orgEs;

@@ -122,7 +122,9 @@ const orgSv: Record<string, string> = {
   "txt_organizations_delete_collection_leave_unassigned": "Lämna poster otilldelade (ingen flytt)",
   "txt_organizations_delete_collection_no_target": "Den här organisationen har ingen annan samling. Otilldelade poster syns bara för medlemmar med åtkomst till alla poster.",
   "txt_organizations_delete_collection_moved": "Samlingen togs bort. {count} post(er) flyttades till {name}.",
-  "txt_organizations_delete_collection_failed": "Misslyckades med att ta bort samlingen"
+  "txt_organizations_delete_collection_failed": "Misslyckades med att ta bort samlingen",
+  "txt_move_to_collection_skipped": "{count} objekt flyttades inte — de är personliga, tillhör en annan organisation eller är skrivskyddade.",
+  "txt_bulk_move_to_collection_failed": "Det gick inte att flytta till samlingen",
 };
 
 export default orgSv;

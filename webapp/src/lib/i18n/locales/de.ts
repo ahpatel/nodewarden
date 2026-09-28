@@ -855,8 +855,6 @@ const de: Record<string, string> = {
   "txt_moved_count_items_to": "{count} Element(e) nach {name} verschoben",
   "txt_move_skipped_readonly": "{count} schreibgeschütztes(e) Element(e) wurde(n) nicht verschoben",
   "txt_move_undone": "Verschieben rückgängig gemacht",
-  "txt_move_to_collection_skipped": "{count} Element(e) wurde(n) nicht verschoben — persönlich, in einer anderen Organisation oder schreibgeschützt.",
-  "txt_bulk_move_to_collection_failed": "Verschieben in die Sammlung fehlgeschlagen",
   "txt_moved_selected_items": "Ausgewählte Einträge verschoben",
   "txt_name": "Name",
   "txt_name_is_required": "Name ist erforderlich",

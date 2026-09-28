@@ -122,7 +122,9 @@ const orgRu: Record<string, string> = {
   "txt_organizations_delete_collection_leave_unassigned": "Оставить записи без коллекции (не перемещать)",
   "txt_organizations_delete_collection_no_target": "В этой организации нет другой коллекции. Записи без коллекции видны только участникам с доступом ко всем записям.",
   "txt_organizations_delete_collection_moved": "Коллекция удалена. {count} запис(ей) перемещено в {name}.",
-  "txt_organizations_delete_collection_failed": "Не удалось удалить коллекцию"
+  "txt_organizations_delete_collection_failed": "Не удалось удалить коллекцию",
+  "txt_move_to_collection_skipped": "{count} элемент(ов) не были перемещены — личные, из другой организации или только для чтения.",
+  "txt_bulk_move_to_collection_failed": "Не удалось переместить в коллекцию",
 };
 
 export default orgRu;

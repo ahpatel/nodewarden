@@ -122,7 +122,9 @@ const orgDe: Record<string, string> = {
   "txt_organizations_delete_collection_leave_unassigned": "Einträge unzugeordnet lassen (nicht verschieben)",
   "txt_organizations_delete_collection_no_target": "Diese Organisation hat keine weitere Sammlung. Unzugeordnete Einträge sind nur für Mitglieder mit Zugriff auf alle Einträge sichtbar.",
   "txt_organizations_delete_collection_moved": "Sammlung gelöscht. {count} Eintrag/Einträge nach {name} verschoben.",
-  "txt_organizations_delete_collection_failed": "Sammlung konnte nicht gelöscht werden"
+  "txt_organizations_delete_collection_failed": "Sammlung konnte nicht gelöscht werden",
+  "txt_move_to_collection_skipped": "{count} Element(e) wurde(n) nicht verschoben — persönlich, in einer anderen Organisation oder schreibgeschützt.",
+  "txt_bulk_move_to_collection_failed": "Verschieben in die Sammlung fehlgeschlagen",
 };
 
 export default orgDe;

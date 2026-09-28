@@ -855,8 +855,6 @@ const zhTW: Record<string, string> = {
   "txt_moved_count_items_to": "已將 {count} 個項目移動到 {name}",
   "txt_move_skipped_readonly": "{count} 個唯讀項目未被移動",
   "txt_move_undone": "已復原移動",
-  "txt_move_to_collection_skipped": "{count} 個項目未被移動——它們是個人項目、屬於其他組織或為唯讀。",
-  "txt_bulk_move_to_collection_failed": "移動到集合失敗",
   "txt_moved_selected_items": "已移動所選項目",
   "txt_name": "名稱",
   "txt_name_is_required": "名稱不能為空",

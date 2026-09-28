@@ -1379,7 +1379,7 @@ export function createDemoMainRoutesProps(base: AppMainRoutesProps, notify: Noti
           return { ...item, collectionIds: [...previous, collectionId] };
         })
       );
-      if (moved) notify('success', t('txt_moved_count_items_to', { count: moved, name: '' }));
+      if (moved) notify('success', t('txt_moved_selected_items'));
     },
     onVerifyMasterPassword: async () => {},
     onCreateFolder: async (name) => {

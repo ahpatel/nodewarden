@@ -122,7 +122,9 @@ const orgFi: Record<string, string> = {
   "txt_organizations_delete_collection_leave_unassigned": "Jätä kohteet kohdistamatta (ei siirtoa)",
   "txt_organizations_delete_collection_no_target": "Tällä organisaatiolla ei ole muuta kokoelmaa. Kohdistamattomat kohteet näkyvät vain jäsenille, joilla on pääsy kaikkiin kohteisiin.",
   "txt_organizations_delete_collection_moved": "Kokoelma poistettu. {count} kohde(tta) siirretty kohteeseen {name}.",
-  "txt_organizations_delete_collection_failed": "Kokoelman poistaminen epäonnistui"
+  "txt_organizations_delete_collection_failed": "Kokoelman poistaminen epäonnistui",
+  "txt_move_to_collection_skipped": "{count} kohdetta ei siirretty — ne ovat henkilökohtaisia, toisessa organisaatiossa tai vain luku -oikeudella.",
+  "txt_bulk_move_to_collection_failed": "Siirto kokoelmaan epäonnistui",
 };
 
 export default orgFi;

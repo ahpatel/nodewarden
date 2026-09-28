@@ -855,8 +855,6 @@ const fi: Record<string, string> = {
   "txt_moved_count_items_to": "Siirretty {count} kohde(ta) kohteeseen {name}",
   "txt_move_skipped_readonly": "{count} vain luku -kohdetta ei siirretty",
   "txt_move_undone": "Siirto kumottu",
-  "txt_move_to_collection_skipped": "{count} kohdetta ei siirretty — ne ovat henkilökohtaisia, toisessa organisaatiossa tai vain luku -oikeudella.",
-  "txt_bulk_move_to_collection_failed": "Siirto kokoelmaan epäonnistui",
   "txt_moved_selected_items": "Siirrettiin valitut nimikkeet",
   "txt_name": "Nimi",
   "txt_name_is_required": "Nimi vaaditaan",

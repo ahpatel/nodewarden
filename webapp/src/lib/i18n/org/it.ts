@@ -122,7 +122,9 @@ const orgIt: Record<string, string> = {
   "txt_organizations_delete_collection_leave_unassigned": "Lascia gli elementi non assegnati (nessuno spostamento)",
   "txt_organizations_delete_collection_no_target": "Questa organizzazione non ha altre raccolte. Gli elementi non assegnati sono visibili solo ai membri con accesso a tutti gli elementi.",
   "txt_organizations_delete_collection_moved": "Raccolta eliminata. {count} elemento/i spostato/i in {name}.",
-  "txt_organizations_delete_collection_failed": "Impossibile eliminare la raccolta"
+  "txt_organizations_delete_collection_failed": "Impossibile eliminare la raccolta",
+  "txt_move_to_collection_skipped": "{count} elemento/i non spostato/i: personali, di un'altra organizzazione o di sola lettura.",
+  "txt_bulk_move_to_collection_failed": "Spostamento nella raccolta non riuscito",
 };
 
 export default orgIt;

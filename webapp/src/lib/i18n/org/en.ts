@@ -122,7 +122,9 @@ const orgEn: Record<string, string> = {
   "txt_organizations_delete_collection_leave_unassigned": "Leave items unassigned (no move)",
   "txt_organizations_delete_collection_no_target": "This organization has no other collection. Items left unassigned are only visible to members with access to all items.",
   "txt_organizations_delete_collection_moved": "Collection deleted. {count} item(s) moved to {name}.",
-  "txt_organizations_delete_collection_failed": "Failed to delete collection"
+  "txt_organizations_delete_collection_failed": "Failed to delete collection",
+  "txt_move_to_collection_skipped": "{count} item(s) were not moved — they are personal, in another organization, or read-only.",
+  "txt_bulk_move_to_collection_failed": "Move to collection failed",
 };
 
 export default orgEn;

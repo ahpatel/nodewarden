@@ -122,7 +122,9 @@ const orgFr: Record<string, string> = {
   "txt_organizations_delete_collection_leave_unassigned": "Laisser les éléments non attribués (aucun déplacement)",
   "txt_organizations_delete_collection_no_target": "Cette organisation n'a pas d'autre collection. Les éléments non attribués ne sont visibles que par les membres ayant accès à tous les éléments.",
   "txt_organizations_delete_collection_moved": "Collection supprimée. {count} élément(s) déplacé(s) vers {name}.",
-  "txt_organizations_delete_collection_failed": "Échec de la suppression de la collection"
+  "txt_organizations_delete_collection_failed": "Échec de la suppression de la collection",
+  "txt_move_to_collection_skipped": "{count} élément(s) n'a/ont pas été déplacé(s) — personnels, d'une autre organisation ou en lecture seule.",
+  "txt_bulk_move_to_collection_failed": "Échec du déplacement vers la collection",
 };
 
 export default orgFr;

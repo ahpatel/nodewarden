@@ -122,7 +122,9 @@ const orgZhCN: Record<string, string> = {
   "txt_organizations_delete_collection_leave_unassigned": "保留项目为未分配（不移动）",
   "txt_organizations_delete_collection_no_target": "此组织没有其他集合。未分配的项目仅对拥有所有项目访问权限的成员可见。",
   "txt_organizations_delete_collection_moved": "集合已删除。{count} 个项目已移动到 {name}。",
-  "txt_organizations_delete_collection_failed": "删除集合失败"
+  "txt_organizations_delete_collection_failed": "删除集合失败",
+  "txt_move_to_collection_skipped": "{count} 个项目未被移动——它们是个人项目、属于其他组织或为只读。",
+  "txt_bulk_move_to_collection_failed": "移动到集合失败",
 };
 
 export default orgZhCN;

@@ -122,7 +122,9 @@ const orgZhTW: Record<string, string> = {
   "txt_organizations_delete_collection_leave_unassigned": "保留項目為未指派（不移動）",
   "txt_organizations_delete_collection_no_target": "此組織沒有其他集合。未指派的項目僅對擁有所有項目存取權限的成員可見。",
   "txt_organizations_delete_collection_moved": "集合已刪除。{count} 個項目已移動到 {name}。",
-  "txt_organizations_delete_collection_failed": "刪除集合失敗"
+  "txt_organizations_delete_collection_failed": "刪除集合失敗",
+  "txt_move_to_collection_skipped": "{count} 個項目未被移動——它們是個人項目、屬於其他組織或為唯讀。",
+  "txt_bulk_move_to_collection_failed": "移動到集合失敗",
 };
 
 export default orgZhTW;

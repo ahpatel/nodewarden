@@ -855,8 +855,6 @@ const fr: Record<string, string> = {
   "txt_moved_count_items_to": "{count} élément(s) déplacé(s) vers {name}",
   "txt_move_skipped_readonly": "{count} élément(s) en lecture seule n'a/ont pas été déplacé(s)",
   "txt_move_undone": "Déplacement annulé",
-  "txt_move_to_collection_skipped": "{count} élément(s) n'a/ont pas été déplacé(s) — personnels, d'une autre organisation ou en lecture seule.",
-  "txt_bulk_move_to_collection_failed": "Échec du déplacement vers la collection",
   "txt_moved_selected_items": "Éléments sélectionnés déplacés",
   "txt_name": "Nom",
   "txt_name_is_required": "Le nom est requis",
