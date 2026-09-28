@@ -654,10 +654,21 @@ test('organization create and rename accept plaintext names', () => {
       !src.includes('optionalEncString(body.name)'),
       `${name} handler does not require an encrypted name`
     );
+    // A stale webapp bundle sends org-key-encrypted names; storing them
+    // renders as raw cipherstrings in current official clients, so both
+    // handlers must reject EncString-shaped names loudly.
+    assert.ok(
+      src.includes('isEncStringShapedName'),
+      `${name} handler rejects EncString-shaped names`
+    );
   }
   assert.ok(
     orgs.includes('const collectionName = optionalEncString(body.collectionName'),
     'the default collection name remains org-key encrypted'
+  );
+  assert.ok(
+    !orgs.includes('isEncStringShapedName(value: unknown)'),
+    'the shape check is string-typed (trimmed at call sites)'
   );
 });
 

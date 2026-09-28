@@ -69,14 +69,23 @@ export function optionalEncString(value: unknown): string | null {
 // current Bitwarden architecture (billing-visible), the server stores them
 // in the clear, and clients render profile.organizations[].name verbatim
 // with no decryption. Only the default collection name is org-key
-// encrypted. Legacy NodeWarden webapp bundles sent the name org-key
-// encrypted (matching old Bitwarden clients, which decrypted it with the
-// org key), so EncString-shaped names are passed through unchanged to keep
-// those bundles rendering correctly while the webapp migrates them.
+// encrypted. An EncString-shaped name can only come from a stale webapp
+// bundle or an outdated client; storing it would show up as raw "2.xxx"
+// garbage in the extension and desktop app, so it is rejected loudly with
+// a reload hint instead of being passed through silently. (A plaintext name
+// that merely starts with digits, e.g. "2. Q3 budget", still passes: the
+// shape test requires a pipe-separated base64 body.)
+const ENCRYPTED_NAME_SHAPE = /^\d+\.[A-Za-z0-9+/=]+(\|[A-Za-z0-9+/=]+)+$/;
+
+export function isEncStringShapedName(value: string): boolean {
+  return ENCRYPTED_NAME_SHAPE.test(value);
+}
+
 function optionalOrgName(value: unknown): string | null {
   if (typeof value !== 'string') return null;
   const trimmed = value.trim();
   if (!trimmed || trimmed.length > 300) return null;
+  if (isEncStringShapedName(trimmed)) return null;
   return trimmed;
 }
 
@@ -340,7 +349,12 @@ export async function handleCreateOrganization(request: Request, env: Env, userI
   const publicKey = typeof body.keys?.publicKey === 'string' ? body.keys.publicKey.trim() : null;
   const privateKey = optionalEncString(body.keys?.encryptedPrivateKey ?? body.keys?.privateKey);
 
-  if (!name) return errorResponse('name is required', 400);
+  if (!name) {
+    if (typeof body.name === 'string' && isEncStringShapedName(String(body.name).trim())) {
+      return errorResponse('Organization names are stored in plaintext; refresh the web app and try again', 400);
+    }
+    return errorResponse('name is required', 400);
+  }
   if (!key) return errorResponse('key must be an encrypted string', 400);
   if (!publicKey) return errorResponse('keys.publicKey is required', 400);
   if (!privateKey) return errorResponse('keys.encryptedPrivateKey must be an encrypted string', 400);
@@ -414,7 +428,12 @@ export async function handleUpdateOrganization(request: Request, env: Env, userI
   if (!body) return errorResponse('Invalid JSON', 400);
 
   const name = optionalOrgName(body.name);
-  if (!name) return errorResponse('name is required', 400);
+  if (!name) {
+    if (typeof body.name === 'string' && isEncStringShapedName(String(body.name).trim())) {
+      return errorResponse('Organization names are stored in plaintext; refresh the web app and try again', 400);
+    }
+    return errorResponse('name is required', 400);
+  }
 
   const organization = owner.organization;
   organization.name = name;
