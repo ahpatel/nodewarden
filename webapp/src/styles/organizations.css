@@ -194,6 +194,29 @@
   margin-top: 0;
 }
 
+/* Invite result rows: email on the left, code / registration link on the right */
+.org-invite-result-row {
+  flex-wrap: wrap;
+}
+
+.org-invite-result-row > span:last-child {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-weight: 500;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+}
+
+.org-invite-code {
+  font-family: var(--font-mono);
+  font-size: var(--font-xs, 12px);
+  user-select: all;
+  word-break: break-all;
+}
+
 /* Vault editor: collection checkboxes for organization items */
 .org-editor-collections {
   display: flex;

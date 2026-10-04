@@ -378,8 +378,8 @@ export async function handleRegister(request: Request, env: Env): Promise<Respon
       level: 'security',
       metadata: { email: user.email, ...auditRequestMetadata(request) },
     });
-    // Link any pending organization invitations issued for this email.
-    await storage.linkOrganizationUsersByEmail(user.id, user.email).catch((error) => {
+    // Link and auto-accept any pending organization invitations issued for this email.
+    await storage.acceptOrganizationInvitesByEmail(user.id, user.email).catch((error) => {
       console.error('Organization invite linking failed after registration:', error);
     });
     return jsonResponse({ success: true, role: user.role }, 200);
@@ -425,8 +425,8 @@ export async function handleRegister(request: Request, env: Env): Promise<Respon
     level: 'info',
     metadata: { email: user.email, inviteCode, ...auditRequestMetadata(request) },
   });
-  // Link any pending organization invitations issued for this email.
-  await storage.linkOrganizationUsersByEmail(user.id, user.email).catch((error) => {
+  // Link and auto-accept any pending organization invitations issued for this email.
+  await storage.acceptOrganizationInvitesByEmail(user.id, user.email).catch((error) => {
     console.error('Organization invite linking failed after registration:', error);
   });
 

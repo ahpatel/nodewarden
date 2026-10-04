@@ -318,9 +318,26 @@ export async function listConfirmedOrganizationsForUser(
 // Link an organization user row to a registered account by email. Used when a
 // user registers with an email that has pending organization invitations and
 // when invitations are created for an email that is already registered.
-export async function linkOrganizationUsersByEmail(db: D1Database, userId: string, email: string): Promise<void> {
+// Registration-time linking of pending organization invitations issued for
+// this email. Two things happen in one conditional statement:
+// 1. The membership is linked to the freshly created account (user_id was
+//    NULL while the invitee had no account).
+// 2. Invitation status moves INVITED -> ACCEPTED. The registration itself is
+//    the acceptance signal here: the invite was issued to this exact email
+//    and the account could only be created with an invite code bound to it,
+//    so asking the new user to accept again adds a step without adding a
+//    decision. Owners still confirm (wrapping the org key) before any access
+//    is granted. Revoked memberships are excluded entirely: registration
+//    neither links nor resurrects them, and memberships in the accepted or
+//    confirmed states are left untouched.
+export async function acceptOrganizationInvitesByEmail(db: D1Database, userId: string, email: string): Promise<void> {
   await db
-    .prepare('UPDATE organization_users SET user_id = ?, revision_date = ? WHERE email = ? AND user_id IS NULL')
+    .prepare(
+      `UPDATE organization_users SET user_id = ?, ` +
+      `status = CASE WHEN status = ${ORG_USER_STATUS.INVITED} THEN ${ORG_USER_STATUS.ACCEPTED} ELSE status END, ` +
+      `revision_date = ? ` +
+      `WHERE email = ? AND user_id IS NULL AND status != ${ORG_USER_STATUS.REVOKED}`
+    )
     .bind(userId, new Date().toISOString(), email)
     .run();
 }

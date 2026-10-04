@@ -86,7 +86,7 @@ import {
   listConfirmedOrganizationsForUser as listStoredConfirmedOrgsForUser,
   listOrganizationsForUser as listStoredOrganizationsForUser,
   listOrganizationUsers as listStoredOrganizationUsers,
-  linkOrganizationUsersByEmail as linkStoredOrganizationUsersByEmail,
+  acceptOrganizationInvitesByEmail as acceptStoredOrganizationInvitesByEmail,
   saveOrganization as saveStoredOrganization,
   saveOrganizationUser as saveStoredOrganizationUser,
   transitionOrganizationUserStatus as transitionStoredOrganizationUserStatus,
@@ -689,8 +689,8 @@ export class StorageService {
     return listStoredOrganizationsForUser(this.db, userId);
   }
 
-  async linkOrganizationUsersByEmail(userId: string, email: string): Promise<void> {
-    await linkStoredOrganizationUsersByEmail(this.db, userId, email);
+  async acceptOrganizationInvitesByEmail(userId: string, email: string): Promise<void> {
+    await acceptStoredOrganizationInvitesByEmail(this.db, userId, email);
   }
 
   // --- Collections ---

@@ -13,6 +13,7 @@ import test from 'node:test';
 import { DatabaseSync } from 'node:sqlite';
 
 const { deleteCollectionForOwner } = await import('../src/services/storage-collection-repo');
+const { acceptOrganizationInvitesByEmail } = await import('../src/services/storage-org-repo');
 const {
   countConfirmedOrganizationOwners,
   deleteOrganizationForOwner,
@@ -184,4 +185,40 @@ test('deleteOrganizationForOwner is owner-gated and cascades members', async () 
   assert.equal(count(db.raw, 'SELECT COUNT(*) AS n FROM collections'), 0, 'collections cascade');
   assert.equal(count(db.raw, 'SELECT COUNT(*) AS n FROM organization_users'), 0, 'memberships cascade');
   assert.equal(count(db.raw, 'SELECT COUNT(*) AS n FROM cipher_collections'), 0, 'cipher assignments cascade');
+});
+
+test('acceptOrganizationInvitesByEmail links and auto-accepts pending invitations', async () => {
+  const db = makeDb();
+  // Unlinked invitation: the invitee had no account when invited. This row
+  // must be linked to the new account and move INVITED -> ACCEPTED.
+  const insertPending = db.raw.prepare(
+    "INSERT INTO organization_users (id, organization_id, user_id, email, status, type, creation_date, revision_date) VALUES ('ou-pending', 'org-1', NULL, 'new-user@example.com', 0, 2, '2026-01-01', '2026-01-01')"
+  );
+  insertPending.run();
+  // A revoked invitation for the SAME email must stay revoked and unlinked:
+  // registration neither links nor resurrects it.
+  db.raw.prepare(
+    "INSERT INTO organization_users (id, organization_id, user_id, email, status, type, creation_date, revision_date) VALUES ('ou-revoked', 'org-1', NULL, 'new-user@example.com', -1, 2, '2026-01-01', '2026-01-01')"
+  ).run();
+  // Registration creates the account before linking, so provide the user row
+  // the foreign key expects.
+  db.raw.prepare(
+    "INSERT INTO users (id, email, kdf_iterations, status, role, created_at, updated_at) VALUES ('user-new', 'new-user@example.com', 100000, 0, 0, '2026-01-01', '2026-01-01')"
+  ).run();
+
+  await acceptOrganizationInvitesByEmail(db.d1, 'user-new', 'new-user@example.com');
+
+  const accepted = db.raw.prepare("SELECT user_id, status FROM organization_users WHERE id = 'ou-pending'").get() as { user_id: string; status: number };
+  assert.equal(accepted.user_id, 'user-new', 'the invitation is linked to the new account');
+  assert.equal(accepted.status, 1, 'the invitation moved INVITED -> ACCEPTED at registration');
+
+  const revoked = db.raw.prepare("SELECT user_id, status FROM organization_users WHERE id = 'ou-revoked'").get() as { user_id: null; status: number };
+  assert.equal(revoked.status, -1, 'revoked memberships are not resurrected');
+  assert.equal(revoked.user_id, null, 'revoked memberships stay unlinked');
+
+  // Re-running with a different account id must not re-link or flip the
+  // membership that was already linked and accepted above.
+  await acceptOrganizationInvitesByEmail(db.d1, 'user-new2', 'new-user@example.com');
+  const again = db.raw.prepare("SELECT COUNT(*) AS n FROM organization_users WHERE id = 'ou-pending' AND user_id = 'user-new2'").get() as { n: number };
+  assert.equal(again.n, 0, 'an already-linked membership is not re-linked');
 });

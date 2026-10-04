@@ -3,6 +3,7 @@ import { KeyRound, Plus, RefreshCw, SlidersHorizontal, Trash2 } from 'lucide-pre
 import ConfirmDialog from '@/components/ConfirmDialog';
 import { base64ToBytes, decryptStr, looksLikeEncString } from '@/lib/crypto';
 import {
+  type InviteOrganizationUsersResult,
   type OrganizationCollection,
   type OrganizationMember,
   type OrganizationSummary,
@@ -61,6 +62,15 @@ const STATUS_INVITED = 0;
 const STATUS_ACCEPTED = 1;
 const STATUS_CONFIRMED = 2;
 const TYPE_OWNER = 0;
+// One collection-access row, shared by the invite picker and the member
+// permissions editor (same shape, same semantics).
+type PermissionRow = {
+  id: string;
+  name: string;
+  enabled: boolean;
+  readOnly: boolean;
+  hidePasswords: boolean;
+};
 // Bitwarden OrganizationUserType (0=Owner 1=Admin 2=User 3=Manager 4=Custom).
 const ORG_ROLE = {
   OWNER: 0,
@@ -120,9 +130,14 @@ export default function OrganizationsPage(props: OrganizationsPageProps) {
   const [inviteAccessAll, setInviteAccessAll] = useState(true);
   const [inviteRole, setInviteRole] = useState<number>(ORG_ROLE.USER);
   const [inviteSubmitting, setInviteSubmitting] = useState(false);
+  // Per-collection grants for invitees without "access all". Same row shape as
+  // the member permissions editor, so the Family-org case (e.g. parents get
+  // read-only access to the parents collection only) is one invite step.
+  const [inviteCollectionRows, setInviteCollectionRows] = useState<PermissionRow[]>([]);
+  const [inviteResult, setInviteResult] = useState<InviteOrganizationUsersResult | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [permissionsMember, setPermissionsMember] = useState<OrganizationMember | null>(null);
-  const [permissionsRows, setPermissionsRows] = useState<Array<{ id: string; name: string; enabled: boolean; readOnly: boolean; hidePasswords: boolean }>>([]);
+  const [permissionsRows, setPermissionsRows] = useState<PermissionRow[]>([]);
   const [permissionsAccessAll, setPermissionsAccessAll] = useState(false);
   const [permissionsSubmitting, setPermissionsSubmitting] = useState(false);
   const [legacyOwnKeyOrgIds, setLegacyOwnKeyOrgIds] = useState<Record<string, boolean>>({});
@@ -375,6 +390,47 @@ export default function OrganizationsPage(props: OrganizationsPageProps) {
     }
   }
 
+  // Keep the invite picker in sync with the org's collections: refresh names,
+  // drop deleted collections, append newly created ones. Toggles are preserved
+  // for collections that still exist.
+  useEffect(() => {
+    setInviteCollectionRows((rows) => {
+      const byId = new Map(rows.map((row) => [row.id, row]));
+      return collections.map((collection) => {
+        const existing = byId.get(collection.id);
+        return {
+          id: collection.id,
+          name: collectionNames[collection.id] || collection.id.slice(0, 8),
+          enabled: existing?.enabled ?? false,
+          readOnly: existing?.readOnly ?? false,
+          hidePasswords: existing?.hidePasswords ?? false,
+        };
+      });
+    });
+  }, [collections, collectionNames]);
+
+  // A fresh org selection starts with a clean invite result panel and an
+  // empty picker (re-seeded from the org's own collections once loaded) so a
+  // fast switch can never submit the previous org's collection ids.
+  useEffect(() => {
+    setInviteResult(null);
+    setInviteCollectionRows([]);
+  }, [selectedOrgId]);
+
+  function buildInviteRegistrationLink(code: string): string {
+    if (typeof window === 'undefined') return `/register?invite=${encodeURIComponent(code)}`;
+    return `${window.location.origin}/register?invite=${encodeURIComponent(code)}`;
+  }
+
+  async function copyInviteCode(code: string) {
+    try {
+      await navigator.clipboard.writeText(code);
+      notify('success', t('txt_organizations_invite_code_copied'));
+    } catch {
+      notify('error', t('txt_organizations_invite_code_copy_failed'));
+    }
+  }
+
   async function handleInvite() {
     if (!selectedOrgId) return;
     const emails = inviteEmails
@@ -387,26 +443,21 @@ export default function OrganizationsPage(props: OrganizationsPageProps) {
     }
     setInviteSubmitting(true);
     try {
+      // Bitwarden semantics, matching the permissions editor: "access all
+      // items" ignores (and clears) explicit collection assignments; without
+      // it, only the checked rows grant access.
+      const collectionsPayload = inviteAccessAll
+        ? []
+        : inviteCollectionRows
+            .filter((row) => row.enabled)
+            .map((row) => ({ id: row.id, readOnly: row.readOnly, hidePasswords: row.hidePasswords }));
       const result = await inviteOrganizationMembers(authedFetch, selectedOrgId, {
         emails,
         type: inviteRole,
         accessAll: inviteAccessAll,
+        collections: collectionsPayload,
       });
-      const withCode = result.invited.filter((item) => item.inviteCode).length;
-      const needsAdmin = result.invited.filter((item) => item.requiresAdminRegistration).length;
-      let message: string;
-      if (result.invited.length > 0 && needsAdmin === result.invited.length) {
-        message = t('txt_organizations_invite_admin_registration_note', { count: String(needsAdmin) });
-      } else {
-        message = t('txt_organizations_invite_sent', { count: String(result.invited.length) });
-        if (withCode > 0) {
-          message += ' ' + t('txt_organizations_invite_codes_note', { count: String(withCode) });
-        }
-        if (needsAdmin > 0) {
-          message += ' ' + t('txt_organizations_invite_admin_registration_note', { count: String(needsAdmin) });
-        }
-      }
-      notify('success', message);
+      setInviteResult(result);
       setInviteEmails('');
       await refreshOrgDetail(selectedOrgId);
     } catch (err) {
@@ -632,6 +683,13 @@ export default function OrganizationsPage(props: OrganizationsPageProps) {
     return String(status);
   }
 
+  // Collection assignments are editable for every active membership. Revoked
+  // members are excluded: editing access for a revoked row would imply the
+  // membership still exists.
+  function canEditMemberPermissions(status: number): boolean {
+    return status === STATUS_INVITED || status === STATUS_ACCEPTED || status === STATUS_CONFIRMED;
+  }
+
   const pendingInvitations = organizations.filter(
     (org) => Number(org.status) === STATUS_INVITED || Number(org.status) === STATUS_ACCEPTED
   );
@@ -808,6 +866,111 @@ export default function OrganizationsPage(props: OrganizationsPageProps) {
                     />
                     {t('txt_organizations_invite_access_all')}
                   </label>
+                  {!inviteAccessAll && (
+                    <div className="org-permissions-rows">
+                      <p className="small-note">{t('txt_organizations_invite_collections_hint')}</p>
+                      {inviteCollectionRows.length === 0 && (
+                        <p className="muted">{t('txt_organizations_no_collections')}</p>
+                      )}
+                      {inviteCollectionRows.map((row) => (
+                        <div key={row.id} className="org-permission-row">
+                          <label className="checkbox-row org-permission-enable">
+                            <input
+                              type="checkbox"
+                              checked={row.enabled}
+                              onChange={(event) => setInviteCollectionRows((rows) => rows.map((item) => (
+                                item.id === row.id ? { ...item, enabled: (event.target as HTMLInputElement).checked } : item
+                              )))}
+                            />
+                            <span className="org-permission-name">{row.name}</span>
+                          </label>
+                          {row.enabled && (
+                            <div className="org-permission-flags">
+                              <label className="checkbox-row">
+                                <input
+                                  type="checkbox"
+                                  checked={row.readOnly}
+                                  onChange={(event) => setInviteCollectionRows((rows) => rows.map((item) => (
+                                    item.id === row.id ? { ...item, readOnly: (event.target as HTMLInputElement).checked } : item
+                                  )))}
+                                />
+                                {t('txt_organizations_readonly_badge')}
+                              </label>
+                              <label className="checkbox-row">
+                                <input
+                                  type="checkbox"
+                                  checked={row.hidePasswords}
+                                  onChange={(event) => setInviteCollectionRows((rows) => rows.map((item) => (
+                                    item.id === row.id ? { ...item, hidePasswords: (event.target as HTMLInputElement).checked } : item
+                                  )))}
+                                />
+                                {t('txt_organizations_hide_passwords')}
+                              </label>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {selectedIsOwner && inviteResult && (
+                <div className="org-section">
+                  <h4>{t('txt_organizations_invite_result_title')}</h4>
+                  <ul className="org-collections">
+                    {inviteResult.invited.map((item) => (
+                      <li key={item.email} className="org-collection-row org-invite-result-row">
+                        <span>{item.email}</span>
+                        <span className="org-invite-result-detail">
+                          {item.inviteCode ? (
+                            <>
+                              <span className="org-invite-code">{item.inviteCode}</span>
+                              <button
+                                type="button"
+                                className="btn btn-secondary small"
+                                onClick={() => void copyInviteCode(item.inviteCode!)}
+                              >
+                                {t('txt_organizations_invite_code_copy')}
+                              </button>
+                              <a
+                                className="btn btn-secondary small"
+                                href={buildInviteRegistrationLink(item.inviteCode!)}
+                                target="_blank"
+                                rel="noreferrer"
+                              >
+                                {t('txt_organizations_invite_registration_link')}
+                              </a>
+                            </>
+                          ) : item.requiresAdminRegistration ? (
+                            <span className="muted">{t('txt_organizations_invite_admin_registration_single')}</span>
+                          ) : (
+                            <span className="muted">{t('txt_organizations_invite_registered_note')}</span>
+                          )}
+                        </span>
+                      </li>
+                    ))}
+                    {inviteResult.skipped.map((item) => (
+                      <li key={item.email} className="org-collection-row org-invite-result-row">
+                        <span>{item.email}</span>
+                        <span className="muted">
+                          {item.reason === 'already-invited'
+                            ? t('txt_organizations_invite_skipped_already')
+                            : item.reason === 'self'
+                              ? t('txt_organizations_invite_skipped_self')
+                              : item.reason}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                  <p className="small-note">{t('txt_organizations_invite_result_note')}</p>
+                  <button
+                    type="button"
+                    className="btn btn-secondary small"
+                    onClick={() => setInviteResult(null)}
+                  >
+                    {t('txt_organizations_invite_result_dismiss')}
+                  </button>
                 </div>
               )}
 
@@ -844,14 +1007,14 @@ export default function OrganizationsPage(props: OrganizationsPageProps) {
                           <td>{roleLabel(Number(member.type))}</td>
                           <td>{statusLabel(Number(member.status))}</td>
                           <td>
-                            {Number(member.status) === STATUS_CONFIRMED
+                            {Number(member.status) === STATUS_CONFIRMED || Number(member.status) === STATUS_ACCEPTED
                               ? member.accessAll
                                 ? t('txt_organizations_access_all')
                                 : t('txt_organizations_access_per_collection')
                               : '-'}
                           </td>
                           <td>
-                            {selectedIsOwner && Number(member.status) === STATUS_CONFIRMED && (
+                            {selectedIsOwner && canEditMemberPermissions(member.status) && (
                               <button
                                 type="button"
                                 className="btn btn-secondary small"
@@ -936,7 +1099,11 @@ export default function OrganizationsPage(props: OrganizationsPageProps) {
       <ConfirmDialog
         open={!!permissionsMember}
         title={t('txt_organizations_permissions_title', { email: permissionsMember?.email || '' })}
-        message={t('txt_organizations_permissions_hint')}
+        message={
+          permissionsMember && Number(permissionsMember.status) !== STATUS_CONFIRMED
+            ? t('txt_organizations_permissions_pending_hint')
+            : t('txt_organizations_permissions_hint')
+        }
         confirmText={t('txt_save')}
         cancelText={t('txt_cancel')}
         confirmDisabled={permissionsSubmitting}
