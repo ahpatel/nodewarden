@@ -275,6 +275,10 @@ function normalizeParsedBackupDb(value: unknown): BackupPayload['db'] {
   const source = value as Record<string, unknown>;
   // Restore uses an explicit allowlist. Extra tables from old or modified
   // archives, especially runtime authentication state, are intentionally ignored.
+  // The organization tables must stay listed: dropping one silently erases that
+  // part of the org layer on restore. validateBackupPayloadContents cross-checks
+  // parsed rows against the manifest's tableCounts, so a future allowlist
+  // omission fails loudly instead of restoring an amputated instance.
   return {
     config: source.config as SqlRow[],
     users: source.users as SqlRow[],
@@ -284,6 +288,12 @@ function normalizeParsedBackupDb(value: unknown): BackupPayload['db'] {
     ciphers: source.ciphers as SqlRow[],
     attachments: source.attachments as SqlRow[],
     webauthn_credentials: source.webauthn_credentials as SqlRow[] | undefined,
+    organizations: source.organizations as SqlRow[] | undefined,
+    organization_users: source.organization_users as SqlRow[] | undefined,
+    cipher_user_folders: source.cipher_user_folders as SqlRow[] | undefined,
+    collections: source.collections as SqlRow[] | undefined,
+    collection_users: source.collection_users as SqlRow[] | undefined,
+    cipher_collections: source.cipher_collections as SqlRow[] | undefined,
   };
 }
 
@@ -394,12 +404,6 @@ export function validateBackupPayloadContents(
   const collectionRows = ensureRowArray(payload.db.collections || [], 'collections');
   const collectionUserRows = ensureRowArray(payload.db.collection_users || [], 'collection_users');
   const cipherCollectionRows = ensureRowArray(payload.db.cipher_collections || [], 'cipher_collections');
-  void organizationRows;
-  void organizationUserRows;
-  void cipherUserFolderRows;
-  void collectionRows;
-  void collectionUserRows;
-  void cipherCollectionRows;
   const externalAttachmentKeys = new Set<string>(
     options.allowExternalAttachmentBlobs
       ? (payload.manifest.attachmentBlobs || []).map((item) => `attachments/${String(item.cipherId || '').trim()}/${String(item.attachmentId || '').trim()}.bin`)
@@ -448,17 +452,96 @@ export function validateBackupPayloadContents(
     folderIds.add(id);
   }
 
+  const organizationIds = new Set<string>();
+  for (const row of organizationRows) {
+    const id = String(row.id || '').trim();
+    if (!id) throw new Error('Backup archive contains an invalid organization row');
+    if (organizationIds.has(id)) throw new Error(`Backup archive contains duplicate organization id: ${id}`);
+    organizationIds.add(id);
+  }
+
   const cipherIds = new Set<string>();
   for (const row of cipherRows) {
     const id = String(row.id || '').trim();
     const userId = String(row.user_id || '').trim();
+    const organizationId = String(row.organization_id || '').trim();
     const folderId = String(row.folder_id || '').trim();
-    if (!id || !userIds.has(userId)) throw new Error('Backup archive contains an invalid cipher row');
+    // Personal ciphers carry a user id; organization ciphers carry a null user
+    // id and an organization id (the shared-vault storage convention). Accept
+    // each against its own parent table, and still reject a personal cipher
+    // whose user is missing from the exported users table.
+    if (!id) throw new Error('Backup archive contains an invalid cipher row');
+    if (userId ? !userIds.has(userId) : !organizationId) {
+      throw new Error('Backup archive contains an invalid cipher row');
+    }
+    if (organizationId && !organizationIds.has(organizationId)) {
+      throw new Error(`Backup archive contains a cipher for an unknown organization: ${organizationId}`);
+    }
     if (folderId && !folderIds.has(folderId)) {
       throw new Error(`Backup archive contains a cipher for an unknown folder: ${folderId}`);
     }
     if (cipherIds.has(id)) throw new Error(`Backup archive contains duplicate cipher id: ${id}`);
     cipherIds.add(id);
+  }
+
+  const organizationUserIds = new Set<string>();
+  for (const row of organizationUserRows) {
+    const id = String(row.id || '').trim();
+    const organizationId = String(row.organization_id || '').trim();
+    const userId = String(row.user_id || '').trim();
+    // Invited members persist with user_id NULL until they accept, mirroring
+    // the schema's nullable organization_users.user_id foreign key.
+    if (!id || !organizationIds.has(organizationId) || (userId && !userIds.has(userId))) {
+      throw new Error('Backup archive contains an invalid organization member row');
+    }
+    if (organizationUserIds.has(id)) throw new Error(`Backup archive contains duplicate organization member id: ${id}`);
+    organizationUserIds.add(id);
+  }
+
+  const collectionIds = new Set<string>();
+  for (const row of collectionRows) {
+    const id = String(row.id || '').trim();
+    const organizationId = String(row.organization_id || '').trim();
+    if (!id || !organizationIds.has(organizationId)) throw new Error('Backup archive contains an invalid collection row');
+    if (collectionIds.has(id)) throw new Error(`Backup archive contains duplicate collection id: ${id}`);
+    collectionIds.add(id);
+  }
+
+  const collectionUserPairs = new Set<string>();
+  for (const row of collectionUserRows) {
+    const collectionId = String(row.collection_id || '').trim();
+    const organizationUserId = String(row.organization_user_id || '').trim();
+    if (!collectionIds.has(collectionId) || !organizationUserIds.has(organizationUserId)) {
+      throw new Error('Backup archive contains an invalid collection assignment row');
+    }
+    const pair = `${collectionId}/${organizationUserId}`;
+    if (collectionUserPairs.has(pair)) throw new Error(`Backup archive contains duplicate collection assignment: ${pair}`);
+    collectionUserPairs.add(pair);
+  }
+
+  const cipherCollectionPairs = new Set<string>();
+  for (const row of cipherCollectionRows) {
+    const cipherId = String(row.cipher_id || '').trim();
+    const collectionId = String(row.collection_id || '').trim();
+    if (!cipherIds.has(cipherId) || !collectionIds.has(collectionId)) {
+      throw new Error('Backup archive contains an invalid cipher collection row');
+    }
+    const pair = `${cipherId}/${collectionId}`;
+    if (cipherCollectionPairs.has(pair)) throw new Error(`Backup archive contains duplicate cipher collection: ${pair}`);
+    cipherCollectionPairs.add(pair);
+  }
+
+  const cipherUserFolderPairs = new Set<string>();
+  for (const row of cipherUserFolderRows) {
+    const cipherId = String(row.cipher_id || '').trim();
+    const userId = String(row.user_id || '').trim();
+    const folderId = String(row.folder_id || '').trim();
+    if (!cipherIds.has(cipherId) || !userIds.has(userId) || !folderIds.has(folderId)) {
+      throw new Error('Backup archive contains an invalid cipher filing row');
+    }
+    const pair = `${cipherId}/${userId}`;
+    if (cipherUserFolderPairs.has(pair)) throw new Error(`Backup archive contains duplicate cipher filing: ${pair}`);
+    cipherUserFolderPairs.add(pair);
   }
 
   for (const row of attachmentRows) {
@@ -488,6 +571,42 @@ export function validateBackupPayloadContents(
     if (accountPasskeyCredentialIds.has(credentialId)) throw new Error(`Backup archive contains duplicate account passkey credential id: ${credentialId}`);
     accountPasskeyIds.add(id);
     accountPasskeyCredentialIds.add(credentialId);
+  }
+
+  // The manifest records how many rows the export wrote for each table. Cross-
+  // checking it against what the parser produced catches a table silently
+  // dropped while parsing — the failure mode where restore would report success
+  // while erasing that part of the dataset. Attachments are exempt: the
+  // restore paths legitimately trim attachment rows (missing blobs, KV size
+  // limits, unconfigured storage) before validation.
+  const manifestCounts = (payload.manifest && payload.manifest.tableCounts) || {};
+  const parsedTableRows: Record<string, SqlRow[]> = {
+    config: configRows,
+    users: userRows,
+    domain_settings: domainSettingsRows,
+    user_revisions: revisionRows,
+    folders: folderRows,
+    ciphers: cipherRows,
+    webauthn_credentials: accountPasskeyRows,
+    organizations: organizationRows,
+    organization_users: organizationUserRows,
+    cipher_user_folders: cipherUserFolderRows,
+    collections: collectionRows,
+    collection_users: collectionUserRows,
+    cipher_collections: cipherCollectionRows,
+  };
+  for (const [table, expectedRaw] of Object.entries(manifestCounts)) {
+    if (table === 'attachments') continue;
+    const parsedRows = parsedTableRows[table];
+    // A manifest key with no parsed counterpart means the allowlist dropped a
+    // table this file does not know about — the exact silent-drop shape this
+    // check exists to catch.
+    if (!parsedRows) throw new Error(`Backup archive manifest references an unsupported table: ${table}`);
+    const expected = Number(expectedRaw);
+    if (!Number.isFinite(expected)) continue;
+    if (parsedRows.length !== expected) {
+      throw new Error(`Backup archive manifest is inconsistent with its database payload: ${table} (manifest ${expected}, payload ${parsedRows.length})`);
+    }
   }
 
 }

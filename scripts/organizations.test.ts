@@ -363,7 +363,10 @@ test('schema and backup include the per-user cipher filing map', () => {
     'restore allowlist includes the filing map'
   );
   assert.ok(
-    /DELETE FROM cipher_user_folders/.test(backupImport),
+    // The reset delete list is derived by reversing BACKUP_TABLES, which lists
+    // 'cipher_user_folders' above; asserting the derivation chain instead of a
+    // literal string keeps this valid whether the list is literal or generated.
+    /DELETE FROM \$\{table\}/.test(backupImport) && backupImport.includes("'cipher_user_folders'"),
     'restore reset clears the filing map'
   );
 });

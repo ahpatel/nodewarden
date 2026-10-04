@@ -28,6 +28,7 @@
     "test:import-org-folder-filing": "tsx --test scripts/import-org-folder-filing.test.ts",
     "test:export-bitwarden-org": "tsx --test scripts/export-bitwarden-org.test.ts",
     "test:hide-password": "tsx --test scripts/hide-password.test.ts",
+    "test:backup-org-restore": "tsx --test scripts/backup-org-restore.test.ts",
     "deploy": "wrangler deploy",
     "deploy:kv": "node scripts/ensure-kv.cjs && wrangler deploy -c wrangler.kv.toml",
     "deploy:demo": "npm run build:demo && wrangler pages deploy dist --project-name nw-demo"

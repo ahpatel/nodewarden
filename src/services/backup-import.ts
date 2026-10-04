@@ -39,7 +39,11 @@ type BackupTableName =
   | 'collection_users'
   | 'cipher_collections';
 
-// Insert order: parents before children so foreign keys stay satisfied.
+// FK-safe order: parents before children. This array drives the shadow-table
+// creation, the swap's INSERT INTO <live> SELECT, and the reset delete order
+// (reversed), and D1 enforces foreign keys, so every child here must appear
+// after the tables it references. Keep in sync with the insert sequence in
+// importBackupRows().
 const BACKUP_TABLES: BackupTableName[] = [
   'config',
   'users',
@@ -48,10 +52,10 @@ const BACKUP_TABLES: BackupTableName[] = [
   'user_revisions',
   'webauthn_credentials',
   'organization_users',
-  'cipher_user_folders',
   'folders',
   'collections',
   'ciphers',
+  'cipher_user_folders',
   'attachments',
   'collection_users',
   'cipher_collections',
@@ -74,7 +78,7 @@ export interface BackupImportResultBody {
     attachments: number;
     attachmentFiles: number;
     organizations: number;
-    cipher_user_folders: number;
+    cipherUserFolders: number;
     organizationUsers: number;
     collections: number;
     collectionUsers: number;
@@ -162,6 +166,34 @@ async function validateShadowTableCounts(
   }));
 }
 
+function expectedShadowCounts(
+  db: BackupPayload['db'],
+  attachmentsOverride?: number
+): Partial<Record<BackupTableName, number>> {
+  const counts: Partial<Record<BackupTableName, number>> = {
+    config: (db.config || []).length,
+    users: (db.users || []).length,
+    domain_settings: (db.domain_settings || []).length,
+    user_revisions: (db.user_revisions || []).length,
+    webauthn_credentials: (db.webauthn_credentials || []).length,
+    organizations: (db.organizations || []).length,
+    organization_users: (db.organization_users || []).length,
+    folders: (db.folders || []).length,
+    collections: (db.collections || []).length,
+    ciphers: (db.ciphers || []).length,
+    cipher_user_folders: (db.cipher_user_folders || []).length,
+    attachments: (db.attachments || []).length,
+    collection_users: (db.collection_users || []).length,
+    cipher_collections: (db.cipher_collections || []).length,
+  };
+  // Attachments whose blobs failed to restore have their rows removed from
+  // the shadow table before the final count check.
+  if (attachmentsOverride !== undefined) {
+    counts.attachments = attachmentsOverride;
+  }
+  return counts;
+}
+
 async function swapShadowTablesIntoPlace(db: D1Database): Promise<void> {
   const statements: D1PreparedStatement[] = [];
   // Commit by replacing live table contents from validated shadow tables.
@@ -177,11 +209,20 @@ async function swapShadowTablesIntoPlace(db: D1Database): Promise<void> {
 }
 
 async function ensureImportTargetIsFresh(db: D1Database): Promise<void> {
+  // An instance that only holds organization structure (no vault rows yet) is
+  // still not fresh: the restore swap empties these tables, so proceeding
+  // without replaceExisting would silently erase live org data.
   const counts = await Promise.all([
     db.prepare('SELECT COUNT(*) AS count FROM ciphers').first<{ count: number }>(),
     db.prepare('SELECT COUNT(*) AS count FROM folders').first<{ count: number }>(),
     db.prepare('SELECT COUNT(*) AS count FROM attachments').first<{ count: number }>(),
     db.prepare('SELECT COUNT(*) AS count FROM sends').first<{ count: number }>(),
+    db.prepare('SELECT COUNT(*) AS count FROM organizations').first<{ count: number }>(),
+    db.prepare('SELECT COUNT(*) AS count FROM organization_users').first<{ count: number }>(),
+    db.prepare('SELECT COUNT(*) AS count FROM collections').first<{ count: number }>(),
+    db.prepare('SELECT COUNT(*) AS count FROM collection_users').first<{ count: number }>(),
+    db.prepare('SELECT COUNT(*) AS count FROM cipher_collections').first<{ count: number }>(),
+    db.prepare('SELECT COUNT(*) AS count FROM cipher_user_folders').first<{ count: number }>(),
   ]);
   const total = counts.reduce((sum, row) => sum + Number(row?.count || 0), 0);
   if (total > 0) {
@@ -190,23 +231,12 @@ async function ensureImportTargetIsFresh(db: D1Database): Promise<void> {
 }
 
 function buildResetImportTargetStatements(db: D1Database): D1PreparedStatement[] {
-  // Children before parents so cascade rules cannot fight the reset.
-  return [
-    'DELETE FROM cipher_collections',
-    'DELETE FROM collection_users',
-    'DELETE FROM attachments',
-    'DELETE FROM ciphers',
-    'DELETE FROM collections',
-    'DELETE FROM folders',
-    'DELETE FROM cipher_user_folders',
-    'DELETE FROM organization_users',
-    'DELETE FROM webauthn_credentials',
-    'DELETE FROM user_revisions',
-    'DELETE FROM domain_settings',
-    'DELETE FROM organizations',
-    'DELETE FROM users',
-    'DELETE FROM config',
-  ].map((sql) => db.prepare(sql));
+  // Children before parents so cascade rules cannot fight the reset; derived
+  // from BACKUP_TABLES so it can never drift from the insert order.
+  return BACKUP_TABLES
+    .slice()
+    .reverse()
+    .map((table) => db.prepare(`DELETE FROM ${table}`));
 }
 
 async function collectCurrentBlobKeys(db: D1Database): Promise<Set<string>> {
@@ -661,6 +691,7 @@ async function cleanupOrphanedBlobFiles(env: Env, beforeKeys: Set<string>, after
 
 async function importBackupRows(db: D1Database, payload: BackupPayload['db'], useShadowTables: boolean = false): Promise<void> {
   const tableName = (table: BackupTableName): string => (useShadowTables ? shadowTableName(table) : table);
+  // Insert order must stay FK-safe (parents before children); see BACKUP_TABLES.
   await runInsertBatch(
     db,
     tableName('config'),
@@ -675,6 +706,11 @@ async function importBackupRows(db: D1Database, payload: BackupPayload['db'], us
       ['id', 'email', 'name', 'master_password_hint', 'master_password_hash', 'key', 'private_key', 'public_key', 'kdf_type', 'kdf_iterations', 'kdf_memory', 'kdf_parallelism', 'security_stamp', 'role', 'status', 'verify_devices', 'totp_secret', 'totp_recovery_code', 'yubikey_key1', 'yubikey_key2', 'yubikey_key3', 'yubikey_key4', 'yubikey_key5', 'yubikey_nfc', 'created_at', 'updated_at'],
       payload.users || []
     )
+  );
+  await runInsertBatch(
+    db,
+    tableName('organizations'),
+    buildInsertStatements(db, tableName('organizations'), ['id', 'name', 'private_key', 'public_key', 'billing_email', 'creation_date', 'revision_date'], payload.organizations || [])
   );
   await runInsertBatch(
     db,
@@ -704,8 +740,18 @@ async function importBackupRows(db: D1Database, payload: BackupPayload['db'], us
   );
   await runInsertBatch(
     db,
+    tableName('organization_users'),
+    buildInsertStatements(db, tableName('organization_users'), ['id', 'organization_id', 'user_id', 'email', 'key', 'status', 'type', 'access_all', 'creation_date', 'revision_date'], payload.organization_users || [])
+  );
+  await runInsertBatch(
+    db,
     tableName('folders'),
     buildInsertStatements(db, tableName('folders'), ['id', 'user_id', 'name', 'created_at', 'updated_at'], payload.folders || [])
+  );
+  await runInsertBatch(
+    db,
+    tableName('collections'),
+    buildInsertStatements(db, tableName('collections'), ['id', 'organization_id', 'name', 'external_id', 'creation_date', 'revision_date'], payload.collections || [])
   );
   await runInsertBatch(
     db,
@@ -726,21 +772,6 @@ async function importBackupRows(db: D1Database, payload: BackupPayload['db'], us
     db,
     tableName('attachments'),
     buildInsertStatements(db, tableName('attachments'), ['id', 'cipher_id', 'file_name', 'size', 'size_name', 'key'], payload.attachments || [])
-  );
-  await runInsertBatch(
-    db,
-    tableName('organizations'),
-    buildInsertStatements(db, tableName('organizations'), ['id', 'name', 'private_key', 'public_key', 'billing_email', 'creation_date', 'revision_date'], payload.organizations || [])
-  );
-  await runInsertBatch(
-    db,
-    tableName('organization_users'),
-    buildInsertStatements(db, tableName('organization_users'), ['id', 'organization_id', 'user_id', 'email', 'key', 'status', 'type', 'access_all', 'creation_date', 'revision_date'], payload.organization_users || [])
-  );
-  await runInsertBatch(
-    db,
-    tableName('collections'),
-    buildInsertStatements(db, tableName('collections'), ['id', 'organization_id', 'name', 'external_id', 'creation_date', 'revision_date'], payload.collections || [])
   );
   await runInsertBatch(
     db,
@@ -795,16 +826,7 @@ export async function importBackupArchiveBytes(
       replaceExisting,
     });
     const db = await importPreparedBackupRows(env.DB, prepared.payload.db, env);
-    await validateShadowTableCounts(env.DB, {
-      config: (db.config || []).length,
-      users: (db.users || []).length,
-      domain_settings: (db.domain_settings || []).length,
-      user_revisions: (db.user_revisions || []).length,
-      webauthn_credentials: (db.webauthn_credentials || []).length,
-      folders: (db.folders || []).length,
-      ciphers: (db.ciphers || []).length,
-      attachments: (db.attachments || []).length,
-    });
+    await validateShadowTableCounts(env.DB, expectedShadowCounts(db));
 
     await progress?.({
       source: 'local',
@@ -818,22 +840,7 @@ export async function importBackupArchiveBytes(
     const restoredAttachmentKeys = new Set((restored.restoredAttachments || []).map(attachmentRowKey));
     const failedRestoreRows = (db.attachments || []).filter((row) => !restoredAttachmentKeys.has(attachmentRowKey(row)));
     await removeAttachmentRows(env.DB, failedRestoreRows, true).catch(() => undefined);
-    await validateShadowTableCounts(env.DB, {
-      config: (db.config || []).length,
-      users: (db.users || []).length,
-      domain_settings: (db.domain_settings || []).length,
-      user_revisions: (db.user_revisions || []).length,
-      webauthn_credentials: (db.webauthn_credentials || []).length,
-      folders: (db.folders || []).length,
-      ciphers: (db.ciphers || []).length,
-      attachments: restored.restoredAttachments.length,
-      organizations: (db.organizations || []).length,
-      cipher_user_folders: (db.cipher_user_folders || []).length,
-      organization_users: (db.organization_users || []).length,
-      collections: (db.collections || []).length,
-      collection_users: (db.collection_users || []).length,
-      cipher_collections: (db.cipher_collections || []).length,
-    });
+    await validateShadowTableCounts(env.DB, expectedShadowCounts(db, restored.restoredAttachments.length));
     await progress?.({
       source: 'local',
       step: 'local_finalize',
@@ -876,7 +883,7 @@ export async function importBackupArchiveBytes(
           attachments: restored.restoredAttachments.length,
           attachmentFiles: restored.imported,
           organizations: (db.organizations || []).length,
-      cipher_user_folders: (db.cipher_user_folders || []).length,
+          cipherUserFolders: (db.cipher_user_folders || []).length,
           organizationUsers: (db.organization_users || []).length,
           collections: (db.collections || []).length,
           collectionUsers: (db.collection_users || []).length,
@@ -948,22 +955,7 @@ export async function importRemoteBackupArchiveBytes(
       replaceExisting,
     });
     const db = await importPreparedBackupRows(env.DB, preparedRemote.payload.db, env);
-    await validateShadowTableCounts(env.DB, {
-      config: (db.config || []).length,
-      users: (db.users || []).length,
-      domain_settings: (db.domain_settings || []).length,
-      user_revisions: (db.user_revisions || []).length,
-      webauthn_credentials: (db.webauthn_credentials || []).length,
-      folders: (db.folders || []).length,
-      ciphers: (db.ciphers || []).length,
-      attachments: (db.attachments || []).length,
-      organizations: (db.organizations || []).length,
-      cipher_user_folders: (db.cipher_user_folders || []).length,
-      organization_users: (db.organization_users || []).length,
-      collections: (db.collections || []).length,
-      collection_users: (db.collection_users || []).length,
-      cipher_collections: (db.cipher_collections || []).length,
-    });
+    await validateShadowTableCounts(env.DB, expectedShadowCounts(db));
 
     await progress?.({
       source: 'remote',
@@ -977,22 +969,7 @@ export async function importRemoteBackupArchiveBytes(
     const restoredAttachmentKeys = new Set((restored.restoredAttachments || []).map(attachmentRowKey));
     const failedRestoreRows = (db.attachments || []).filter((row) => !restoredAttachmentKeys.has(attachmentRowKey(row)));
     await removeAttachmentRows(env.DB, failedRestoreRows, true).catch(() => undefined);
-    await validateShadowTableCounts(env.DB, {
-      config: (db.config || []).length,
-      users: (db.users || []).length,
-      domain_settings: (db.domain_settings || []).length,
-      user_revisions: (db.user_revisions || []).length,
-      webauthn_credentials: (db.webauthn_credentials || []).length,
-      folders: (db.folders || []).length,
-      ciphers: (db.ciphers || []).length,
-      attachments: restored.restoredAttachments.length,
-      organizations: (db.organizations || []).length,
-      cipher_user_folders: (db.cipher_user_folders || []).length,
-      organization_users: (db.organization_users || []).length,
-      collections: (db.collections || []).length,
-      collection_users: (db.collection_users || []).length,
-      cipher_collections: (db.cipher_collections || []).length,
-    });
+    await validateShadowTableCounts(env.DB, expectedShadowCounts(db, restored.restoredAttachments.length));
     await progress?.({
       source: 'remote',
       step: 'remote_finalize',
@@ -1041,7 +1018,7 @@ export async function importRemoteBackupArchiveBytes(
           attachments: restored.restoredAttachments.length,
           attachmentFiles: restored.imported,
           organizations: (db.organizations || []).length,
-      cipher_user_folders: (db.cipher_user_folders || []).length,
+          cipherUserFolders: (db.cipher_user_folders || []).length,
           organizationUsers: (db.organization_users || []).length,
           collections: (db.collections || []).length,
           collectionUsers: (db.collection_users || []).length,

@@ -110,6 +110,7 @@ export interface AdminBackupImportCounts {
   attachmentFiles: number;
   organizations?: number;
   organizationUsers?: number;
+  cipherUserFolders?: number;
   collections?: number;
   collectionUsers?: number;
   cipherCollections?: number;
