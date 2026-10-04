@@ -146,7 +146,7 @@ export async function handleRequest(request: Request, env: Env): Promise<Respons
     }
 
     const rateLimit = new RateLimitService(env.DB);
-    const shouldUseStrictBudget = category === 'public-sensitive' || category === 'register';
+    const shouldUseStrictBudget = category === 'public-sensitive' || category === 'register' || category === 'hub-negotiate';
     const check = shouldUseStrictBudget
       ? await rateLimit.consumeStrictBudget(`${clientId}:${category}`, maxRequests)
       : await rateLimit.consumeBudget(`${clientId}:${category}`, maxRequests);

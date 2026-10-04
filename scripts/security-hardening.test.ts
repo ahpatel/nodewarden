@@ -330,6 +330,119 @@ test('the isolate limiter uses the shared IP normalization and never clears the 
   );
 });
 
+// ─── Ticket #23: atomic, lock-aware login lockout ───────────────────────────
+// The failed-login transition must be a single atomic UPSERT that (a) engages
+// the lock when the counter reaches the max, (b) freezes the counter while a
+// lock is active, and (c) never extends an active lock — with no follow-up
+// read or UPDATE. The SQL is extracted from the source so the test cannot
+// drift from the implementation, and run against an in-memory SQLite with the
+// same schema (D1 serializes writes, so sequential semantics are the
+// concurrent semantics).
+
+function extractRecordFailedLoginSql(): string {
+  const src = read('src/services/ratelimit.ts');
+  const start = src.indexOf('async recordFailedLogin');
+  const end = src.indexOf('async clearLoginAttempts');
+  const body = src.slice(start, end);
+  const m = body.match(/prepare\(\s*([\s\S]*?)\)\s*\.bind/);
+  assert.ok(m, 'recordFailedLogin prepare call found');
+  const literals = [...(m[1] as string).matchAll(/'((?:[^'\\]|\\.)*)'/g)].map((x) => x[1]);
+  assert.ok(literals.length > 1, 'SQL literals extracted');
+  return literals.join('');
+}
+
+test('login lockout UPSERT: lock engages at the 10th failure, counter and deadline freeze while locked', async () => {
+  const { DatabaseSync } = await import('node:sqlite');
+  const db = new DatabaseSync(':memory:');
+  db.exec('CREATE TABLE login_attempts_ip (ip TEXT PRIMARY KEY, attempts INTEGER NOT NULL, locked_until INTEGER, updated_at INTEGER NOT NULL)');
+  const sql = extractRecordFailedLoginSql();
+  const stmt = db.prepare(sql);
+  const now = Date.now();
+  const MAX = 10;
+  const LOCK_MS = 120000;
+
+  // 30 sequential failed logins (bind order: ip, now, now, now, max, now, lockMs)
+  let tenth: { attempts: number; locked_until: number | null } | undefined;
+  for (let i = 1; i <= 30; i++) {
+    const row = stmt.get('ip1', now, now, now, MAX, now, LOCK_MS) as { attempts: number; locked_until: number | null };
+    if (i === 10) tenth = row;
+  }
+  const row = db.prepare('SELECT attempts, locked_until FROM login_attempts_ip WHERE ip = ?').get('ip1') as { attempts: number; locked_until: number };
+
+  assert.equal(row.attempts, 10, 'counter frozen at the cap (30 failures, not 30 counted)');
+  assert.equal(row.locked_until, now + LOCK_MS, 'lock deadline set once, at the cap');
+  assert.ok(tenth, 'the 10th failure returned its row');
+  assert.equal(tenth!.attempts, 10, 'lock set during the burst (10th failure)');
+  assert.equal(tenth!.locked_until, now + LOCK_MS, 'the 10th failure reports the lock');
+
+  // Post-lock stragglers must not extend the deadline or grow the counter.
+  for (let i = 0; i < 5; i++) stmt.get('ip1', now, now, now, MAX, now, LOCK_MS);
+  const after = db.prepare('SELECT attempts, locked_until FROM login_attempts_ip WHERE ip = ?').get('ip1') as { attempts: number; locked_until: number };
+  assert.equal(after.attempts, 10, 'attempts do not grow while locked');
+  assert.equal(after.locked_until, now + LOCK_MS, 'an active lock is never extended');
+});
+
+test('login lockout UPSERT: fresh IPs count normally; expired locks re-arm on the next failure', async () => {
+  const { DatabaseSync } = await import('node:sqlite');
+  const db = new DatabaseSync(':memory:');
+  db.exec('CREATE TABLE login_attempts_ip (ip TEXT PRIMARY KEY, attempts INTEGER NOT NULL, locked_until INTEGER, updated_at INTEGER NOT NULL)');
+  const stmt = db.prepare(extractRecordFailedLoginSql());
+  const now = Date.now();
+  const MAX = 10;
+  const LOCK_MS = 120000;
+
+  const first = stmt.get('ip2', now, now, now, MAX, now, LOCK_MS) as { attempts: number; locked_until: number | null };
+  assert.equal(first.attempts, 1, 'fresh IP starts at 1');
+  assert.equal(first.locked_until, null, 'fresh IP is not locked');
+
+  // A row whose lock already expired (checkLoginAttempt deletes these in the
+  // normal flow, but a failure may arrive before that) re-arms the lock on
+  // the next failure — the long-standing behavior, unchanged.
+  db.prepare('UPDATE login_attempts_ip SET attempts = 10, locked_until = ? WHERE ip = ?').run(now - 1, 'ip2');
+  const rearmed = stmt.get('ip2', now, now, now, MAX, now, LOCK_MS) as { attempts: number; locked_until: number | null };
+  assert.ok(rearmed.locked_until && rearmed.locked_until > now, 'next failure after expiry re-arms the lock');
+});
+
+test('recordFailedLogin has no follow-up read or unguarded locked_until UPDATE', () => {
+  const src = read('src/services/ratelimit.ts');
+  const body = src.slice(src.indexOf('async recordFailedLogin'), src.indexOf('async clearLoginAttempts'));
+  assert.ok(
+    /RETURNING attempts, locked_until/.test(body),
+    'the transition returns its row via RETURNING (no follow-up read)'
+  );
+  assert.ok(
+    !/UPDATE login_attempts_ip SET locked_until/.test(body),
+    'the old unguarded locked_until UPDATE is gone'
+  );
+});
+
+// ─── Ticket #22: hub negotiate budget ───────────────────────────────────────
+
+test('hub negotiate consumes a dedicated per-IP budget before token issuance', () => {
+  const routerPublic = read('src/router-public.ts');
+  const routeStart = routerPublic.indexOf("'/notifications/hub/negotiate'");
+  const route = routerPublic.slice(routeStart, routerPublic.indexOf('handleNotificationsNegotiate', routeStart) + 40);
+  assert.ok(
+    /enforcePublicRateLimit\('hub-negotiate', LIMITS\.rateLimit\.hubNegotiateRequestsPerMinute\)/.test(route),
+    'the negotiate route consumes its dedicated budget first'
+  );
+  assert.ok(
+    route.indexOf('enforcePublicRateLimit') < route.indexOf('handleNotificationsNegotiate'),
+    'the budget runs before token issuance'
+  );
+  const router = read('src/router.ts');
+  assert.ok(
+    /category === 'hub-negotiate'/.test(router),
+    'hub-negotiate uses the D1-backed strict budget'
+  );
+  const limits = read('src/config/limits.ts');
+  assert.ok(
+    /hubNegotiateRequestsPerMinute:\s*60/.test(limits),
+    'the negotiate limit is defined (60/min per IP)'
+  );
+});
+
+
 // ─── Ticket 10 (#18): web-bootstrap stops disclosing security state ─────────
 
 test('the public bootstrap no longer discloses JWT strength, provisioning or the origin allowlist', () => {

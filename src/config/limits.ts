@@ -70,6 +70,11 @@
     // Sensitive public/auth request budget per IP per minute.
     // 敏感公开/认证接口每 IP 每分钟请求配额。
     sensitivePublicRequestsPerMinute: 30,
+    // Hub negotiate (SignalR connection ticket issuance) budget per IP per
+    // minute. The webapp reconnects with a backoff capped at 10 s, so a
+    // flapping client spends at most ~6/min; a family behind one IP stays far
+    // below this, while a token-holder flood gets cut ~5x. 轮询连接票据签发每 IP 每分钟配额。
+    hubNegotiateRequestsPerMinute: 60,
     // Password hint lookup budget per IP per minute.
     // 密码提示查询接口每 IP 每分钟请求配额。
     passwordHintRequestsPerMinute: 1,

@@ -620,6 +620,13 @@ export async function handlePublicRoute(
   }
 
   if (path === '/notifications/hub/negotiate' && method === 'POST') {
+    // D1-backed per-IP strict budget before token issuance: negotiate mints a
+    // one-time connection ticket (JWT verify + a Durable Object write) and
+    // had no budget at all, so one valid token could mint tickets at line
+    // rate. The dedicated key keeps this budget independent of the shared
+    // public-sensitive endpoints.
+    const blocked = await enforcePublicRateLimit('hub-negotiate', LIMITS.rateLimit.hubNegotiateRequestsPerMinute);
+    if (blocked) return blocked;
     return handleNotificationsNegotiate(request, env);
   }
 

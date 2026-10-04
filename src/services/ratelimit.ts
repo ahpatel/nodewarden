@@ -135,32 +135,39 @@ export class RateLimitService {
     const now = Date.now();
     await this.maybeCleanupLoginAttemptsIp(now);
 
-    // D1 in Workers forbids raw BEGIN/COMMIT statements.
-    // Use a single atomic UPSERT to increment attempts.
-    // This is concurrency-safe because the row is keyed by IP.
-    await this.db
+    const maxAttempts = CONFIG.LOGIN_MAX_ATTEMPTS;
+    const lockDurationMs = CONFIG.LOGIN_LOCKOUT_MINUTES * 60 * 1000;
+
+    // Single atomic statement for the whole failed-login transition. The old
+    // form was check-then-act (increment UPSERT, then read, then an unguarded
+    // locked_until UPDATE), so a concurrent burst all observed attempts <
+    // max, each completed processing, and every post-lock failure re-stamped
+    // the lock — the 10-attempt cap degraded to the per-IP budget ceiling and
+    // stragglers extended victims' lockouts. This UPSERT increments and
+    // engages the lock in the same statement, freezes the counter and the
+    // lock deadline while a lock is active (no extension), and returns the
+    // resulting row via RETURNING so no follow-up read/update is needed.
+    // D1 serializes write statements per database, so serialized semantics
+    // here are the concurrent semantics.
+    const row = await this.db
       .prepare(
         'INSERT INTO login_attempts_ip(ip, attempts, locked_until, updated_at) VALUES(?, 1, NULL, ?) ' +
-        'ON CONFLICT(ip) DO UPDATE SET attempts = attempts + 1, updated_at = excluded.updated_at'
+        'ON CONFLICT(ip) DO UPDATE SET ' +
+        'attempts = CASE ' +
+        'WHEN locked_until IS NOT NULL AND locked_until > ? THEN attempts ELSE attempts + 1 END, ' +
+        'updated_at = excluded.updated_at, ' +
+        'locked_until = CASE ' +
+        'WHEN locked_until IS NOT NULL AND locked_until > ? THEN locked_until ' +
+        'ELSE CASE WHEN attempts + 1 >= ? THEN ? + ? ELSE locked_until END END ' +
+        'RETURNING attempts, locked_until'
       )
-      .bind(key, now)
-      .run();
+      .bind(key, now, now, now, maxAttempts, now, lockDurationMs)
+      .first<{ attempts: number; locked_until: number | null }>();
 
-    const row = await this.db
-      .prepare('SELECT attempts FROM login_attempts_ip WHERE ip = ?')
-      .bind(key)
-      .first<{ attempts: number }>();
-
-    const attempts = row?.attempts || 1;
-    if (attempts >= CONFIG.LOGIN_MAX_ATTEMPTS) {
-      const lockedUntil = now + CONFIG.LOGIN_LOCKOUT_MINUTES * 60 * 1000;
-      await this.db
-        .prepare('UPDATE login_attempts_ip SET locked_until = ?, updated_at = ? WHERE ip = ?')
-        .bind(lockedUntil, now, key)
-        .run();
-      return { locked: true, retryAfterSeconds: CONFIG.LOGIN_LOCKOUT_MINUTES * 60 };
+    const lockedUntil = row?.locked_until || null;
+    if (lockedUntil && lockedUntil > now) {
+      return { locked: true, retryAfterSeconds: Math.max(1, Math.ceil((lockedUntil - now) / 1000)) };
     }
-
     return { locked: false };
   }
 
