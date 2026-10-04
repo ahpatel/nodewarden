@@ -27,6 +27,8 @@ interface AppGlobalOverlaysProps {
   pendingTotpOpen: boolean;
   pendingTotpProviderType?: number;
   pendingTotpAvailableProviders?: number[];
+  /** Optional override for the default dialog message (e.g. passkey flow). */
+  pendingTotpMessage?: string | null;
   totpCode: string;
   rememberDevice: boolean;
   onTotpCodeChange: (value: string) => void;
@@ -128,7 +130,8 @@ export default function AppGlobalOverlays(props: AppGlobalOverlaysProps) {
             <span>{t('txt_passkey')}</span>
           </span>
         ) : t('txt_two_step_verification')}
-        message={isYubiKeyOtp ? t('txt_press_yubikey_to_authenticate') : isWebAuthn ? t('txt_use_passkey_to_complete_two_step_verification') : t('txt_password_is_already_verified')}
+        message={props.pendingTotpMessage
+          ?? (isYubiKeyOtp ? t('txt_press_yubikey_to_authenticate') : isWebAuthn ? t('txt_use_passkey_to_complete_two_step_verification') : t('txt_password_is_already_verified'))}
         confirmText={t('txt_verify')}
         hideCancel
         closeButton

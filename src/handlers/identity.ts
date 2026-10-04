@@ -10,6 +10,7 @@ import { readAuthRequestDeviceInfo } from '../utils/device';
 import { createRecoveryCode, recoveryCodeEquals } from '../utils/recovery-code';
 import { generateUUID } from '../utils/uuid';
 import { issueSendAccessToken } from './sends';
+import { extractBearerToken } from './sends-shared';
 import { registerMobilePushDevice } from '../services/push-relay';
 import {
   buildAccountKeys,
@@ -327,6 +328,154 @@ async function recordFailedTwoFactorAndBuildResponse(
   return identityErrorResponse('Two-step token is invalid. Try again.', 'invalid_grant', 400);
 }
 
+// Two-step login verification shared by the password and webauthn grants.
+// Resolves the account's enabled providers, challenges when the client did
+// not supply a second factor, verifies the supplied one otherwise, and
+// issues a remember-device token when requested. Every grant must call this
+// before minting tokens — a verified first factor alone is never enough for
+// an account with 2FA enabled.
+type LoginTwoFactorInput = {
+  request: Request;
+  env: Env;
+  storage: StorageService;
+  rateLimit: RateLimitService;
+  loginIdentifier: string;
+  user: User;
+  deviceInfo: ReturnType<typeof readAuthRequestDeviceInfo>;
+  twoFactorProvider: unknown;
+  twoFactorToken: unknown;
+  twoFactorRemember: unknown;
+};
+
+type LoginTwoFactorResult =
+  | { status: 'verified'; trustedTwoFactorTokenToReturn?: string }
+  | { status: 'halt'; response: Response };
+
+async function verifyLoginTwoFactor(input: LoginTwoFactorInput): Promise<LoginTwoFactorResult> {
+  const { request, env, storage, rateLimit, loginIdentifier, user, deviceInfo, twoFactorProvider, twoFactorToken, twoFactorRemember } = input;
+  const effectiveTotpSecret = resolveTotpSecret(user.totpSecret);
+  const effectiveYubiKeyPublicIds = userYubiKeyPublicIds(user);
+  const effectiveWebAuthnCredentials = await storage.getAccountPasskeyCredentialsByUserId(user.id, 'twoFactor');
+  if (!effectiveTotpSecret && effectiveYubiKeyPublicIds.length === 0 && effectiveWebAuthnCredentials.length === 0) {
+    return { status: 'verified' };
+  }
+
+  const normalizedTwoFactorProvider = String(twoFactorProvider ?? '').trim();
+  const normalizedTwoFactorToken = String(twoFactorToken ?? '').trim();
+  let rememberRequested = ['1', 'true', 'True', 'TRUE', 'on', 'yes', 'Yes', 'YES'].includes(String(twoFactorRemember || '').trim());
+  const hasProvider = normalizedTwoFactorProvider.length > 0;
+  const hasToken = normalizedTwoFactorToken.length > 0;
+
+  // Upstream-compatible behavior: if 2FA is required and either provider or token is missing,
+  // respond with a 2FA challenge payload.
+  if (!hasProvider || !hasToken) {
+    return { status: 'halt', response: await twoFactorRequiredResponse(request, env, storage, user, 'Two factor required.') };
+  }
+
+  let passedByRememberToken = false;
+  if (normalizedTwoFactorProvider === String(TWO_FACTOR_PROVIDER_REMEMBER)) {
+    if (deviceInfo.deviceIdentifier) {
+      const trustedUserId = await storage.getTrustedTwoFactorDeviceTokenUserId(
+        normalizedTwoFactorToken,
+        deviceInfo.deviceIdentifier
+      );
+      passedByRememberToken = trustedUserId === user.id;
+    }
+
+    // Remember token missing/invalid/expired should re-enter the 2FA challenge flow.
+    if (!passedByRememberToken) {
+      return { status: 'halt', response: await twoFactorRequiredResponse(request, env, storage, user, 'Two factor required.') };
+    }
+  } else if (normalizedTwoFactorProvider === String(TWO_FACTOR_PROVIDER_AUTHENTICATOR)) {
+    if (!effectiveTotpSecret) {
+      return { status: 'halt', response: await recordFailedTwoFactorAndBuildResponse(rateLimit, loginIdentifier) };
+    }
+    const matchedCounter = await findMatchingTotpCounter(effectiveTotpSecret, normalizedTwoFactorToken);
+    if (matchedCounter == null) {
+      return { status: 'halt', response: await recordFailedTwoFactorAndBuildResponse(rateLimit, loginIdentifier) };
+    }
+    const consumed = await storage.consumeTotpLoginCounter(user.id, matchedCounter);
+    if (!consumed) {
+      return { status: 'halt', response: await recordFailedTwoFactorAndBuildResponse(rateLimit, loginIdentifier) };
+    }
+  } else if (normalizedTwoFactorProvider === String(TWO_FACTOR_PROVIDER_YUBIKEY)) {
+    const publicId = yubiKeyPublicIdFromOtp(normalizedTwoFactorToken);
+    if (!publicId || !effectiveYubiKeyPublicIds.includes(publicId)) {
+      return { status: 'halt', response: await recordFailedTwoFactorAndBuildResponse(rateLimit, loginIdentifier) };
+    }
+    let credentials = await getYubicoCredentials(env.DB);
+    let initializedWithCurrentOtp = false;
+    if (!credentials) {
+      const initialized = await initializeYubicoCredentialsOnce(env.DB, user.email, normalizedTwoFactorToken);
+      if (!initialized) {
+        return { status: 'halt', response: await recordFailedTwoFactorAndBuildResponse(rateLimit, loginIdentifier) };
+      }
+      credentials = initialized.credentials;
+      initializedWithCurrentOtp = initialized.created;
+    }
+    if (!initializedWithCurrentOtp && !await verifyYubicoOtp(env, normalizedTwoFactorToken, credentials)) {
+      return { status: 'halt', response: await recordFailedTwoFactorAndBuildResponse(rateLimit, loginIdentifier) };
+    }
+  } else if (normalizedTwoFactorProvider === String(TWO_FACTOR_PROVIDER_WEBAUTHN)) {
+    if (!effectiveWebAuthnCredentials.length) {
+      return { status: 'halt', response: await recordFailedTwoFactorAndBuildResponse(rateLimit, loginIdentifier) };
+    }
+    let deviceResponse: unknown;
+    try {
+      deviceResponse = JSON.parse(normalizedTwoFactorToken);
+    } catch {
+      return { status: 'halt', response: await recordFailedTwoFactorAndBuildResponse(rateLimit, loginIdentifier) };
+    }
+    try {
+      await assertTwoFactorPasskeyCredential(request, env, storage, user, deviceResponse);
+    } catch {
+      return { status: 'halt', response: await recordFailedTwoFactorAndBuildResponse(rateLimit, loginIdentifier) };
+    }
+  } else if (
+    normalizedTwoFactorProvider === TWO_FACTOR_PROVIDER_RECOVERY_CODE_RESPONSE ||
+    normalizedTwoFactorProvider === String(TWO_FACTOR_PROVIDER_RECOVERY_CODE) ||
+    normalizedTwoFactorProvider === String(TWO_FACTOR_PROVIDER_RECOVERY_CODE_ANDROID_REQUEST)
+  ) {
+    if (!recoveryCodeEquals(normalizedTwoFactorToken, user.totpRecoveryCode)) {
+      return { status: 'halt', response: await recordFailedTwoFactorAndBuildResponse(rateLimit, loginIdentifier) };
+    }
+    user.totpSecret = null;
+    user.yubikeyKey1 = null;
+    user.yubikeyKey2 = null;
+    user.yubikeyKey3 = null;
+    user.yubikeyKey4 = null;
+    user.yubikeyKey5 = null;
+    user.yubikeyNfc = false;
+    for (const credential of effectiveWebAuthnCredentials) {
+      await storage.deleteAccountPasskeyCredential(user.id, credential.id, 'twoFactor');
+    }
+    user.totpRecoveryCode = createRecoveryCode();
+    user.securityStamp = generateUUID();
+    user.updatedAt = new Date().toISOString();
+    await storage.saveUser(user);
+    await storage.deleteRefreshTokensByUserId(user.id);
+    AuthService.invalidateUserCache(user.id);
+    rememberRequested = false;
+  } else {
+    // Unsupported provider for this server profile behaves as an invalid 2FA attempt.
+    return { status: 'halt', response: await recordFailedTwoFactorAndBuildResponse(rateLimit, loginIdentifier) };
+  }
+
+  // Upstream behavior: do not issue a new remember token when auth itself used remember provider.
+  if (rememberRequested && !passedByRememberToken && deviceInfo.deviceIdentifier) {
+    const trustedTwoFactorTokenToReturn = createRefreshToken();
+    await storage.saveTrustedTwoFactorDeviceToken(
+      trustedTwoFactorTokenToReturn,
+      user.id,
+      deviceInfo.deviceIdentifier,
+      Date.now() + TWO_FACTOR_REMEMBER_TTL_MS
+    );
+    return { status: 'verified', trustedTwoFactorTokenToReturn };
+  }
+
+  return { status: 'verified' };
+}
+
 // POST /identity/connect/token
 export async function handleToken(request: Request, env: Env): Promise<Response> {
   const storage = new StorageService(env.DB);
@@ -379,6 +528,29 @@ export async function handleToken(request: Request, env: Env): Promise<Response>
       return identityErrorResponse('Email and password are required', 'invalid_request', 400);
     }
     const loginIdentifier = await loginRateLimitKey(clientIdentifier!, grantType, email);
+
+    // Per-IP aggregate budget: the per-(IP, email) lockout below lets one IP
+    // spray passwords across many accounts at 10 attempts per email per 2
+    // minutes with no aggregate throttle.
+    const ipLoginCheck = await rateLimit.consumeStrictBudget(
+      `${clientIdentifier}:login-ip`,
+      LIMITS.rateLimit.loginIpRequestsPerMinute
+    );
+    if (!ipLoginCheck.allowed) {
+      await safeWriteAuditEvent(env, {
+        action: 'auth.login.ip_budget_exhausted',
+        category: 'auth',
+        level: 'warn',
+        targetType: 'tokenEndpoint',
+        metadata: { grantType, reason: 'ip_login_budget_exhausted', ...auditRequestMetadata(request) },
+      });
+      return identityErrorResponse(
+        'Too many login attempts. Try again later.',
+        'TooManyRequests',
+        429,
+        { 'Retry-After': String(ipLoginCheck.retryAfterSeconds || 60) }
+      );
+    }
 
     // Check login lockout before user lookup to reduce user-enumeration signal
     const loginCheck = await rateLimit.checkLoginAttempt(loginIdentifier);
@@ -444,124 +616,25 @@ export async function handleToken(request: Request, env: Env): Promise<Response>
       );
     }
 
-    // Optional 2FA: enabled by any supported per-user provider.
+    // Optional 2FA: enabled by any supported per-user provider. The shared
+    // gate runs before any token is minted.
     let trustedTwoFactorTokenToReturn: string | undefined;
-    const effectiveTotpSecret = resolveTotpSecret(user.totpSecret);
-    const effectiveYubiKeyPublicIds = userYubiKeyPublicIds(user);
-    const effectiveWebAuthnCredentials = await storage.getAccountPasskeyCredentialsByUserId(user.id, 'twoFactor');
-    if (effectiveTotpSecret || effectiveYubiKeyPublicIds.length > 0 || effectiveWebAuthnCredentials.length > 0) {
-      const normalizedTwoFactorProvider = String(twoFactorProvider ?? '').trim();
-      const normalizedTwoFactorToken = String(twoFactorToken ?? '').trim();
-      let rememberRequested = ['1', 'true', 'True', 'TRUE', 'on', 'yes', 'Yes', 'YES'].includes(String(twoFactorRemember || '').trim());
-      const hasProvider = normalizedTwoFactorProvider.length > 0;
-      const hasToken = normalizedTwoFactorToken.length > 0;
-
-      // Upstream-compatible behavior: if 2FA is required and either provider or token is missing,
-      // respond with a 2FA challenge payload.
-      if (!hasProvider || !hasToken) {
-        return await twoFactorRequiredResponse(request, env, storage, user, 'Two factor required.');
-      }
-
-      let passedByRememberToken = false;
-      if (normalizedTwoFactorProvider === String(TWO_FACTOR_PROVIDER_REMEMBER)) {
-        if (deviceInfo.deviceIdentifier) {
-          const trustedUserId = await storage.getTrustedTwoFactorDeviceTokenUserId(
-            normalizedTwoFactorToken,
-            deviceInfo.deviceIdentifier
-          );
-          passedByRememberToken = trustedUserId === user.id;
-        }
-
-        // Remember token missing/invalid/expired should re-enter the 2FA challenge flow.
-        if (!passedByRememberToken) {
-          return await twoFactorRequiredResponse(request, env, storage, user, 'Two factor required.');
-        }
-      } else if (normalizedTwoFactorProvider === String(TWO_FACTOR_PROVIDER_AUTHENTICATOR)) {
-        if (!effectiveTotpSecret) {
-          return recordFailedTwoFactorAndBuildResponse(rateLimit, loginIdentifier);
-        }
-        const matchedCounter = await findMatchingTotpCounter(effectiveTotpSecret, normalizedTwoFactorToken);
-        if (matchedCounter == null) {
-          return recordFailedTwoFactorAndBuildResponse(rateLimit, loginIdentifier);
-        }
-        const consumed = await storage.consumeTotpLoginCounter(user.id, matchedCounter);
-        if (!consumed) {
-          return recordFailedTwoFactorAndBuildResponse(rateLimit, loginIdentifier);
-        }
-      } else if (normalizedTwoFactorProvider === String(TWO_FACTOR_PROVIDER_YUBIKEY)) {
-        const publicId = yubiKeyPublicIdFromOtp(normalizedTwoFactorToken);
-        if (!publicId || !effectiveYubiKeyPublicIds.includes(publicId)) {
-          return recordFailedTwoFactorAndBuildResponse(rateLimit, loginIdentifier);
-        }
-        let credentials = await getYubicoCredentials(env.DB);
-        let initializedWithCurrentOtp = false;
-        if (!credentials) {
-          const initialized = await initializeYubicoCredentialsOnce(env.DB, user.email, normalizedTwoFactorToken);
-          if (!initialized) {
-            return recordFailedTwoFactorAndBuildResponse(rateLimit, loginIdentifier);
-          }
-          credentials = initialized.credentials;
-          initializedWithCurrentOtp = initialized.created;
-        }
-        if (!initializedWithCurrentOtp && !await verifyYubicoOtp(env, normalizedTwoFactorToken, credentials)) {
-          return recordFailedTwoFactorAndBuildResponse(rateLimit, loginIdentifier);
-        }
-      } else if (normalizedTwoFactorProvider === String(TWO_FACTOR_PROVIDER_WEBAUTHN)) {
-        if (!effectiveWebAuthnCredentials.length) {
-          return recordFailedTwoFactorAndBuildResponse(rateLimit, loginIdentifier);
-        }
-        let deviceResponse: unknown;
-        try {
-          deviceResponse = JSON.parse(normalizedTwoFactorToken);
-        } catch {
-          return recordFailedTwoFactorAndBuildResponse(rateLimit, loginIdentifier);
-        }
-        try {
-          await assertTwoFactorPasskeyCredential(request, env, storage, user, deviceResponse);
-        } catch {
-          return recordFailedTwoFactorAndBuildResponse(rateLimit, loginIdentifier);
-        }
-      } else if (
-        normalizedTwoFactorProvider === TWO_FACTOR_PROVIDER_RECOVERY_CODE_RESPONSE ||
-        normalizedTwoFactorProvider === String(TWO_FACTOR_PROVIDER_RECOVERY_CODE) ||
-        normalizedTwoFactorProvider === String(TWO_FACTOR_PROVIDER_RECOVERY_CODE_ANDROID_REQUEST)
-      ) {
-        if (!recoveryCodeEquals(normalizedTwoFactorToken, user.totpRecoveryCode)) {
-          return recordFailedTwoFactorAndBuildResponse(rateLimit, loginIdentifier);
-        }
-        user.totpSecret = null;
-        user.yubikeyKey1 = null;
-        user.yubikeyKey2 = null;
-        user.yubikeyKey3 = null;
-        user.yubikeyKey4 = null;
-        user.yubikeyKey5 = null;
-        user.yubikeyNfc = false;
-        for (const credential of effectiveWebAuthnCredentials) {
-          await storage.deleteAccountPasskeyCredential(user.id, credential.id, 'twoFactor');
-        }
-        user.totpRecoveryCode = createRecoveryCode();
-        user.securityStamp = generateUUID();
-        user.updatedAt = new Date().toISOString();
-        await storage.saveUser(user);
-        await storage.deleteRefreshTokensByUserId(user.id);
-        AuthService.invalidateUserCache(user.id);
-        rememberRequested = false;
-      } else {
-        // Unsupported provider for this server profile behaves as an invalid 2FA attempt.
-        return recordFailedTwoFactorAndBuildResponse(rateLimit, loginIdentifier);
-      }
-
-      // Upstream behavior: do not issue a new remember token when auth itself used remember provider.
-      if (rememberRequested && !passedByRememberToken && deviceInfo.deviceIdentifier) {
-        trustedTwoFactorTokenToReturn = createRefreshToken();
-        await storage.saveTrustedTwoFactorDeviceToken(
-          trustedTwoFactorTokenToReturn,
-          user.id,
-          deviceInfo.deviceIdentifier,
-          Date.now() + TWO_FACTOR_REMEMBER_TTL_MS
-        );
-      }
+    const twoFactor = await verifyLoginTwoFactor({
+      request,
+      env,
+      storage,
+      rateLimit,
+      loginIdentifier,
+      user,
+      deviceInfo,
+      twoFactorProvider,
+      twoFactorToken,
+      twoFactorRemember,
+    });
+    if (twoFactor.status === 'halt') {
+      return twoFactor.response;
     }
+    trustedTwoFactorTokenToReturn = twoFactor.trustedTwoFactorTokenToReturn;
 
     if (!normalizedAuthRequestId) {
       await auth.upgradePasswordVerifier(user, passwordHash);
@@ -630,13 +703,29 @@ export async function handleToken(request: Request, env: Env): Promise<Response>
 
   } else if (grantType === 'webauthn') {
     const token = String(body.token || '').trim();
-    const loginIdentifier = await loginRateLimitKey(clientIdentifier!, grantType, token || 'missing-token');
-    const loginCheck = await rateLimit.checkLoginAttempt(loginIdentifier);
-    if (!loginCheck.allowed) {
+
+    // Per-IP aggregate budget: the same brake the password and
+    // client-credentials grants apply. Pre-assertion failures cannot key a
+    // lockout row (the lockout is keyed on the server-verified credential
+    // id below, and a failed assertion yields no credential), so this
+    // budget is the only pre-assertion throttle.
+    const ipLoginCheck = await rateLimit.consumeStrictBudget(
+      `${clientIdentifier}:login-ip`,
+      LIMITS.rateLimit.loginIpRequestsPerMinute
+    );
+    if (!ipLoginCheck.allowed) {
+      await safeWriteAuditEvent(env, {
+        action: 'auth.login.ip_budget_exhausted',
+        category: 'auth',
+        level: 'warn',
+        targetType: 'tokenEndpoint',
+        metadata: { grantType, reason: 'ip_login_budget_exhausted', ...auditRequestMetadata(request) },
+      });
       return identityErrorResponse(
-        `Too many failed login attempts. Try again in ${Math.ceil(loginCheck.retryAfterSeconds! / 60)} minutes.`,
+        'Too many login attempts. Try again later.',
         'TooManyRequests',
-        429
+        429,
+        { 'Retry-After': String(ipLoginCheck.retryAfterSeconds || 60) }
       );
     }
 
@@ -660,7 +749,10 @@ export async function handleToken(request: Request, env: Env): Promise<Response>
         scope: 'Authentication',
       });
     } catch (error) {
-      await rateLimit.recordFailedLogin(loginIdentifier);
+      // No lockout row here on purpose: the lockout key must not be derived
+      // from attacker-supplied input (each failed assertion yields no
+      // credential id). The per-IP budget above bounds attempt volume, and
+      // each attempt still burns a one-time challenge token.
       await safeWriteAuditEvent(env, {
         actorUserId: null,
         action: 'auth.passkey.login.failed',
@@ -678,12 +770,37 @@ export async function handleToken(request: Request, env: Env): Promise<Response>
     }
 
     const { user, credential } = asserted;
+    // The lockout key is derived from the server-verified credential id —
+    // a stable, attacker-unforgeable subject — so the 10-attempt lockout
+    // actually accumulates for the guessed secret (the second factor).
+    const loginIdentifier = await loginRateLimitKey(clientIdentifier!, grantType, credential.id);
     if (user.status !== 'active') {
       await rateLimit.recordFailedLogin(loginIdentifier);
       return identityErrorResponse('Account is disabled', 'invalid_grant', 400);
     }
 
     const deviceInfo = readAuthRequestDeviceInfo(body, request);
+
+    // Two-step login: a login passkey alone is not sufficient for accounts
+    // with 2FA enabled. The same gate the password grant applies runs here,
+    // before any token is minted; the client resubmits the grant with
+    // twoFactorProvider/twoFactorToken alongside a fresh passkey assertion.
+    const twoFactor = await verifyLoginTwoFactor({
+      request,
+      env,
+      storage,
+      rateLimit,
+      loginIdentifier,
+      user,
+      deviceInfo,
+      twoFactorProvider: readBodyValue(body, ['twoFactorProvider', 'TwoFactorProvider']),
+      twoFactorToken: readBodyValue(body, ['twoFactorToken', 'TwoFactorToken']),
+      twoFactorRemember: readBodyValue(body, ['twoFactorRemember', 'TwoFactorRemember']),
+    });
+    if (twoFactor.status === 'halt') {
+      return twoFactor.response;
+    }
+
     const deviceSession = await persistAndResolveDeviceSession(storage, user.id, deviceInfo);
     if (deviceSession) {
       await persistIdentityDevicePushToken(env, storage, user.id, deviceSession, deviceInfo.deviceType, body);
@@ -756,6 +873,20 @@ export async function handleToken(request: Request, env: Env): Promise<Response>
     }
     const uid = clientId.slice(5);
     const loginIdentifier = await loginRateLimitKey(clientIdentifier!, grantType, uid);
+
+    // Per-IP aggregate budget (same rationale as the password grant).
+    const ipLoginCheck = await rateLimit.consumeStrictBudget(
+      `${clientIdentifier}:login-ip`,
+      LIMITS.rateLimit.loginIpRequestsPerMinute
+    );
+    if (!ipLoginCheck.allowed) {
+      return identityErrorResponse(
+        'Too many login attempts. Try again later.',
+        'TooManyRequests',
+        429,
+        { 'Retry-After': String(ipLoginCheck.retryAfterSeconds || 60) }
+      );
+    }
 
     // Check login lockout before user lookup to reduce user-enumeration signal
     const loginCheck = await rateLimit.checkLoginAttempt(loginIdentifier);
@@ -1104,6 +1235,18 @@ export async function handleRevocation(request: Request, env: Env): Promise<Resp
       : ''
   );
   if (token) {
+    // If the caller identifies itself, the revoked token must belong to the
+    // same account — a bearer credential cannot be used to revoke other
+    // accounts' sessions. Without credentials, the presented token itself is
+    // the capability (public-client revocation per RFC 7009).
+    const accessToken = extractBearerToken(request);
+    const caller = accessToken ? await new AuthService(env).verifyAccessToken(`Bearer ${accessToken}`) : null;
+    if (caller?.sub) {
+      const target = await storage.getRefreshTokenRecord(token);
+      if (target?.userId && target.userId !== caller.sub) {
+        return identityErrorResponse('Token does not belong to the authenticated account', 'invalid_request', 400);
+      }
+    }
     await storage.deleteRefreshToken(token);
   }
 

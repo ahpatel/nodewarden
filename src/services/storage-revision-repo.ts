@@ -29,3 +29,26 @@ export async function updateRevisionDate(db: D1Database, userId: string): Promis
     .run();
   return date;
 }
+
+// One statement for many members: an org-wide fan-out previously issued one
+// sequential write per member on every shared-item mutation.
+export async function updateRevisionDates(
+  db: D1Database,
+  userIds: string[],
+  date: string = new Date().toISOString()
+): Promise<string> {
+  if (!userIds.length) return date;
+  for (let i = 0; i < userIds.length; i += 45) {
+    const chunk = userIds.slice(i, i + 45);
+    const placeholders = chunk.map(() => '(?, ?)').join(', ');
+    const params = chunk.flatMap((id) => [id, date]);
+    await db
+      .prepare(
+        `INSERT INTO user_revisions(user_id, revision_date) VALUES ${placeholders} ` +
+          'ON CONFLICT(user_id) DO UPDATE SET revision_date = excluded.revision_date'
+      )
+      .bind(...params)
+      .run();
+  }
+  return date;
+}

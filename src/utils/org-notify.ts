@@ -15,10 +15,18 @@ export async function bumpOrganizationMembers(
   exceptUserId?: string
 ): Promise<void> {
   const members = await storage.listConfirmedOrganizationUserIds(organizationId);
+  const memberUserIds = members
+    .map((member) => member.userId)
+    .filter((id) => !(exceptUserId && id === exceptUserId));
+  if (!memberUserIds.length) return;
+
+  // One batched revision write for the whole org instead of one sequential
+  // D1 write per member, then concurrent notification fan-out. This loop runs
+  // on every shared-item mutation, so the sequential form added latency
+  // proportional to membership on every edit.
+  const revisionDate = await storage.updateRevisionDates(memberUserIds);
   const contextId = readActingDeviceIdentifier(request);
-  for (const member of members) {
-    if (exceptUserId && member.userId === exceptUserId) continue;
-    const revisionDate = await storage.updateRevisionDate(member.userId);
-    notifyUserVaultSync(env, member.userId, revisionDate, contextId);
-  }
+  await Promise.all(
+    memberUserIds.map((memberUserId) => notifyUserVaultSync(env, memberUserId, revisionDate, contextId))
+  );
 }

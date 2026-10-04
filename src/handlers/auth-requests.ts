@@ -7,6 +7,7 @@ import { isAuthRequestExpired } from '../services/storage-auth-request-repo';
 import { notifyAuthRequestResponse, notifyUserAuthRequest } from '../durable/notifications-hub';
 import { RateLimitService, getClientIdentifier } from '../services/ratelimit';
 import { LIMITS } from '../config/limits';
+import { constantTimeEquals } from '../utils/api-key';
 
 const AUTH_REQUEST_TYPE_AUTHENTICATE_AND_UNLOCK = 0;
 const AUTH_REQUEST_TYPE_UNLOCK = 1;
@@ -197,7 +198,15 @@ export async function handleCreateAuthRequest(request: Request, env: Env): Promi
   }
 
   const user = await storage.getUser(email);
-  if (!user || user.status !== 'active') {
+  // Known-device prerequisite: the error message has always claimed it, so
+  // enforce it — a request whose deviceIdentifier is not registered to the
+  // target user is rejected. Unknown user, inactive user and known user
+  // without that device all receive the identical response, so the endpoint
+  // no longer distinguishes account existence by status code and cannot
+  // ring login prompts on arbitrary users' devices.
+  const deviceIsKnown = !!(user && user.status === 'active') &&
+    await storage.isKnownDeviceByEmail(email, deviceInfo.deviceIdentifier);
+  if (!user || user.status !== 'active' || !deviceIsKnown) {
     return errorResponse('User or known device not found.', 400);
   }
 
@@ -305,10 +314,22 @@ export async function handleGetAuthRequestResponse(request: Request, env: Env, i
   const url = new URL(request.url);
   const accessCode = normalizeText(url.searchParams.get('code'), 25);
   const authRequest = await storage.getAuthRequestById(id);
-  if (!authRequest || authRequest.accessCode !== accessCode || isAuthRequestExpired(authRequest)) {
+  if (
+    !authRequest ||
+    !accessCode ||
+    !constantTimeEquals(authRequest.accessCode, accessCode) ||
+    isAuthRequestExpired(authRequest)
+  ) {
     return errorResponse('Not found', 404);
   }
-  return jsonResponse(toAuthRequestResponse(request, authRequest));
+  const response = toAuthRequestResponse(request, authRequest);
+  // Once the login has consumed this request, the wrapped user key must not
+  // be handed out again — the polling window is over.
+  if (authRequest.authenticationDate) {
+    response.key = null;
+    response.Key = null;
+  }
+  return jsonResponse(response);
 }
 
 export async function handleListAuthRequests(request: Request, env: Env, userId: string): Promise<Response> {

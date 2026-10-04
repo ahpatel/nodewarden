@@ -40,6 +40,24 @@
     // Authenticated API request budget per user per minute (all reads & writes combined).
     // 认证 API 每用户每分钟请求配额（读写合计）。
     apiRequestsPerMinute: 200,
+    // Per-IP budget on /identity/connect/token login grants (password,
+    // client_credentials). The per-(IP, email) lockout alone lets one IP spray
+    // passwords across many accounts at 10 attempts per email per 2 minutes.
+    // 登录授权接口每 IP 每分钟配额，防止跨账号密码喷洒。
+    loginIpRequestsPerMinute: 30,
+    // Per-user budget for vault import and bulk attachment uploads, which each
+    // write large payloads; generous but no longer unlimited (the old
+    // X-NodeWarden-Import header bypass was forgeable by any client).
+    // 导入与大附件上传路径每用户每分钟配额。
+    importRequestsPerMinute: 600,
+    // Full-vault dump endpoints (/api/sync, GET /api/ciphers) per user per minute.
+    // Each response is megabytes, so this is the real egress brake — the generic
+    // API budget above allows ~600MB/min of vault downloads. Sized to stay above
+    // legitimate bursts (all devices syncing after an org change share this
+    // bucket; 429s carry Retry-After) while cutting sustained drain ~3x below
+    // the observed exfiltration rate (~15 syncs/min).
+    // 全库下载接口（/api/sync、GET /api/ciphers）每用户每分钟配额。
+    vaultDumpRequestsPerMinute: 5,
     // Public (unauthenticated) request budget per IP per minute.
     // 公开（未认证）接口每 IP 每分钟请求配额。
     publicRequestsPerMinute: 60,
@@ -129,15 +147,13 @@
     syncResponseTtlMs: 30 * 1000,
     // Max size of a single cached /api/sync body in bytes.
     // 单个 /api/sync 缓存响应允许的最大字节数。
-    syncResponseMaxBodyBytes: 512 * 1024,
-    // Max total in-memory bytes used by /api/sync cache per isolate.
-    // 每个 isolate 中 /api/sync 缓存允许占用的最大总字节数。
-    syncResponseMaxTotalBytes: 2 * 1024 * 1024,
-    // Max in-memory /api/sync cache entries per isolate.
-    // 每个 isolate 的 /api/sync 最大缓存条目数。
-    syncResponseMaxEntries: 64,
+    syncResponseMaxBodyBytes: 16 * 1024 * 1024,
   },
   performance: {
+    // Max ids accepted in one bulk-cipher request body (move/delete/archive/
+    // restore/collections). Bounds per-request query fan-out.
+    // 单个批量请求允许的最大条目数。
+    maxBulkRequestIds: 500,
     // Max IDs per SQL batch when moving ciphers in bulk.
     // 批量移动密码项时每批 SQL 的最大 ID 数量。
     bulkMoveChunkSize: 200,

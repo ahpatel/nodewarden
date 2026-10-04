@@ -11,7 +11,7 @@ import {
   verifyAttachmentUploadToken,
   verifyFileDownloadToken,
 } from '../utils/jwt';
-import { applyCipherEmbeddedAttachmentMetadata, cipherToResponse } from './ciphers';
+import { applyCipherEmbeddedAttachmentMetadata, applyCipherAccessFlags, cipherToResponse } from './ciphers';
 import { bumpOrganizationMembers } from '../utils/org-notify';
 import { LIMITS } from '../config/limits';
 import { readActingDeviceIdentifier } from '../utils/device';
@@ -267,9 +267,12 @@ export async function handleCreateAttachment(
     await bumpOrganizationMembers(request, env, storage, cipher.organizationId);
   }
 
-  // Get updated cipher for response
+  // Get updated cipher for response. The hide-passwords strip is derived
+  // from the acting member's access, never from client input — same rule as
+  // every other cipher response path.
   const updatedLoaded = await storage.getAccessibleCipher(cipherId, userId);
   const updatedCipher = updatedLoaded?.cipher ?? cipher;
+  applyCipherAccessFlags(updatedCipher, updatedLoaded?.access);
   const attachments = await storage.getAttachmentsByCipher(cipherId);
   const jwtSecret = getSafeJwtSecret(env);
   if (!jwtSecret) {
@@ -519,9 +522,12 @@ export async function handleDeleteAttachment(
     await bumpOrganizationMembers(request, env, storage, cipher.organizationId);
   }
 
-  // Get updated cipher for response
+  // Get updated cipher for response. The hide-passwords strip is derived
+  // from the acting member's access, never from client input — same rule as
+  // every other cipher response path.
   const updatedLoaded = await storage.getAccessibleCipher(cipherId, userId);
   const updatedCipher = updatedLoaded?.cipher ?? cipher;
+  applyCipherAccessFlags(updatedCipher, updatedLoaded?.access);
   const attachments = await storage.getAttachmentsByCipher(cipherId);
   const cipherResponse = cipherToResponse(updatedCipher!, attachments);
 

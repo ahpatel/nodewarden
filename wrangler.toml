@@ -19,6 +19,9 @@ crons = [ "*/5 * * * *" ]
 binding = "DB"
 database_name = "nodewarden-db"
 
+[[analytics_engine_datasets]]
+binding = "VAULT_TELEMETRY"
+
 [[durable_objects.bindings]]
 name = "NOTIFICATIONS_HUB"
 class_name = "NotificationsHub"

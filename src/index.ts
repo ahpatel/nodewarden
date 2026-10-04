@@ -3,7 +3,7 @@ import { NotificationsHub } from './durable/notifications-hub';
 import { BackupTransferRunner } from './durable/backup-transfer-runner';
 import { handleRequest } from './router';
 import { StorageService } from './services/storage';
-import { applyCors, jsonResponse } from './utils/response';
+import { applyCors, jsonResponse, isServerTimingVerified } from './utils/response';
 import { runScheduledBackupIfDue } from './handlers/backup';
 import {
   isBackendRequestPath,
@@ -30,13 +30,13 @@ const DATABASE_FREE_PATHS = new Set(['/config', '/api/config', '/api/version']);
    existence-adjacent endpoints (prelogin, send access, …) must not advertise
    handler durations — a timing oracle there defeats their anti-enumeration
    design. It is therefore emitted ONLY for (a) the database-free metadata
-   paths (static build responses, no secrets, no per-user work) or (b) requests
-   that present credentials (Bearer or the web-session header): invalid
-   credentials reject on constant-cost paths before any user-dependent work,
-   so no oracle exists there, and valid credentials mean the timing describes
-   the requester's own session. */
-const CREDENTIAL_HEADER_NAMES = ['Authorization', 'X-NodeWarden-Web-Session'];
-
+   paths (static build responses, no secrets, no per-user work) or (b)
+   requests whose credentials the router actually verified — router.ts stamps
+   the response after JWT validation, so handler timing describes the
+   requester's own session. The mere presence of an Authorization or
+   web-session header never enables emission: an attacker can set any header,
+   and on some endpoints handler duration tracks account state (e.g. the
+   audit-write asymmetry on failed logins). */
 function withServerTiming(response: Response, timing: string): Response {
   // WebSocket upgrade responses must be returned untouched.
   const webSocket = (response as Response & { webSocket?: unknown }).webSocket;
@@ -165,8 +165,8 @@ export default {
     const dbInitEntry = databaseFree
       ? `db_init;dur=0;desc="database-free path"`
       : `db_init;dur=${dbInitMs.toFixed(1)}`;
-    const credentialed = CREDENTIAL_HEADER_NAMES.some((name) => normalizedRequest.headers.has(name));
-    if (!credentialed && !databaseFree) {
+    const timingAllowed = databaseFree || isServerTimingVerified(resp);
+    if (!timingAllowed) {
       return applyCors(normalizedRequest, resp, env);
     }
     return applyCors(

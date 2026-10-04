@@ -6,7 +6,7 @@ import { auditRequestMetadata, writeAuditEvent, safeWriteAuditEvent } from '../s
 import { jsonResponse, errorResponse } from '../utils/response';
 import { generateUUID } from '../utils/uuid';
 import { LIMITS } from '../config/limits';
-import { isStoredApiKeyHash } from '../utils/api-key';
+import { constantTimeEquals, isStoredApiKeyHash } from '../utils/api-key';
 import { findMatchingTotpCounter, isTotpEnabled } from '../utils/totp';
 import { createRecoveryCode, recoveryCodeEquals } from '../utils/recovery-code';
 import { buildAccountKeys } from '../utils/user-decryption';
@@ -144,7 +144,7 @@ async function verifyTotpUserVerificationToken(env: Env, user: User, key: string
     const [payloadB64, signatureB64] = String(token || '').split('.');
     if (!payloadB64 || !signatureB64) return false;
     const expected = base64UrlEncodeBytes(await hmacSha256(env.JWT_SECRET, payloadB64));
-    if (expected !== signatureB64) return false;
+    if (!constantTimeEquals(expected, signatureB64)) return false;
     const payload = JSON.parse(new TextDecoder().decode(base64UrlDecodeBytes(payloadB64))) as {
       sub?: string;
       key?: string;
@@ -409,7 +409,7 @@ export async function handleRegister(request: Request, env: Env): Promise<Respon
   try {
     const assigned = await storage.assignInviteUsedBy(inviteCode, user.id);
     if (!assigned) {
-      console.warn('Invite used_by was not assigned after registration', { inviteCode, userId: user.id });
+      console.warn('Invite used_by was not assigned after registration', { inviteCodePrefix: inviteCode.slice(0, 6), userId: user.id });
     }
   } catch (error) {
     // The invite is already consumed. Do not reactivate it after the user row exists.
@@ -498,12 +498,16 @@ export async function handleGetPasswordHint(request: Request, env: Env): Promise
     );
   }
 
-  const user = await storage.getUser(email);
-  const hint = user?.status === 'active' ? normalizeMasterPasswordHint(user.masterPasswordHint) : null;
+  // Constant body regardless of account state: this endpoint is reachable
+  // without authentication, so any account-state-dependent field (existence,
+  // hint presence) is an enumeration oracle. The user record isn't even
+  // consulted. The hint text was already withheld; now even its presence is
+  // not disclosed. Users who forget their hint can retrieve it via the
+  // admin database tools.
   return jsonResponse({
     object: 'passwordHint',
-    hasHint: !!hint,
-    masterPasswordHint: hint,
+    hasHint: false,
+    masterPasswordHint: null,
   });
 }
 
@@ -1463,6 +1467,12 @@ export async function handleRecoverTwoFactor(request: Request, env: Env): Promis
   const user = await storage.getUser(email);
   if (!user || user.status !== 'active') {
     await rateLimit.recordFailedLogin(recoverLimitKey);
+    // Equalize timing with the found-user path (PBKDF2) so response latency
+    // cannot be used to enumerate registered emails — mirrors the login
+    // path's equalizer for the same endpoint class.
+    // Equalize timing with the found-user path (PBKDF2) so response latency
+    // cannot be used to enumerate registered emails — mirrors the login path.
+    await auth.performDummyPasswordWork(masterPasswordHash);
     return errorResponse('Invalid credentials or recovery code', 400);
   }
 

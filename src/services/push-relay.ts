@@ -93,13 +93,14 @@ export async function ensurePushInstallationCredentials(db: D1Database): Promise
 }
 
 async function getPushAccessToken(env: Env): Promise<string | null> {
-  const credentials = await ensurePushInstallationCredentials(env.DB);
-  if (!credentials) return null;
-
+  // Check the cached token first: credentials cost two config-table reads and
+  // this function runs per push notification.
   const now = Date.now();
   if (cachedPushAccessToken && cachedPushAccessToken.expiresAt > now + 30_000) {
     return cachedPushAccessToken.token;
   }
+  const credentials = await ensurePushInstallationCredentials(env.DB);
+  if (!credentials) return null;
 
   const params = new URLSearchParams({
     grant_type: 'client_credentials',

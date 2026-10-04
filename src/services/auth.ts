@@ -1,6 +1,7 @@
 import { Env, JWTPayload, User } from '../types';
 import { verifyJWT, createJWT, createRefreshToken } from '../utils/jwt';
-import { getRefreshTokenSlidingTtlMs, LIMITS } from '../config/limits';
+import { getRefreshTokenSlidingTtlMs } from '../config/limits';
+import { getRefreshTokenAbsoluteTtlMs } from './auth-settings';
 import { StorageService } from './storage';
 import {
   createPasswordVerifier,
@@ -194,7 +195,7 @@ export class AuthService {
       device?.sessionStamp ?? null,
       user.securityStamp,
       clientType,
-      now + LIMITS.auth.refreshTokenAbsoluteTtlMs
+      now + await getRefreshTokenAbsoluteTtlMs(this.storage)
     );
     return token;
   }
@@ -209,6 +210,9 @@ export class AuthService {
 
     const payload = await verifyJWT(parts[1], this.env.JWT_SECRET);
     if (!payload) return null;
+    // Reject any token that was not issued by this server's token mint (e.g.
+    // send_access or file tokens sharing the same HMAC secret).
+    if (payload.iss !== 'nodewarden') return null;
 
     let user = await this.getCachedUser(payload.sub);
     if (!user || user.status !== 'active' || payload.sstamp !== user.securityStamp) {
@@ -280,9 +284,17 @@ export class AuthService {
     }
 
     const now = Date.now();
+    // Absolute session cap from the admin setting, measured from token
+    // creation and applied on every refresh: lowering the cap expires old
+    // sessions at their next refresh; raising it never extends sessions
+    // already in flight (their stored cap still binds).
+    const configuredAbsoluteMs = await getRefreshTokenAbsoluteTtlMs(this.storage);
+    const storedAbsoluteMs = record.absoluteExpiresAt ?? Number.POSITIVE_INFINITY;
+    const creationMs = record.createdAt ?? now;
     const expiresAt = Math.min(
       now + getRefreshTokenSlidingTtlMs(record.clientType),
-      record.absoluteExpiresAt || (now + LIMITS.auth.refreshTokenAbsoluteTtlMs)
+      storedAbsoluteMs,
+      creationMs + configuredAbsoluteMs
     );
     const extended = await this.storage.extendRefreshTokenExpiry(refreshToken, expiresAt, now);
     if (!extended) {

@@ -952,6 +952,7 @@ const zhTW: Record<string, string> = {
   "txt_no_account_passkeys": "暫無賬號通行密鑰",
   "txt_passkey_name": "通行密鑰名稱",
   "txt_passkey_requires_master_password": "通行密鑰已驗證，請輸入主密碼解鎖密碼庫。",
+  "txt_passkey_requires_two_step": "通行密鑰已驗證，請輸入兩步登入驗證碼。",
   "txt_passkey_not_for_locked_account": "這把通行密鑰屬於其他賬號",
   "txt_prf_not_supported": "不支持 PRF",
   "txt_invalid_passkey_creation_options": "通行密鑰創建選項無效",

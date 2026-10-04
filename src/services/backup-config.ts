@@ -879,6 +879,12 @@ export function hasBackupSlotBetween(
   const lastSuccessMs = lastSuccessAt && Number.isFinite(lastSuccessAt.getTime())
     ? lastSuccessAt.getTime()
     : Number.NEGATIVE_INFINITY;
+  // Slots already attempted during the scan window are done for this run even
+  // if they failed — prevents re-running failed backups on every iteration.
+  const lastAttemptAt = destination.runtime.lastAttemptAt ? new Date(destination.runtime.lastAttemptAt) : null;
+  const lastAttemptMs = lastAttemptAt && Number.isFinite(lastAttemptAt.getTime())
+    ? lastAttemptAt.getTime()
+    : Number.NEGATIVE_INFINITY;
 
   const dayCursor = new Date(startMs);
   dayCursor.setUTCHours(0, 0, 0, 0);
@@ -900,6 +906,7 @@ export function hasBackupSlotBetween(
         const slotStartMs = slotStart.getTime();
         if (slotStartMs < startMs || slotStartMs >= endMs) continue;
         if (lastSuccessMs >= slotStartMs) continue;
+        if (lastAttemptMs >= slotStartMs) continue;
         return true;
       }
     }
@@ -932,6 +939,14 @@ export function isBackupDueNow(
     const slotStartMs = slotStart.getTime();
     if (now.getTime() < slotStartMs || now.getTime() >= slotStartMs + toleranceMs) continue;
     if (lastSuccessMs >= slotStartMs) return false;
+    // A slot whose attempt already ran (success OR failure) is done for this
+    // window — otherwise a fast-failing destination re-runs the full archive
+    // build on every scheduler iteration until the tolerance window closes.
+    const lastAttemptAt = destination.runtime.lastAttemptAt ? new Date(destination.runtime.lastAttemptAt) : null;
+    const lastAttemptMs = lastAttemptAt && Number.isFinite(lastAttemptAt.getTime())
+      ? lastAttemptAt.getTime()
+      : Number.NEGATIVE_INFINITY;
+    if (lastAttemptMs >= slotStartMs) return false;
     return true;
   }
   return false;

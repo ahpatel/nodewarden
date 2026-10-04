@@ -21,8 +21,6 @@ import {
   getSafeJwtSecret,
   hasEmailAuth,
   isSendAvailable,
-  notifySendUpdateForRequest,
-  notifyVaultSyncForRequest,
   parseStoredSendData,
   resolveSendFromIdOrAccessId,
   sendPasswordLimitKey,
@@ -97,9 +95,8 @@ export async function handleAccessSend(request: Request, env: Env, accessId: str
       return errorResponse(SEND_INACCESSIBLE_MSG, 404);
     }
     send.accessCount += 1;
-    const revisionDate = await storage.updateRevisionDate(send.userId);
-    notifyVaultSyncForRequest(request, env, send.userId, revisionDate);
-    notifySendUpdateForRequest(request, env, send.id, send.userId, revisionDate);
+    // No revision bump / push fan-out: anonymous endpoint (see note in
+    // handleAccessSend).
   }
 
   const creatorIdentifier = await getCreatorIdentifier(storage, send);
@@ -165,14 +162,10 @@ export async function handleAccessSendFile(
     await sendPasswordRateLimit.clearLoginAttempts(sendPasswordLimitIpKey);
   }
 
-  const updated = await storage.incrementSendAccessCount(send.id);
-  if (!updated) {
-    return errorResponse(SEND_INACCESSIBLE_MSG, 404);
-  }
-  send.accessCount += 1;
-  const revisionDate = await storage.updateRevisionDate(send.userId);
-  notifyVaultSyncForRequest(request, env, send.userId, revisionDate);
-  notifySendUpdateForRequest(request, env, send.id, send.userId, revisionDate);
+  // No access-count increment here: for file sends the limit is enforced
+  // exactly once, at delivery (handleDownloadSendFile). The access endpoint
+  // only mints a single-use download URL after the availability pre-check,
+  // so the final permitted access is never rejected by an off-by-one.
 
   const token = await createSendFileDownloadToken(send.id, fileId, secret);
   const url = new URL(request.url);
@@ -211,9 +204,8 @@ export async function handleAccessSendV2(request: Request, env: Env): Promise<Re
       return errorResponse(SEND_INACCESSIBLE_MSG, 404);
     }
     send.accessCount += 1;
-    const revisionDate = await storage.updateRevisionDate(send.userId);
-    notifyVaultSyncForRequest(request, env, send.userId, revisionDate);
-    notifySendUpdateForRequest(request, env, send.id, send.userId, revisionDate);
+    // No revision bump / push fan-out: anonymous endpoint (see note in
+    // handleAccessSend).
   }
 
   const creatorIdentifier = await getCreatorIdentifier(storage, send);
@@ -246,14 +238,9 @@ export async function handleAccessSendFileV2(request: Request, env: Env, fileId:
     return errorResponse(SEND_INACCESSIBLE_MSG, 404);
   }
 
-  const updated = await storage.incrementSendAccessCount(send.id);
-  if (!updated) {
-    return errorResponse(SEND_INACCESSIBLE_MSG, 404);
-  }
-  send.accessCount += 1;
-  const revisionDate = await storage.updateRevisionDate(send.userId);
-  notifyVaultSyncForRequest(request, env, send.userId, revisionDate);
-  notifySendUpdateForRequest(request, env, send.id, send.userId, revisionDate);
+  // No access-count increment here: for file sends the limit is enforced
+  // exactly once, at delivery (handleDownloadSendFile). The access endpoint
+  // only mints a single-use download URL after the availability pre-check.
 
   const downloadToken = await createSendFileDownloadToken(send.id, fileId, jwt.secret);
   const url = new URL(request.url);
@@ -303,6 +290,15 @@ export async function handleDownloadSendFile(
   const firstUse = await storage.consumeAttachmentDownloadToken(`send:${claims.jti}`, claims.exp);
   if (!firstUse) {
     return errorResponse('Invalid or expired token', 401);
+  }
+
+  // Enforce and consume the access limit exactly once, at delivery: the
+  // guarded increment (access_count < max_access_count) fails when the
+  // counter has reached maxAccessCount, so every permitted access delivers
+  // — including the final one. The mint endpoints perform no increment.
+  const delivered = await storage.incrementSendAccessCount(sendId);
+  if (!delivered) {
+    return errorResponse(SEND_INACCESSIBLE_MSG, 404);
   }
 
   const object = await getBlobObject(env, getSendFileObjectKey(sendId, fileId));

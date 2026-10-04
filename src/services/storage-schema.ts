@@ -128,6 +128,7 @@ const SCHEMA_STATEMENTS: readonly string[] = [
   'token TEXT PRIMARY KEY, user_id TEXT NOT NULL, expires_at INTEGER NOT NULL, device_identifier TEXT, device_session_stamp TEXT, security_stamp TEXT, created_at INTEGER, last_used_at INTEGER, absolute_expires_at INTEGER, client_type TEXT, ' +
   'FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE)',
   'CREATE INDEX IF NOT EXISTS idx_refresh_tokens_user ON refresh_tokens(user_id)',
+  'CREATE INDEX IF NOT EXISTS idx_refresh_tokens_expires ON refresh_tokens(expires_at)',
   'ALTER TABLE refresh_tokens ADD COLUMN device_identifier TEXT',
   'ALTER TABLE refresh_tokens ADD COLUMN device_session_stamp TEXT',
   'ALTER TABLE refresh_tokens ADD COLUMN security_stamp TEXT',
@@ -195,6 +196,7 @@ const SCHEMA_STATEMENTS: readonly string[] = [
   'token TEXT PRIMARY KEY, user_id TEXT NOT NULL, device_identifier TEXT NOT NULL, expires_at INTEGER NOT NULL, ' +
   'FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE)',
   'CREATE INDEX IF NOT EXISTS idx_trusted_two_factor_device_tokens_user_device ON trusted_two_factor_device_tokens(user_id, device_identifier)',
+  'CREATE INDEX IF NOT EXISTS idx_trusted_two_factor_device_tokens_expires ON trusted_two_factor_device_tokens(expires_at)',
 
   'CREATE TABLE IF NOT EXISTS totp_login_replays (' +
   'user_id TEXT NOT NULL, time_counter INTEGER NOT NULL, consumed_at INTEGER NOT NULL, ' +

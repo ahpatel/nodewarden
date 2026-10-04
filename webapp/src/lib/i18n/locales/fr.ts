@@ -952,6 +952,7 @@ const fr: Record<string, string> = {
   "txt_no_account_passkeys": "Aucune clé d'accès au compte",
   "txt_passkey_name": "Nom de la clé d'accès",
   "txt_passkey_requires_master_password": "Clé d'accès vérifiée. Saisissez votre mot de passe maître pour déverrouiller le coffre-fort.",
+  "txt_passkey_requires_two_step": "Clé d'accès vérifiée. Saisissez votre code de connexion en deux étapes.",
   "txt_passkey_not_for_locked_account": "Cette clé d'accès est pour un autre compte",
   "txt_prf_not_supported": "PRF non pris en charge",
   "txt_invalid_passkey_creation_options": "Options de création de clé d'accès invalides",

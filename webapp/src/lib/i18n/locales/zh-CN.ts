@@ -952,6 +952,7 @@ const zhCN: Record<string, string> = {
   "txt_no_account_passkeys": "暂无账号通行密钥",
   "txt_passkey_name": "通行密钥名称",
   "txt_passkey_requires_master_password": "通行密钥已验证，请输入主密码解锁密码库。",
+  "txt_passkey_requires_two_step": "通行密钥已验证，请输入两步登录验证码。",
   "txt_passkey_not_for_locked_account": "这把通行密钥属于其他账号",
   "txt_prf_not_supported": "不支持 PRF",
   "txt_invalid_passkey_creation_options": "通行密钥创建选项无效",

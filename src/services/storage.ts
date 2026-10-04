@@ -195,6 +195,7 @@ import {
 import {
   getRevisionDate as getStoredRevisionDate,
   updateRevisionDate as updateStoredRevisionDate,
+  updateRevisionDates as updateStoredRevisionDates,
 } from './storage-revision-repo';
 import {
   getUserDomainSettings as getStoredUserDomainSettings,
@@ -1239,6 +1240,10 @@ export class StorageService {
 
   async updateRevisionDate(userId: string): Promise<string> {
     return updateStoredRevisionDate(this.db, userId);
+  }
+
+  async updateRevisionDates(userIds: string[]): Promise<string> {
+    return updateStoredRevisionDates(this.db, userIds);
   }
 
   // --- One-time attachment download tokens ---

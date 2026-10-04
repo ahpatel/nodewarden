@@ -155,17 +155,19 @@ export function resolveParentChannel(request, connectorOrigin, allowedOrigins = 
   throw new Error('Untrusted parent.');
 }
 
-async function loadAllowedParentOrigins() {
+async function isAllowedParentOrigin(origin) {
   try {
-    const response = await fetch('/api/web-bootstrap', {
-      headers: { Accept: 'application/json' },
+    const response = await fetch('/api/webauthn/origin-check', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
       credentials: 'omit',
+      body: JSON.stringify({ origin }),
     });
-    if (!response.ok) return [];
+    if (!response.ok) return false;
     const body = await response.json();
-    return Array.isArray(body?.webAuthnAllowedOrigins) ? body.webAuthnAllowedOrigins : [];
+    return body?.allowed === true;
   } catch (_error) {
-    return [];
+    return false;
   }
 }
 
@@ -230,7 +232,13 @@ async function initializePage() {
   try {
     request = parseConnectorRequest(window.location.search);
     publicKey = normalizePublicKeyOptions(request.webauthnJson);
-    channel = resolveParentChannel(request, window.location.origin, await loadAllowedParentOrigins());
+    const normalizedParent = normalizeAllowedOrigin(request.parentUrl || '');
+    const trustedOrigins = normalizedParent
+      && isExtensionOrigin(normalizedParent)
+      && await isAllowedParentOrigin(normalizedParent)
+      ? [normalizedParent]
+      : [];
+    channel = resolveParentChannel(request, window.location.origin, trustedOrigins);
     setButton(false);
   } catch (error) {
     button.textContent = browserErrorMessage(error);

@@ -952,6 +952,7 @@ const ru: Record<string, string> = {
   "txt_no_account_passkeys": "Нет ключей доступа аккаунта",
   "txt_passkey_name": "Название ключа доступа",
   "txt_passkey_requires_master_password": "Ключ доступа подтвержден. Введите мастер-пароль, чтобы разблокировать хранилище.",
+  "txt_passkey_requires_two_step": "Ключ доступа подтвержден. Введите код двухэтапного входа.",
   "txt_passkey_not_for_locked_account": "Этот ключ доступа относится к другому аккаунту",
   "txt_prf_not_supported": "PRF не поддерживается",
   "txt_invalid_passkey_creation_options": "Недопустимые параметры создания ключа доступа",

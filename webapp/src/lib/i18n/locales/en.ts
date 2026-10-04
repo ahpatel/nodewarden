@@ -952,6 +952,7 @@ const en: Record<string, string> = {
   "txt_no_account_passkeys": "No account passkeys",
   "txt_passkey_name": "Passkey name",
   "txt_passkey_requires_master_password": "Passkey verified. Enter your master password to unlock the vault.",
+  "txt_passkey_requires_two_step": "Passkey verified. Enter your two-step login code.",
   "txt_passkey_not_for_locked_account": "This passkey is for a different account",
   "txt_prf_not_supported": "PRF not supported",
   "txt_invalid_passkey_creation_options": "Invalid passkey creation options",

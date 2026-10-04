@@ -952,6 +952,7 @@ const es: Record<string, string> = {
   "txt_no_account_passkeys": "Sin claves de acceso de cuenta",
   "txt_passkey_name": "Nombre de la clave de acceso",
   "txt_passkey_requires_master_password": "Clave de acceso verificada. Introduzca su contraseña maestra para desbloquear la bóveda.",
+  "txt_passkey_requires_two_step": "Clave de acceso verificada. Introduzca su código de verificación en dos pasos.",
   "txt_passkey_not_for_locked_account": "Esta clave de acceso pertenece a otra cuenta",
   "txt_prf_not_supported": "PRF no compatible",
   "txt_invalid_passkey_creation_options": "Opciones de creación de clave de acceso no válidas",

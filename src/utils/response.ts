@@ -87,6 +87,31 @@ function buildCorsHeaders(request: Request, env: Env): Record<string, string> {
   return headers;
 }
 
+/* Server-Timing gate marker (see src/index.ts). The router stamps it onto
+   responses only after it has actually verified the request's credentials
+   (JWT validation) — header presence alone must never enable Server-Timing
+   emission, because handler duration on unverified requests can track
+   account state and become a timing oracle. */
+export const SERVER_TIMING_VERIFIED = Symbol('serverTimingVerified');
+
+export function markServerTimingVerified(response: Response): Response {
+  try {
+    (response as unknown as Record<symbol, unknown>)[SERVER_TIMING_VERIFIED] = true;
+  } catch {
+    // Non-extensible response objects: marking is best-effort, the gate
+    // then simply stays closed for that response.
+  }
+  return response;
+}
+
+export function isServerTimingVerified(response: Response): boolean {
+  try {
+    return Boolean((response as unknown as Record<symbol, unknown>)[SERVER_TIMING_VERIFIED]);
+  } catch {
+    return false;
+  }
+}
+
 export function applyCors(
   request: Request,
   response: Response,

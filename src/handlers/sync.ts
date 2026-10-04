@@ -39,11 +39,72 @@ function buildSyncCacheRequest(
 async function readSyncCache(cacheRequest: Request): Promise<Response | null> {
   const hit = await caches.default.match(cacheRequest);
   if (!hit) return null;
-  return new Response(hit.body, hit);
+  // The stored copy uses a cacheable Cache-Control (the Cache API refuses
+  // private/no-store on put); restore the private directive before serving so
+  // browsers never store the authorized response.
+  const headers = new Headers(hit.headers);
+  headers.set('Cache-Control', `private, max-age=${Math.max(1, Math.floor(LIMITS.cache.syncResponseTtlMs / 1000))}`);
+  return new Response(hit.body, { status: hit.status, headers });
 }
 
 async function writeSyncCache(cacheRequest: Request, response: Response): Promise<void> {
-  await caches.default.put(cacheRequest, response.clone());
+  // caches.default.put() silently refuses responses marked private/no-store,
+  // so store a copy with a cacheable directive; readSyncCache restores the
+  // private directive for the client-facing response.
+  const bodyBytes = Number(response.headers.get('X-NodeWarden-Sync-Bytes')) || 0;
+  if (bodyBytes > LIMITS.cache.syncResponseMaxBodyBytes) {
+    // Oversized response: serve uncached rather than holding a huge entry.
+    return;
+  }
+  const ttlSeconds = Math.max(1, Math.floor(LIMITS.cache.syncResponseTtlMs / 1000));
+  const clone = response.clone();
+  const headers = new Headers(clone.headers);
+  headers.set('Cache-Control', `max-age=${ttlSeconds}`);
+  await caches.default.put(cacheRequest, new Response(clone.body, {
+    status: clone.status,
+    headers,
+  }));
+}
+
+// Contract: one data point per /api/sync response, regardless of cache state.
+// index = user id (queryable), blobs = cache state + client identity headers,
+// doubles = [responseBytes, requestCount]. Never throws — telemetry must not
+// break the sync path, and the binding is optional in some deployments.
+function recordSyncTelemetry(
+  env: Env,
+  request: Request,
+  userId: string,
+  revisionDate: string,
+  cacheState: 'hit' | 'miss',
+  bytes: number
+): void {
+  let clientName = 'unknown';
+  let clientVersion = 'unknown';
+  try {
+    clientName = request.headers.get('Bitwarden-Client-Name') || 'unknown';
+    clientVersion = request.headers.get('Bitwarden-Client-Version') || 'unknown';
+  } catch {
+    // Ignore header read failures.
+  }
+  try {
+    env.VAULT_TELEMETRY?.writeDataPoint({
+      indexes: [userId],
+      blobs: [cacheState, clientName, clientVersion, revisionDate],
+      doubles: [bytes, 1],
+    });
+  } catch {
+    // Ignore telemetry failures.
+  }
+  console.log(
+    JSON.stringify({
+      event: 'sync_response',
+      userId,
+      bytes,
+      cache: cacheState,
+      revisionDate,
+      client: `${clientName}/${clientVersion}`,
+    })
+  );
 }
 
 // GET /api/sync
@@ -76,6 +137,8 @@ export async function handleSync(request: Request, env: Env, userId: string): Pr
   const cacheRequest = buildSyncCacheRequest(request, userId, revisionDate, accountPasskeyCacheTag, excludeDomains, excludeSends, preserveRepairableUris);
   const cachedResponse = await readSyncCache(cacheRequest);
   if (cachedResponse) {
+    const cachedBytes = Number(cachedResponse.headers.get('X-NodeWarden-Sync-Bytes')) || 0;
+    recordSyncTelemetry(env, request, userId, revisionDate, 'hit', cachedBytes);
     return cachedResponse;
   }
 
@@ -175,13 +238,16 @@ export async function handleSync(request: Request, env: Env, userId: string): Pr
     object: 'sync',
   };
 
-  const response = new Response(JSON.stringify(syncResponse), {
+  const bodyText = JSON.stringify(syncResponse);
+  const response = new Response(bodyText, {
     status: 200,
     headers: {
       'Content-Type': 'application/json',
       'Cache-Control': `private, max-age=${Math.max(1, Math.floor(LIMITS.cache.syncResponseTtlMs / 1000))}`,
+      'X-NodeWarden-Sync-Bytes': String(bodyText.length),
     },
   });
+  recordSyncTelemetry(env, request, userId, revisionDate, 'miss', bodyText.length);
   await writeSyncCache(cacheRequest, response);
   return response;
 }

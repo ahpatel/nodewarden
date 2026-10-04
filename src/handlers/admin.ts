@@ -1,6 +1,14 @@
 import { Env, User, Invite } from '../types';
 import { AuthService } from '../services/auth';
 import { StorageService } from '../services/storage';
+import {
+  getAuthSessionSettings,
+  REFRESH_TOKEN_ABSOLUTE_TTL_DAYS_DEFAULT,
+  REFRESH_TOKEN_ABSOLUTE_TTL_DAYS_MAX,
+  REFRESH_TOKEN_ABSOLUTE_TTL_DAYS_MIN,
+  refreshTokenLifetimeWarning,
+  saveAuthSessionSettings,
+} from '../services/auth-settings';
 import { ORG_SELF_SERVICE_REGISTRATION_CONFIG_KEY, ORG_USER_STATUS, ORG_USER_TYPE } from '../config/org';
 import { jsonResponse, errorResponse } from '../utils/response';
 import { deleteBlobObject, getAttachmentObjectKey, getSendFileObjectKey } from '../services/blob-store';
@@ -190,12 +198,20 @@ export async function handleAdminUpdateAuditLogSettings(
   if (!isAdmin(actorUser)) {
     return errorResponse('Forbidden', 403);
   }
-  let body: unknown;
+  let body: Record<string, unknown>;
   try {
-    body = await request.json();
+    const parsed: unknown = await request.json();
+    body = parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+      ? parsed as Record<string, unknown>
+      : {};
   } catch {
     return errorResponse('Invalid JSON', 400);
   }
+  // Step-up: retention changes prune immediately, so they are as destructive
+  // as a wipe — the admin's master password is required, matching every
+  // other destructive admin operation.
+  const passwordError = await requireMasterPasswordHash(env, actorUser, body.masterPasswordHash);
+  if (passwordError) return passwordError;
   const storage = new StorageService(env.DB);
   const settings = await saveAuditLogSettings(storage, normalizeAuditLogSettings(body));
   await writeAuditLog(storage, actorUser.id, 'admin.audit.settings.update', 'auditLog', null, { ...settings }, request);
@@ -214,6 +230,19 @@ export async function handleAdminClearAuditLogs(
   if (!isAdmin(actorUser)) {
     return errorResponse('Forbidden', 403);
   }
+  let body: Record<string, unknown> = {};
+  try {
+    const parsed: unknown = await request.json();
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      body = parsed as Record<string, unknown>;
+    }
+  } catch {
+    body = {};
+  }
+  // Step-up: a stolen admin bearer token must not be able to wipe the
+  // entire audit trail in one request.
+  const passwordError = await requireMasterPasswordHash(env, actorUser, body.masterPasswordHash);
+  if (passwordError) return passwordError;
   const storage = new StorageService(env.DB);
   const deleted = await storage.clearAuditLogs();
   await writeAuditLog(storage, actorUser.id, 'admin.audit.clear', 'auditLog', null, {
@@ -494,5 +523,76 @@ export async function handleAdminSetOrgSelfServiceRegistration(
   return jsonResponse({
     object: 'orgSelfServiceRegistrationSettings',
     enabled,
+  });
+}
+
+// GET /api/admin/settings/refresh-token-lifetime
+export async function handleAdminGetRefreshTokenLifetime(
+  request: Request,
+  env: Env,
+  actorUser: User
+): Promise<Response> {
+  if (!isAdmin(actorUser)) {
+    return errorResponse('Forbidden', 403);
+  }
+  void request;
+  const storage = new StorageService(env.DB);
+  const settings = await getAuthSessionSettings(storage);
+  const days = settings.refreshTokenAbsoluteTtlDays;
+  return jsonResponse({
+    object: 'refreshTokenLifetimeSettings',
+    refreshTokenAbsoluteTtlDays: days,
+    defaultDays: REFRESH_TOKEN_ABSOLUTE_TTL_DAYS_DEFAULT,
+    minDays: REFRESH_TOKEN_ABSOLUTE_TTL_DAYS_MIN,
+    maxDays: REFRESH_TOKEN_ABSOLUTE_TTL_DAYS_MAX,
+    warning: refreshTokenLifetimeWarning(days),
+  });
+}
+
+// POST /api/admin/settings/refresh-token-lifetime
+// Lowering the cap expires existing sessions at their next refresh (measured
+// from token creation); raising it never extends sessions already in flight.
+export async function handleAdminSetRefreshTokenLifetime(
+  request: Request,
+  env: Env,
+  actorUser: User
+): Promise<Response> {
+  if (!isAdmin(actorUser)) {
+    return errorResponse('Forbidden', 403);
+  }
+  let body: Record<string, unknown>;
+  try {
+    body = await request.json() as Record<string, unknown>;
+  } catch {
+    return errorResponse('Invalid JSON', 400);
+  }
+  const passwordError = await requireMasterPasswordHash(env, actorUser, body.masterPasswordHash);
+  if (passwordError) return passwordError;
+
+  const days = Math.floor(Number(body.refreshTokenAbsoluteTtlDays));
+  if (
+    !Number.isFinite(days) ||
+    days < REFRESH_TOKEN_ABSOLUTE_TTL_DAYS_MIN ||
+    days > REFRESH_TOKEN_ABSOLUTE_TTL_DAYS_MAX
+  ) {
+    return errorResponse(
+      `refreshTokenAbsoluteTtlDays must be an integer between ${REFRESH_TOKEN_ABSOLUTE_TTL_DAYS_MIN} and ${REFRESH_TOKEN_ABSOLUTE_TTL_DAYS_MAX}`,
+      400
+    );
+  }
+
+  const storage = new StorageService(env.DB);
+  await saveAuthSessionSettings(storage, days);
+  await writeAuditLog(storage, actorUser.id, 'admin.settings.refreshTokenLifetime', 'config', null, {
+    refreshTokenAbsoluteTtlDays: days,
+  }, request);
+  return jsonResponse({
+    object: 'refreshTokenLifetimeSettings',
+    refreshTokenAbsoluteTtlDays: days,
+    defaultDays: REFRESH_TOKEN_ABSOLUTE_TTL_DAYS_DEFAULT,
+    minDays: REFRESH_TOKEN_ABSOLUTE_TTL_DAYS_MIN,
+    maxDays: REFRESH_TOKEN_ABSOLUTE_TTL_DAYS_MAX,
+    warning: refreshTokenLifetimeWarning(days),
+    saved: true,
   });
 }

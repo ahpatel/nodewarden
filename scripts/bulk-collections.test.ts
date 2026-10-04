@@ -146,6 +146,24 @@ test('server bulk collections endpoint enforces its invariants', () => {
   );
 });
 
+test('server bulk collections endpoint enforces the 500-item id cap like its siblings', () => {
+  const ciphers = read('src/handlers/ciphers.ts');
+  const handler = ciphers.slice(ciphers.indexOf('export async function handleBulkSetCipherCollections'));
+  assert.ok(
+    handler.includes('LIMITS.performance.maxBulkRequestIds'),
+    'the bulk collections cap uses the shared limit'
+  );
+  const capChecks = handler.match(/maxBulkRequestIds/g) || [];
+  assert.ok(
+    capChecks.length >= 2,
+    'the cap covers both cipherIds and collectionIds'
+  );
+  assert.ok(
+    handler.includes("ids array is limited to ${LIMITS.performance.maxBulkRequestIds} items"),
+    'the cap uses the same error shape as the sibling bulk endpoints'
+  );
+});
+
 // ─── i18n bundle placement ──────────────────────────────────────────────────
 
 test('feature keys live in the org bundle, not the base bundle', () => {

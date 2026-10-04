@@ -319,7 +319,10 @@ export async function getAccountPasskeyAssertionOptions(): Promise<{ options: un
   return { options: body.options, token: body.token };
 }
 
-export async function loginWithAccountPasskeyAssertion(assertion: AccountPasskeyAssertion): Promise<TokenSuccess | TokenError> {
+export async function loginWithAccountPasskeyAssertion(
+  assertion: AccountPasskeyAssertion,
+  twoFactor?: { providerType: number; token: string; rememberDevice?: boolean }
+): Promise<TokenSuccess | TokenError> {
   const body = new URLSearchParams();
   body.set('grant_type', 'webauthn');
   body.set('token', assertion.token);
@@ -328,6 +331,13 @@ export async function loginWithAccountPasskeyAssertion(assertion: AccountPasskey
   body.set('deviceIdentifier', getOrCreateDeviceIdentifier());
   body.set('deviceName', guessDeviceName());
   body.set('deviceType', '14');
+  if (twoFactor) {
+    body.set('twoFactorProvider', String(twoFactor.providerType));
+    body.set('twoFactorToken', twoFactor.token);
+    if (twoFactor.rememberDevice) {
+      body.set('twoFactorRemember', 'true');
+    }
+  }
 
   const resp = await fetch('/identity/connect/token', {
     method: 'POST',

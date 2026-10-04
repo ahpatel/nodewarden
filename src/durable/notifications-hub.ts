@@ -349,6 +349,14 @@ export class NotificationsHub extends DurableObject<Env> {
       deviceIdentifier: requestDeviceIdentifier,
     } satisfies WsAttachment);
 
+    // Connection logging: sustained connect/close cycling points at a client
+    // reconnect storm (each cycle can trigger a client-side sync).
+    console.log(JSON.stringify({
+      event: 'hub_ws_connect',
+      device: requestDeviceIdentifier,
+      kind: isAnonymousAuthRequestHub ? 'anonymous-auth-request' : 'user',
+    }));
+
     return new Response(null, {
       status: 101,
       webSocket: client,
@@ -408,15 +416,30 @@ export class NotificationsHub extends DurableObject<Env> {
   }
 
   async webSocketClose(ws: WebSocket, code: number, reason: string, wasClean: boolean): Promise<void> {
-    void ws;
-    void code;
-    void reason;
-    void wasClean;
+    try {
+      const attachment = ws.deserializeAttachment() as WsAttachment | null;
+      console.log(JSON.stringify({
+        event: 'hub_ws_close',
+        device: attachment?.deviceIdentifier ?? null,
+        code,
+        wasClean,
+      }));
+    } catch {
+      // Logging must never break close handling.
+    }
   }
 
   async webSocketError(ws: WebSocket, error: unknown): Promise<void> {
-    void ws;
-    void error;
+    try {
+      const attachment = ws.deserializeAttachment() as WsAttachment | null;
+      console.error(JSON.stringify({
+        event: 'hub_ws_error',
+        device: attachment?.deviceIdentifier ?? null,
+        error: error instanceof Error ? error.message : String(error),
+      }));
+    } catch {
+      // Logging must never break error handling.
+    }
   }
 
   private getOnlineDeviceIdentifiers(): string[] {

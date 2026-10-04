@@ -1156,7 +1156,6 @@ export function createDemoInitialBootstrapState(): InitialAppBootstrapState {
     defaultKdfIterations: 600000,
     registrationInviteRequired: true,
     websiteIconsEnabled: true,
-    jwtWarning: null,
     session: null,
     phase: 'login',
   };
@@ -1578,11 +1577,11 @@ export function createDemoMainRoutesProps(base: AppMainRoutesProps, notify: Noti
       notify('success', t('txt_invite_deleted'));
     },
     onLoadAuditLogSettings: async () => ({ retentionDays: 90, maxEntries: null }),
-    onSaveAuditLogSettings: async (settings) => {
+    onSaveAuditLogSettings: async (settings, _masterPassword: string) => {
       notify('success', t('txt_log_settings_saved'));
       return settings;
     },
-    onClearAuditLogs: async () => {
+    onClearAuditLogs: async (_masterPassword: string) => {
       notify('success', t('txt_logs_cleared'));
       return 0;
     },

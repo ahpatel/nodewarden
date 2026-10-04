@@ -444,10 +444,7 @@ export interface ListResponse<T> {
 
 export interface WebBootstrapResponse {
   defaultKdfIterations?: number;
-  jwtUnsafeReason?: 'missing' | 'too_short' | null;
-  jwtSecretMinLength?: number;
   registrationInviteRequired?: boolean;
-  webAuthnAllowedOrigins?: string[];
   websiteIconsEnabled?: boolean;
 }
 

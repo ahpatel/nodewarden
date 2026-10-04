@@ -7,6 +7,8 @@ import {
   handleAdminDeleteAllInvites,
   handleAdminDeleteInvite,
   handleAdminSetOrgSelfServiceRegistration,
+  handleAdminGetRefreshTokenLifetime,
+  handleAdminSetRefreshTokenLifetime,
   handleAdminSetUserStatus,
   handleAdminDeleteUser,
   handleAdminListAuditLogs,
@@ -24,6 +26,7 @@ function isKnownAdminPath(path: string): boolean {
     path === '/api/admin/logs/settings' ||
     path === '/api/admin/invites' ||
     path === '/api/admin/settings/org-self-service-registration' ||
+    path === '/api/admin/settings/refresh-token-lifetime' ||
     path.startsWith('/api/admin/backup') ||
     /^\/api\/admin\/invites\/[^/]+$/i.test(path) ||
     /^\/api\/admin\/users\/[a-f0-9-]+(?:\/status)?$/i.test(path)
@@ -63,6 +66,12 @@ export async function handleAdminRoute(
   if (path === '/api/admin/settings/org-self-service-registration') {
     if (method === 'GET') return handleAdminGetOrgSelfServiceRegistration(request, env, actorUser);
     if (method === 'POST') return handleAdminSetOrgSelfServiceRegistration(request, env, actorUser);
+    return errorResponse('Method not allowed', 405);
+  }
+
+  if (path === '/api/admin/settings/refresh-token-lifetime') {
+    if (method === 'GET') return handleAdminGetRefreshTokenLifetime(request, env, actorUser);
+    if (method === 'POST') return handleAdminSetRefreshTokenLifetime(request, env, actorUser);
     return errorResponse('Method not allowed', 405);
   }
 

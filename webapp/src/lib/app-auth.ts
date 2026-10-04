@@ -14,7 +14,9 @@ import {
 } from '@/lib/api/auth';
 import {
   assertAccountPasskey,
+  assertTwoFactorPasskey,
   unlockVaultKeyWithAccountPasskeyPrf,
+  type AccountPasskeyAssertion,
 } from '@/lib/account-passkeys';
 import { readInviteCodeFromUrl } from '@/lib/app-support';
 import { t, translateServerError } from '@/lib/i18n';
@@ -47,13 +49,10 @@ export interface PendingPasskeyPassword {
   kdfIterations: number;
 }
 
-export type JwtUnsafeReason = 'missing' | 'too_short';
-
 export interface BootstrapAppResult {
   defaultKdfIterations: number;
   registrationInviteRequired?: boolean;
   websiteIconsEnabled: boolean;
-  jwtWarning: { reason: JwtUnsafeReason; minLength: number } | null;
   session: SessionState | null;
   profile: Profile | null;
   phase: AppPhase;
@@ -64,7 +63,6 @@ export interface InitialAppBootstrapState {
   defaultKdfIterations: number;
   registrationInviteRequired?: boolean;
   websiteIconsEnabled: boolean;
-  jwtWarning: { reason: JwtUnsafeReason; minLength: number } | null;
   session: SessionState | null;
   phase: AppPhase;
 }
@@ -174,11 +172,6 @@ export type PasswordLoginResult =
   | { kind: 'totp'; pendingTotp: PendingTotp }
   | { kind: 'error'; message: string };
 
-export type PasskeyLoginResult =
-  | { kind: 'success'; login: CompletedLogin }
-  | { kind: 'password'; pendingPasskeyPassword: PendingPasskeyPassword }
-  | { kind: 'error'; message: string };
-
 export interface RecoverTwoFactorResult {
   login: CompletedLogin | null;
   newRecoveryCode: string | null;
@@ -249,24 +242,16 @@ function readWindowBootstrap(): WebBootstrapResponse {
   return raw && typeof raw === 'object' ? raw : {};
 }
 
-function normalizeBootstrapResponse(boot: WebBootstrapResponse): Pick<InitialAppBootstrapState, 'defaultKdfIterations' | 'registrationInviteRequired' | 'websiteIconsEnabled' | 'jwtWarning'> {
+function normalizeBootstrapResponse(boot: WebBootstrapResponse): Pick<InitialAppBootstrapState, 'defaultKdfIterations' | 'registrationInviteRequired' | 'websiteIconsEnabled'> {
   const defaultKdfIterations = Number(boot.defaultKdfIterations || 600000);
   const registrationInviteRequired =
     typeof boot.registrationInviteRequired === 'boolean' ? boot.registrationInviteRequired : undefined;
   const websiteIconsEnabled = boot.websiteIconsEnabled !== false;
-  const jwtUnsafeReason = boot.jwtUnsafeReason || null;
-  const jwtWarning = jwtUnsafeReason
-    ? {
-        reason: jwtUnsafeReason,
-        minLength: Number(boot.jwtSecretMinLength || 32),
-      }
-    : null;
 
   return {
     defaultKdfIterations,
     registrationInviteRequired,
     websiteIconsEnabled,
-    jwtWarning,
   };
 }
 
@@ -326,7 +311,7 @@ function resolveUnauthenticatedPhase(registrationInviteRequired: boolean | undef
 }
 
 export function readInitialAppBootstrapState(): InitialAppBootstrapState {
-  const { defaultKdfIterations, registrationInviteRequired, websiteIconsEnabled, jwtWarning } = normalizeBootstrapResponse(readWindowBootstrap());
+  const { defaultKdfIterations, registrationInviteRequired, websiteIconsEnabled } = normalizeBootstrapResponse(readWindowBootstrap());
   setWebsiteIconsEnabled(websiteIconsEnabled);
   const session = loadSession();
   const hasInviteCode = !!readInviteCodeFromUrl();
@@ -336,9 +321,8 @@ export function readInitialAppBootstrapState(): InitialAppBootstrapState {
     defaultKdfIterations,
     registrationInviteRequired,
     websiteIconsEnabled,
-    jwtWarning,
     session,
-    phase: jwtWarning ? 'login' : session ? 'locked' : resolveUnauthenticatedPhase(registrationInviteRequired, unauthenticatedPhase),
+    phase: session ? 'locked' : resolveUnauthenticatedPhase(registrationInviteRequired, unauthenticatedPhase),
   };
 }
 
@@ -349,19 +333,6 @@ export async function bootstrapAppSession(initial: InitialAppBootstrapState = re
   const registrationInviteRequired = normalizedBoot.registrationInviteRequired ?? initial.registrationInviteRequired;
   const websiteIconsEnabled = normalizedBoot.websiteIconsEnabled !== false;
   setWebsiteIconsEnabled(websiteIconsEnabled);
-  const jwtWarning = normalizedBoot.jwtWarning ?? initial.jwtWarning;
-
-  if (jwtWarning) {
-    return {
-      defaultKdfIterations,
-      registrationInviteRequired,
-      websiteIconsEnabled,
-      jwtWarning,
-      session: null,
-      profile: null,
-      phase: 'login',
-    };
-  }
 
   const loaded = initial.session;
   if (!loaded) {
@@ -369,7 +340,6 @@ export async function bootstrapAppSession(initial: InitialAppBootstrapState = re
       defaultKdfIterations,
       registrationInviteRequired,
       websiteIconsEnabled,
-      jwtWarning: null,
       session: null,
       profile: null,
       phase: resolveUnauthenticatedPhase(registrationInviteRequired, initial.phase),
@@ -382,7 +352,6 @@ export async function bootstrapAppSession(initial: InitialAppBootstrapState = re
       defaultKdfIterations,
       registrationInviteRequired,
       websiteIconsEnabled,
-      jwtWarning: null,
       session: loaded,
       profile: cachedProfile,
       phase: 'locked',
@@ -394,7 +363,6 @@ export async function bootstrapAppSession(initial: InitialAppBootstrapState = re
     defaultKdfIterations,
     registrationInviteRequired,
     websiteIconsEnabled,
-    jwtWarning: null,
     session: loaded,
     profile: null,
     phase: 'locked',
@@ -583,50 +551,127 @@ export async function performPasswordLogin(
   };
 }
 
+export interface PendingPasskeyTwoFactor {
+  /** Set when the flow must land on this exact account (unlock flow). */
+  email: string | null;
+  providerType: number;
+  providerData: unknown;
+  availableProviders: number[];
+  providerDataByType: Record<number, unknown>;
+  kdfIterations: number;
+}
+
+export type PasskeyLoginResult =
+  | { kind: 'success'; login: CompletedLogin }
+  | { kind: 'password'; pendingPasskeyPassword: PendingPasskeyPassword }
+  | { kind: 'twofactor'; pendingTwoFactor: PendingPasskeyTwoFactor }
+  | { kind: 'error'; message: string };
+
+async function completePasskeyLoginWithAssertion(
+  assertion: AccountPasskeyAssertion,
+  twoFactor: { providerType: number; token: string; rememberDevice?: boolean } | undefined,
+  fallbackIterations: number,
+  expectedEmail?: string
+): Promise<PasskeyLoginResult> {
+  const token = await loginWithAccountPasskeyAssertion(assertion, twoFactor);
+
+  if (!('access_token' in token) || !token.access_token) {
+    const tokenError = token as TwoFactorTokenError;
+    // Two-step login: the server requires a second factor even for a
+    // verified login passkey. Surface the provider challenge to the caller.
+    const providers = readTwoFactorProviders(tokenError);
+    if (providers) {
+      const providerType = resolvePendingTwoFactorProvider(providers);
+      const availableProviders = readTwoFactorProviderTypes(providers);
+      const providerDataByType = readTwoFactorProviderDataMap(tokenError);
+      return {
+        kind: 'twofactor',
+        pendingTwoFactor: {
+          email: null,
+          providerType,
+          providerData: providerDataByType[providerType] ?? readTwoFactorProviderData(tokenError, providerType),
+          availableProviders: availableProviders.length ? availableProviders : [providerType],
+          providerDataByType,
+          kdfIterations: fallbackIterations,
+        },
+      };
+    }
+    return {
+      kind: 'error',
+      message: translateServerError(tokenError.error_description || tokenError.error, t('txt_login_failed')),
+    };
+  }
+
+  const email = (decodeAccessTokenClaims(token.access_token).email || '').trim().toLowerCase();
+  if (!email) {
+    return { kind: 'error', message: t('txt_login_failed') };
+  }
+  const normalizedExpectedEmail = String(expectedEmail || '').trim().toLowerCase();
+  if (normalizedExpectedEmail && email !== normalizedExpectedEmail) {
+    return { kind: 'error', message: t('txt_passkey_not_for_locked_account') };
+  }
+
+  const prfOption = readPasskeyPrfOption(token);
+  if (prfOption && assertion.prfKey) {
+    const keys = await unlockVaultKeyWithAccountPasskeyPrf(assertion.prfKey, prfOption);
+    return {
+      kind: 'success',
+      login: await completeLoginWithVaultKeys(token, email, keys, fallbackIterations),
+    };
+  }
+
+  return {
+    kind: 'password',
+    pendingPasskeyPassword: {
+      token,
+      email,
+      kdfIterations: kdfIterationsFromLogin(token, fallbackIterations),
+    },
+  };
+}
+
 export async function performPasskeyLogin(fallbackIterations: number, expectedEmail?: string): Promise<PasskeyLoginResult> {
   try {
     const options = await getAccountPasskeyAssertionOptions();
     const assertion = await assertAccountPasskey(options);
-    const token = await loginWithAccountPasskeyAssertion(assertion);
-
-    if (!('access_token' in token) || !token.access_token) {
-      const tokenError = token as { error_description?: string; error?: string };
-      return {
-        kind: 'error',
-        message: translateServerError(tokenError.error_description || tokenError.error, t('txt_login_failed')),
-      };
-    }
-
-    const email = (decodeAccessTokenClaims(token.access_token).email || '').trim().toLowerCase();
-    if (!email) {
-      return { kind: 'error', message: t('txt_login_failed') };
-    }
-    const normalizedExpectedEmail = String(expectedEmail || '').trim().toLowerCase();
-    if (normalizedExpectedEmail && email !== normalizedExpectedEmail) {
-      return { kind: 'error', message: t('txt_passkey_not_for_locked_account') };
-    }
-
-    const prfOption = readPasskeyPrfOption(token);
-    if (prfOption && assertion.prfKey) {
-      const keys = await unlockVaultKeyWithAccountPasskeyPrf(assertion.prfKey, prfOption);
-      return {
-        kind: 'success',
-        login: await completeLoginWithVaultKeys(token, email, keys, fallbackIterations),
-      };
-    }
-
-    return {
-      kind: 'password',
-      pendingPasskeyPassword: {
-        token,
-        email,
-        kdfIterations: kdfIterationsFromLogin(token, fallbackIterations),
-      },
-    };
+    return await completePasskeyLoginWithAssertion(assertion, undefined, fallbackIterations, expectedEmail);
   } catch (error) {
     return {
       kind: 'error',
       message: error instanceof Error ? translateServerError(error.message, error.message) : t('txt_login_failed'),
+    };
+  }
+}
+
+// Completes a passkey login that was challenged for two-step login: the user
+// supplies the second factor (TOTP/YubiKey/recovery code, or a two-factor
+// passkey assertion), then re-runs the passkey gesture and resubmits the
+// grant with both factors. Returns the same result shape as performPasskeyLogin.
+export async function performPasskeyTwoFactorLogin(
+  pending: PendingPasskeyTwoFactor,
+  code: string,
+  rememberDevice: boolean,
+  fallbackIterations?: number
+): Promise<PasskeyLoginResult> {
+  try {
+    const options = await getAccountPasskeyAssertionOptions();
+    const assertion = await assertAccountPasskey(options);
+    const twoFactorToken = pending.providerType === TWO_FACTOR_PROVIDER_WEBAUTHN
+      ? await assertTwoFactorPasskey(pending.providerData)
+      : code.trim();
+    return await completePasskeyLoginWithAssertion(
+      assertion,
+      { providerType: pending.providerType, token: twoFactorToken, rememberDevice },
+      fallbackIterations ?? pending.kdfIterations,
+      pending.email || undefined
+    );
+  } catch (error) {
+    const fallback = pending.providerType === TWO_FACTOR_PROVIDER_WEBAUTHN
+      ? t('txt_passkey_verification_failed')
+      : t('txt_totp_verify_failed');
+    return {
+      kind: 'error',
+      message: error instanceof Error ? translateServerError(error.message, error.message) : fallback,
     };
   }
 }

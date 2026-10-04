@@ -175,8 +175,8 @@ export interface AppMainRoutesProps {
   onDeleteInvite: (code: string) => Promise<void>;
   onLoadAuditLogs: (filters: AuditLogFilters) => Promise<AuditLogListResult>;
   onLoadAuditLogSettings: () => Promise<AuditLogSettings>;
-  onSaveAuditLogSettings: (settings: AuditLogSettings) => Promise<AuditLogSettings>;
-  onClearAuditLogs: () => Promise<number>;
+  onSaveAuditLogSettings: (settings: AuditLogSettings, masterPassword: string) => Promise<AuditLogSettings>;
+  onClearAuditLogs: (masterPassword: string) => Promise<number>;
   onExportBackup: (masterPassword: string, includeAttachments?: boolean) => Promise<void>;
   onImportBackup: (masterPassword: string, file: File, replaceExisting?: boolean) => Promise<AdminBackupImportResponse>;
   onImportBackupAllowingChecksumMismatch: (masterPassword: string, file: File, replaceExisting?: boolean) => Promise<AdminBackupImportResponse>;

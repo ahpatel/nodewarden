@@ -28,6 +28,7 @@ import { jsonResponse, errorResponse } from '../utils/response';
 import { generateUUID } from '../utils/uuid';
 import { deleteAllAttachmentsForCipher, deleteAllAttachmentsForCiphers } from './attachments';
 import { parsePagination, encodeContinuationToken } from '../utils/pagination';
+import { LIMITS } from '../config/limits';
 import { readActingDeviceIdentifier } from '../utils/device';
 import { stripPasswordMaterial } from '../utils/hide-password-material';
 import { auditRequestMetadata, writeAuditEvent } from '../services/audit-events';
@@ -57,6 +58,20 @@ interface AccessibleCipherForRequest {
   access: CipherAccessInfo | null;
 }
 
+// Apply the acting member's access flags to a cipher before it reaches a
+// response. The viewPassword flag — which drives the server-side hide-
+// passwords strip — is ALWAYS derived here from the loaded access info and
+// never from client input, on every response path that serves org ciphers.
+export function applyCipherAccessFlags(
+  cipher: Cipher,
+  access: CipherAccessInfo | null | undefined
+): void {
+  if (!access) return;
+  cipher.collectionIds = access.accessibleCollectionIds;
+  cipher.edit = access.canEdit;
+  cipher.viewPassword = !access.hidePasswords;
+}
+
 // Load one cipher for an authenticated operation: personal ownership or
 // confirmed organization membership. requireWrite rejects members whose
 // accessible collections are all read-only.
@@ -75,11 +90,7 @@ async function loadCipherForRequest(
   // response, so all mutation handlers (delete/restore/archive/unarchive/
   // update/partial/share/set-collections) return the same org metadata
   // the sync endpoint produces — not just the read handlers.
-  if (result.access) {
-    result.cipher.collectionIds = result.access.accessibleCollectionIds;
-    result.cipher.edit = result.access.canEdit;
-    result.cipher.viewPassword = !result.access.hidePasswords;
-  }
+  applyCipherAccessFlags(result.cipher, result.access);
   // Overlay the acting user's personal filing for org ciphers (the cipher row
   // itself never stores a folder id). saveCipher guards the column, so this
   // in-memory value can never leak back into storage.
@@ -1238,7 +1249,17 @@ export async function handleUpdateCipher(request: Request, env: Env, userId: str
 
   // Opaque passthrough: merge existing stored data with ALL incoming client fields.
   // Unknown/future fields from the client are preserved; server-controlled fields are protected.
-  const { preserveRevisionDate: _preserveRevisionDate, PreserveRevisionDate: _pascalPreserveRevisionDate, ...cipherDataWithoutFlags } = cipherData;
+  // viewPassword/ViewPassword are excluded from the merge on purpose: the
+  // hide-passwords strip is derived from the acting member's access, never
+  // from client input — a hide-passwords member with edit rights must not be
+  // able to weaken the strip by sending viewPassword in the update body.
+  const {
+    preserveRevisionDate: _preserveRevisionDate,
+    PreserveRevisionDate: _pascalPreserveRevisionDate,
+    viewPassword: _clientViewPassword,
+    ViewPassword: _pascalClientViewPassword,
+    ...cipherDataWithoutFlags
+  } = cipherData;
   const cipher: Cipher = {
     ...existingCipher,   // start with all existing stored data (including unknowns)
     ...cipherDataWithoutFlags, // overlay all client data (including new/unknown fields)
@@ -1254,6 +1275,10 @@ export async function handleUpdateCipher(request: Request, env: Env, userId: str
     archivedAt: readCipherArchivedAt(cipherData, existingCipher.archivedAt ?? null),
     deletedAt: existingCipher.deletedAt,
   };
+  // Re-assert the strip from the loaded access info after the client merge:
+  // the response's hide-passwords behavior is decided by the acting member's
+  // access, never by request input.
+  applyCipherAccessFlags(cipher, loaded.access);
   if (incomingFolderId.present) {
     cipher.folderId = normalizeOptionalId(incomingFolderId.value);
   }
@@ -1488,6 +1513,9 @@ export async function handleBulkMoveCiphers(request: Request, env: Env, userId: 
   if (!body.ids || !Array.isArray(body.ids)) {
     return errorResponse('ids array is required', 400);
   }
+  if (body.ids.length > LIMITS.performance.maxBulkRequestIds) {
+    return errorResponse(`ids array is limited to ${LIMITS.performance.maxBulkRequestIds} items`, 400);
+  }
 
   const folderId = normalizeOptionalId(body.folderId);
 
@@ -1551,11 +1579,7 @@ async function buildCipherListResponse(
   return jsonResponse({
     data: loaded.map((item) => {
       // Apply per-member org flags so the list response matches sync.
-      if (item.access) {
-        item.cipher.collectionIds = item.access.accessibleCollectionIds;
-        item.cipher.edit = item.access.canEdit;
-        item.cipher.viewPassword = !item.access.hidePasswords;
-      }
+      applyCipherAccessFlags(item.cipher, item.access);
       return cipherToResponse(
         item.cipher,
         attachmentsByCipher.get(item.cipher.id) || [],
@@ -1569,7 +1593,9 @@ async function buildCipherListResponse(
 
 function parseCipherIdList(body: { ids?: unknown }): string[] | null {
   if (!Array.isArray(body.ids)) return null;
-  return Array.from(new Set(body.ids.map((id) => String(id || '').trim()).filter(Boolean)));
+  const ids = Array.from(new Set(body.ids.map((id) => String(id || '').trim()).filter(Boolean)));
+  if (ids.length > LIMITS.performance.maxBulkRequestIds) return null;
+  return ids;
 }
 
 // Split bulk ids into personal vault ids and organization ids the user can
@@ -1751,10 +1777,14 @@ export async function handleBulkDeleteCiphers(request: Request, env: Env, userId
     return errorResponse('ids array is required', 400);
   }
 
+  const preCapIds = body.ids;
+  if (preCapIds.length > LIMITS.performance.maxBulkRequestIds) {
+    return errorResponse(`ids array is limited to ${LIMITS.performance.maxBulkRequestIds} items`, 400);
+  }
+
   const { personal, organization } = await splitBulkIdsByAccess(storage, userId, body.ids);
 
-  const revisionDate = await storage.bulkSoftDeleteCiphers(personal, userId);
-  if (revisionDate) {
+  const revisionDate = await storage.bulkSoftDeleteCiphers(personal, userId);  if (revisionDate) {
     notifyVaultSyncForRequest(request, env, userId, revisionDate);
     notifyUserCiphersSync(env, userId, revisionDate, readActingDeviceIdentifier(request));
   }
@@ -1784,6 +1814,10 @@ export async function handleBulkRestoreCiphers(request: Request, env: Env, userI
 
   if (!body.ids || !Array.isArray(body.ids)) {
     return errorResponse('ids array is required', 400);
+  }
+
+  if (body.ids.length > LIMITS.performance.maxBulkRequestIds) {
+    return errorResponse(`ids array is limited to ${LIMITS.performance.maxBulkRequestIds} items`, 400);
   }
 
   const { personal, organization } = await splitBulkIdsByAccess(storage, userId, body.ids);
@@ -1817,6 +1851,9 @@ export async function handleBulkPermanentDeleteCiphers(request: Request, env: En
   }
 
   const ids = Array.from(new Set(body.ids.map((id) => String(id || '').trim()).filter(Boolean)));
+  if (ids.length > LIMITS.performance.maxBulkRequestIds) {
+    return errorResponse(`ids array is limited to ${LIMITS.performance.maxBulkRequestIds} items`, 400);
+  }
   if (!ids.length) {
     return new Response(null, { status: 204 });
   }
@@ -2051,6 +2088,12 @@ export async function handleBulkSetCipherCollections(request: Request, env: Env,
   }
   if (!collectionIds.length) {
     return errorResponse('collectionIds array is required', 400);
+  }
+  // Same per-request cap every sibling bulk endpoint enforces (the cap's own
+  // documentation includes collections). Bounds the per-request query
+  // fan-out of the setCipherCollections loop below.
+  if (cipherIds.length > LIMITS.performance.maxBulkRequestIds || collectionIds.length > LIMITS.performance.maxBulkRequestIds) {
+    return errorResponse(`ids array is limited to ${LIMITS.performance.maxBulkRequestIds} items`, 400);
   }
 
   const { organization } = await splitBulkIdsByAccess(storage, userId, cipherIds);

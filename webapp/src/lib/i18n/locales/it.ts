@@ -952,6 +952,7 @@ const it: Record<string, string> = {
   "txt_no_account_passkeys": "Nessuna passkey dell'account",
   "txt_passkey_name": "Nome Passkey",
   "txt_passkey_requires_master_password": "Passkey verificata. Inserisci la Master Password per sbloccare la cassaforte.",
+  "txt_passkey_requires_two_step": "Passkey verificata. Inserisci il codice di accesso in due passaggi.",
   "txt_passkey_not_for_locked_account": "Questa passkey è per un altro account",
   "txt_prf_not_supported": "PRF non supportata",
   "txt_invalid_passkey_creation_options": "Opzioni di creazione passkey non valide",

@@ -952,6 +952,7 @@ const sv: Record<string, string> = {
   "txt_no_account_passkeys": "Inga kontonycklar",
   "txt_passkey_name": "Nyckelnamn",
   "txt_passkey_requires_master_password": "Nyckel verifierad. Ange ditt huvudlösenord för att låsa upp valvet.",
+  "txt_passkey_requires_two_step": "Nyckel verifierad. Ange din kod för tvåstegsverifiering.",
   "txt_passkey_not_for_locked_account": "Denna nyckel är för ett annat konto",
   "txt_prf_not_supported": "PRF stöds inte",
   "txt_invalid_passkey_creation_options": "Ogiltiga alternativ för att skapa nyckel",

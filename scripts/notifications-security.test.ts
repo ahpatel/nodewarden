@@ -108,11 +108,40 @@ async function validAccessToken(): Promise<string> {
   }, secret);
 }
 
-test('query access_token cannot authenticate a websocket', async () => {
+test('query access_token authenticates only the websocket hub (official-client fallback)', async () => {
+  // The e63f966 design rejected URL-borne tokens entirely, but SignalR cannot
+  // set headers on the WebSocket upgrade, so official desktop/mobile/extension
+  // clients authenticate the hub with access_token in the query string.
+  // Rejecting it left every official client without push notifications and
+  // drove a 10GB sync-polling fallback storm (2026-10-03). The fallback is
+  // deliberately scoped: ONLY the hub accepts it (no vault data, sync pings
+  // only), while negotiate and every other endpoint still require the header.
   const { env, forwardedHubUrls } = createTestEnv();
   const token = await validAccessToken();
   const response = await handleNotificationsHub(new Request(
     `https://vault.example.test/notifications/hub?access_token=${encodeURIComponent(token)}`,
+    { headers: { Upgrade: 'websocket' } }
+  ), env);
+
+  assert.equal(response.status, 204);
+  assert.equal(new URL(forwardedHubUrls[0]).searchParams.get('nw_uid'), userId);
+});
+
+test('a query access_token cannot authenticate negotiate', async () => {
+  const { env } = createTestEnv();
+  const token = await validAccessToken();
+  const response = await handleNotificationsNegotiate(new Request(
+    `https://vault.example.test/notifications/hub/negotiate?access_token=${encodeURIComponent(token)}`,
+    { method: 'POST' }
+  ), env);
+
+  assert.equal(response.status, 401);
+});
+
+test('an invalid or foreign query access_token is rejected by the hub', async () => {
+  const { env, forwardedHubUrls } = createTestEnv();
+  const response = await handleNotificationsHub(new Request(
+    `https://vault.example.test/notifications/hub?access_token=${encodeURIComponent('not-a-jwt')}`,
     { headers: { Upgrade: 'websocket' } }
   ), env);
 

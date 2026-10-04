@@ -9,7 +9,6 @@ import { initSpotlight } from '@/lib/spotlight';
 import NotFoundPage from '@/components/NotFoundPage';
 import PublicSendPage from '@/components/PublicSendPage';
 import RecoverTwoFactorPage from '@/components/RecoverTwoFactorPage';
-import JwtWarningPage from '@/components/JwtWarningPage';
 import {
   createAuthedFetch,
   deriveLoginHash,
@@ -50,13 +49,14 @@ import {
   completePasskeyPasswordLogin,
   performPasswordLogin,
   performPasskeyLogin,
+  performPasskeyTwoFactorLogin,
   performRecoverTwoFactorLogin,
   performRegistration,
   performTotpLogin,
   hydrateLockedSession,
   performUnlock,
-  type JwtUnsafeReason,
   type PendingPasskeyPassword,
+  type PendingPasskeyTwoFactor,
   type PendingTotp,
 } from '@/lib/app-auth';
 import { assertTwoFactorPasskey } from '@/lib/account-passkeys';
@@ -225,7 +225,6 @@ export default function App() {
   const [profile, setProfile] = useState<Profile | null>(initialProfileSnapshot);
   const [defaultKdfIterations, setDefaultKdfIterations] = useState(initialBootstrap.defaultKdfIterations);
   const [registrationInviteRequired, setRegistrationInviteRequired] = useState(initialBootstrap.registrationInviteRequired);
-  const [jwtWarning, setJwtWarning] = useState<{ reason: JwtUnsafeReason; minLength: number } | null>(initialBootstrap.jwtWarning);
 
   const [loginValues, setLoginValues] = useState({ email: '', password: '' });
   const [registerValues, setRegisterValues] = useState({
@@ -251,6 +250,8 @@ export default function App() {
   const [pendingTotp, setPendingTotp] = useState<PendingTotp | null>(null);
   const [pendingTotpMode, setPendingTotpMode] = useState<'login' | 'unlock' | null>(null);
   const [pendingPasskeyPassword, setPendingPasskeyPassword] = useState<PendingPasskeyPassword | null>(null);
+  const [pendingPasskeyTwoFactor, setPendingPasskeyTwoFactor] = useState<PendingPasskeyTwoFactor | null>(null);
+  const [pendingPasskeyTwoFactorMode, setPendingPasskeyTwoFactorMode] = useState<'login' | 'unlock'>('login');
   const [passkeyPassword, setPasskeyPassword] = useState('');
   const [totpCode, setTotpCode] = useState('');
   const [rememberDevice, setRememberDevice] = useState(true);
@@ -510,7 +511,6 @@ export default function App() {
       const isDemoPublicSendRoute = /^send\/[^/]+(?:\/[^/]+)?$/i.test(normalizedCurrentHashPath);
       setDefaultKdfIterations(initialBootstrap.defaultKdfIterations);
       setRegistrationInviteRequired(initialBootstrap.registrationInviteRequired);
-      setJwtWarning(null);
       setSession(null);
       setProfile(null);
       setPhase('login');
@@ -526,7 +526,6 @@ export default function App() {
       if (sessionRef.current?.symEncKey || sessionRef.current?.symMacKey) return;
       setDefaultKdfIterations(boot.defaultKdfIterations);
       setRegistrationInviteRequired(boot.registrationInviteRequired);
-      setJwtWarning(boot.jwtWarning);
       setSession(boot.session);
       setProfile(boot.profile);
       setPhase(boot.phase);
@@ -613,6 +612,7 @@ export default function App() {
     setPendingTotp(null);
     setPendingTotpMode(null);
     setPendingPasskeyPassword(null);
+    setPendingPasskeyTwoFactor(null);
     setTotpCode('');
     setPasskeyPassword('');
     setUnlockPassword('');
@@ -681,6 +681,15 @@ export default function App() {
         await finalizeLogin(result.login);
         return;
       }
+      if (result.kind === 'twofactor') {
+        // Two-step login is enabled for this account: a login passkey alone
+        // is not sufficient. Collect the second factor.
+        setPendingPasskeyTwoFactor(result.pendingTwoFactor);
+        setPendingPasskeyTwoFactorMode('login');
+        setTotpCode('');
+        setRememberDevice(true);
+        return;
+      }
       if (result.kind === 'password') {
         setPendingPasskeyPassword(result.pendingPasskeyPassword);
         setLoginValues({ email: result.pendingPasskeyPassword.email, password: '' });
@@ -709,6 +718,13 @@ export default function App() {
       const result = await performPasskeyLogin(defaultKdfIterations, expectedEmail);
       if (result.kind === 'success') {
         await finalizeLogin(result.login);
+        return;
+      }
+      if (result.kind === 'twofactor') {
+        setPendingPasskeyTwoFactor({ ...result.pendingTwoFactor, email: expectedEmail });
+        setPendingPasskeyTwoFactorMode('unlock');
+        setTotpCode('');
+        setRememberDevice(true);
         return;
       }
       if (result.kind === 'password') {
@@ -752,11 +768,65 @@ export default function App() {
         providerData: current.providerDataByType[providerType],
       };
     });
+    setPendingPasskeyTwoFactor((current) => {
+      if (!current || current.providerType === providerType) return current;
+      const canUseProvider = current.availableProviders.includes(providerType);
+      if (!canUseProvider) return current;
+      return {
+        ...current,
+        providerType,
+        providerData: current.providerDataByType[providerType],
+      };
+    });
     setTotpCode('');
+  }
+
+  async function handlePasskeyTwoFactorVerify() {
+    if (!pendingPasskeyTwoFactor) return;
+    const isPasskeyTwoFactor = pendingPasskeyTwoFactor.providerType === TWO_FACTOR_PROVIDER_WEBAUTHN;
+    if (!isPasskeyTwoFactor && !totpCode.trim()) {
+      pushToast('error', pendingPasskeyTwoFactor.providerType === TWO_FACTOR_PROVIDER_YUBIKEY ? t('txt_please_input_yubikey_otp') : t('txt_please_input_totp_code'));
+      return;
+    }
+    setTotpSubmitting(true);
+    try {
+      const result = await performPasskeyTwoFactorLogin(pendingPasskeyTwoFactor, totpCode, rememberDevice, defaultKdfIterations);
+      if (result.kind === 'success') {
+        await finalizeLogin(result.login);
+        return;
+      }
+      if (result.kind === 'twofactor') {
+        setPendingPasskeyTwoFactor(result.pendingTwoFactor);
+        setTotpCode('');
+        return;
+      }
+      if (result.kind === 'password') {
+        setPendingPasskeyTwoFactor(null);
+        setTotpCode('');
+        if (pendingPasskeyTwoFactorMode === 'unlock') {
+          pushToast('error', t('txt_account_passkey_direct_unlock_unavailable_error'));
+          return;
+        }
+        setPendingPasskeyPassword(result.pendingPasskeyPassword);
+        setLoginValues({ email: result.pendingPasskeyPassword.email, password: '' });
+        setPasskeyPassword('');
+        pushToast('warning', t('txt_passkey_requires_master_password'));
+        return;
+      }
+      pushToast('error', result.message || t('txt_totp_verify_failed'));
+    } catch (error) {
+      pushToast('error', error instanceof Error ? error.message : t('txt_totp_verify_failed'));
+    } finally {
+      setTotpSubmitting(false);
+    }
   }
 
   async function handleTotpVerify() {
     if (totpSubmitting) return;
+    if (pendingPasskeyTwoFactor) {
+      await handlePasskeyTwoFactorVerify();
+      return;
+    }
     if (!pendingTotp) return;
     const isPasskeyTwoFactor = pendingTotp.providerType === TWO_FACTOR_PROVIDER_WEBAUTHN;
     if (!isPasskeyTwoFactor && !totpCode.trim()) {
@@ -956,6 +1026,7 @@ export default function App() {
     setUnlockPassword('');
     setPendingTotp(null);
     setPendingTotpMode(null);
+    setPendingPasskeyTwoFactor(null);
     setTotpCode('');
     setUnlockPreparing(false);
     setLockedSessionRefreshError('');
@@ -2388,8 +2459,14 @@ export default function App() {
     onDeleteInvite: adminActions.deleteInvite,
     onLoadAuditLogs: (filters: AuditLogFilters) => listAuditLogs(authedFetch, filters),
     onLoadAuditLogSettings: () => getAuditLogSettings(authedFetch),
-    onSaveAuditLogSettings: (settings: AuditLogSettings) => saveAuditLogSettings(authedFetch, settings),
-    onClearAuditLogs: () => clearAuditLogs(authedFetch),
+    onSaveAuditLogSettings: (settings: AuditLogSettings, masterPassword: string) => {
+      if (!masterPassword.trim()) return Promise.reject(new Error(t('txt_master_password_is_required')));
+      return deriveCurrentMasterPasswordHash(masterPassword).then((hash) => saveAuditLogSettings(authedFetch, settings, hash));
+    },
+    onClearAuditLogs: (masterPassword: string) => {
+      if (!masterPassword.trim()) return Promise.reject(new Error(t('txt_master_password_is_required')));
+      return deriveCurrentMasterPasswordHash(masterPassword).then((hash) => clearAuditLogs(authedFetch, hash));
+    },
     onExportBackup: async (masterPassword: string, includeAttachments?: boolean) => {
       const hash = await deriveCurrentMasterPasswordHash(masterPassword);
       return backupActions.exportBackup(hash, includeAttachments);
@@ -2459,10 +2536,6 @@ export default function App() {
         setBackupSettings: setDemoBackupSettings,
       })
     : mainRoutesProps;
-
-  if (jwtWarning) {
-    return <JwtWarningPage reason={jwtWarning.reason} minLength={jwtWarning.minLength} />;
-  }
 
   if (publicSendMatch) {
     return (
@@ -2563,9 +2636,10 @@ export default function App() {
           onRunToastAction={runToastAction}
           confirm={confirm}
           onCancelConfirm={() => setConfirm(null)}
-          pendingTotpOpen={!!pendingTotp}
-          pendingTotpProviderType={pendingTotp?.providerType ?? 0}
-          pendingTotpAvailableProviders={pendingTotp?.availableProviders ?? []}
+          pendingTotpOpen={!!pendingTotp || !!pendingPasskeyTwoFactor}
+          pendingTotpProviderType={pendingTotp?.providerType ?? pendingPasskeyTwoFactor?.providerType ?? 0}
+          pendingTotpAvailableProviders={pendingTotp?.availableProviders ?? pendingPasskeyTwoFactor?.availableProviders ?? []}
+          pendingTotpMessage={pendingPasskeyTwoFactor ? t('txt_passkey_requires_two_step') : null}
           totpCode={totpCode}
           rememberDevice={rememberDevice}
           onTotpCodeChange={setTotpCode}
@@ -2576,6 +2650,7 @@ export default function App() {
             if (totpSubmitting) return;
             setPendingTotp(null);
             setPendingTotpMode(null);
+            setPendingPasskeyTwoFactor(null);
             setTotpCode('');
             setRememberDevice(true);
           }}
@@ -2583,6 +2658,7 @@ export default function App() {
             if (totpSubmitting) return;
             setPendingTotp(null);
             setPendingTotpMode(null);
+            setPendingPasskeyTwoFactor(null);
             setTotpCode('');
             setRememberDevice(true);
             navigate('/recover-2fa');

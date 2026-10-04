@@ -468,10 +468,11 @@ export async function handleDeleteOrganization(request: Request, env: Env, userI
   await deleteAllAttachmentsForCiphers(env, orgCipherIds);
 
   const contextId = readActingDeviceIdentifier(request);
-  for (const member of members) {
-    const revisionDate = await storage.updateRevisionDate(member.userId);
-    notifyUserVaultSync(env, member.userId, revisionDate, contextId);
-  }
+  const memberUserIds = members.map((member) => member.userId);
+  const revisionDate = await storage.updateRevisionDates(memberUserIds);
+  await Promise.all(
+    memberUserIds.map((memberUserId) => notifyUserVaultSync(env, memberUserId, revisionDate, contextId))
+  );
   await writeOrgAudit(storage, request, userId, 'organization.delete', {
     organizationId,
     cipherCount: orgCipherIds.length,
@@ -632,11 +633,12 @@ export async function handleListOrganizationUsers(request: Request, env: Env, us
   if (owner instanceof Response) return owner;
 
   const organizationUsers = await storage.listOrganizationUsers(organizationId);
-  const data = [];
-  for (const organizationUser of organizationUsers) {
-    const user = organizationUser.userId ? await storage.getUserById(organizationUser.userId) : null;
-    data.push(organizationUserToResponse(organizationUser, user));
-  }
+  const data = await Promise.all(
+    organizationUsers.map(async (organizationUser) => {
+      const user = organizationUser.userId ? await storage.getUserById(organizationUser.userId) : null;
+      return organizationUserToResponse(organizationUser, user);
+    })
+  );
 
   return jsonResponse({
     data,

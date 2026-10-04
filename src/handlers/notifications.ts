@@ -73,12 +73,27 @@ async function consumeWebSocketConnectionToken(request: Request, env: Env): Prom
 }
 
 async function authenticateNotificationsHub(request: Request, env: Env): Promise<JWTPayload | null> {
-  // Never accept an access JWT from the URL: URLs are routinely retained by logs,
-  // browser history, proxies, monitoring, and error tracking systems.
   if (request.headers.has('Authorization')) {
     return authenticateAccessToken(request, env);
   }
-  return consumeWebSocketConnectionToken(request, env);
+
+  // Preferred path: the one-time, 60-second connection ticket issued by
+  // /notifications/hub/negotiate (used by the web vault).
+  const viaTicket = await consumeWebSocketConnectionToken(request, env);
+  if (viaTicket) return viaTicket;
+
+  // Fallback for official clients: SignalR cannot set headers on the WebSocket
+  // upgrade, so the desktop/mobile/extension apps can only authenticate with
+  // access_token in the query string. Rejecting it left every official client
+  // without push notifications, driving a sync-polling fallback storm (10GB
+  // observed on 2026-10-03). This is the ONLY place a URL-borne token is
+  // accepted, the hub carries no vault data (sync pings only), and the token
+  // is the standard 2h access JWT verified with the same full checks as the
+  // Authorization header path. Update the comment if this scoping changes.
+  const urlToken = String(new URL(request.url).searchParams.get('access_token') || '').trim();
+  if (!urlToken) return null;
+  const auth = new AuthService(env);
+  return auth.verifyAccessToken(`Bearer ${urlToken}`);
 }
 
 export async function handleNotificationsNegotiate(request: Request, env: Env): Promise<Response> {

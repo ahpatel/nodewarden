@@ -30,6 +30,7 @@
     "test:import-org-folder-filing": "tsx --test scripts/import-org-folder-filing.test.ts",
     "test:export-bitwarden-org": "tsx --test scripts/export-bitwarden-org.test.ts",
     "test:hide-password": "tsx --test scripts/hide-password.test.ts",
+    "test:security-hardening": "tsx --test scripts/security-hardening.test.ts",
     "deploy": "wrangler deploy",
     "deploy:personal": "wrangler deploy -c wrangler.my.toml",
     "deploy:kv": "node scripts/ensure-kv.cjs && wrangler deploy -c wrangler.kv.toml",

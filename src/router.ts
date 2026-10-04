@@ -1,7 +1,7 @@
 import { Env } from './types';
 import { AuthService } from './services/auth';
 import { RateLimitService, getClientIdentifier } from './services/ratelimit';
-import { handleCors, errorResponse } from './utils/response';
+import { handleCors, errorResponse, markServerTimingVerified } from './utils/response';
 import { LIMITS } from './config/limits';
 import { handleAuthenticatedRoute } from './router-authenticated';
 import { handlePublicRoute } from './router-public';
@@ -11,6 +11,21 @@ function jwtSecretUnsafeReason(env: Env): 'missing' | 'too_short' | null {
   if (!secret) return 'missing';
   if (secret.length < LIMITS.auth.jwtSecretMinLength) return 'too_short';
   return null;
+}
+
+/* Operator warning for an unsafe JWT secret, logged once per isolate. The
+   public web-bootstrap no longer classifies the secret for unauthenticated
+   callers (that was an instance-security disclosure), so startup/server
+   logs are where the operator learns about it. */
+let jwtSecretWarningLogged = false;
+function warnOnUnsafeJwtSecret(reason: 'missing' | 'too_short'): void {
+  if (jwtSecretWarningLogged) return;
+  jwtSecretWarningLogged = true;
+  console.error(
+    reason === 'missing'
+      ? 'JWT_SECRET is not set. Token signing is unsafe and most endpoints are disabled. Set a strong JWT_SECRET in the Worker settings.'
+      : `JWT_SECRET is shorter than ${LIMITS.auth.jwtSecretMinLength} characters. Token signing is brute-forceable. Set a stronger JWT_SECRET in the Worker settings.`
+  );
 }
 
 function canServeWithUnsafeJwtSecret(path: string, method: string): boolean {
@@ -25,15 +40,11 @@ function canServeWithUnsafeJwtSecret(path: string, method: string): boolean {
   return false;
 }
 
-function isImportBypassRequest(request: Request, path: string, method: string): boolean {
-  if (request.headers.get('X-NodeWarden-Import') !== '1') return false;
-
-  if (method === 'POST') {
-    if (path === '/api/ciphers/import') return true;
-    if (/^\/api\/ciphers\/[a-f0-9-]+\/attachment\/v2$/i.test(path)) return true;
-    if (/^\/api\/ciphers\/[a-f0-9-]+\/attachment\/[a-f0-9-]+$/i.test(path)) return true;
-  }
-
+function isBulkImportPath(path: string, method: string): boolean {
+  if (method !== 'POST') return false;
+  if (path === '/api/ciphers/import') return true;
+  if (/^\/api\/ciphers\/[a-f0-9-]+\/attachment\/v2$/i.test(path)) return true;
+  if (/^\/api\/ciphers\/[a-f0-9-]+\/attachment\/[a-f0-9-]+$/i.test(path)) return true;
   return false;
 }
 
@@ -52,7 +63,17 @@ async function enforceRequestBodyLimit(
   path: string,
   method: string
 ): Promise<Request | Response> {
-  if (!BODY_LIMIT_METHODS.has(method) || isLargeUploadPath(path) || !request.body) {
+  if (!BODY_LIMIT_METHODS.has(method) || !request.body) {
+    return request;
+  }
+
+  // Large uploads skip the byte cap below; require an explicit length so a
+  // chunked multipart body cannot be fully buffered before any size check.
+  // This must run before the large-upload early return or it never executes.
+  if (isLargeUploadPath(path)) {
+    if (!request.headers.get('Content-Length')) {
+      return errorResponse('Content-Length required', 411);
+    }
     return request;
   }
 
@@ -159,8 +180,11 @@ export async function handleRequest(request: Request, env: Env): Promise<Respons
     request = bodyLimitResult;
 
     const secretIssue = jwtSecretUnsafeReason(env);
-    if (secretIssue && !canServeWithUnsafeJwtSecret(path, method)) {
-      return errorResponse('Server configuration error: JWT_SECRET is not set or too weak', 500);
+    if (secretIssue) {
+      warnOnUnsafeJwtSecret(secretIssue);
+      if (!canServeWithUnsafeJwtSecret(path, method)) {
+        return errorResponse('Server configuration error: JWT_SECRET is not set or too weak', 500);
+      }
     }
 
     const publicResponse = await handlePublicRoute(request, env, path, method, enforcePublicRateLimit);
@@ -174,32 +198,86 @@ export async function handleRequest(request: Request, env: Env): Promise<Respons
     }
     const { payload, user: currentUser } = verified;
 
+    // From here on the request's credentials are verified: every response
+    // this request produces may carry Server-Timing, because handler
+    // duration now describes the requester's own session (see index.ts).
+    const respondVerified = async (): Promise<Response> => {
     const actingDeviceId = String(payload.did || '').trim();
+    // Always rebuild the headers so a client-supplied acting-device header can
+    // never survive when the token carries no device claim.
+    const nextHeaders = new Headers(request.headers);
+    nextHeaders.delete('X-NodeWarden-Acting-Device-Id');
     if (actingDeviceId) {
-      const nextHeaders = new Headers(request.headers);
       nextHeaders.set('X-NodeWarden-Acting-Device-Id', actingDeviceId);
-      request = new Request(request, { headers: nextHeaders });
     }
+    request = new Request(request, { headers: nextHeaders });
 
     const userId = payload.sub;
     if (currentUser.status !== 'active') {
       return errorResponse('Account is disabled', 403);
     }
 
-    if (!isImportBypassRequest(request, path, method)) {
-      const rateLimit = new RateLimitService(env.DB);
-      const rateLimitCheck = await rateLimit.consumeBudget(`${userId}:api`, LIMITS.rateLimit.apiRequestsPerMinute);
-      if (!rateLimitCheck.allowed) {
+    const rateLimit = new RateLimitService(env.DB);
+    // Bulk import / attachment uploads write large payloads; they get their own
+    // generous per-user budget instead of the old forgeable header bypass.
+    const importBudget = isBulkImportPath(path, method)
+      ? await rateLimit.consumeBudget(`${userId}:import`, LIMITS.rateLimit.importRequestsPerMinute)
+      : null;
+    if (importBudget && !importBudget.allowed) {
+      return new Response(
+        JSON.stringify({
+          error: 'Too many requests',
+          error_description: `Rate limit exceeded. Try again in ${importBudget.retryAfterSeconds} seconds.`,
+        }),
+        {
+          status: 429,
+          headers: {
+            'Content-Type': 'application/json',
+            'Retry-After': String(importBudget.retryAfterSeconds || 60),
+            'X-RateLimit-Remaining': '0',
+          },
+        }
+      );
+    }
+    const rateLimitCheck = await rateLimit.consumeBudget(`${userId}:api`, LIMITS.rateLimit.apiRequestsPerMinute);
+    if (!rateLimitCheck.allowed) {
+      return new Response(
+        JSON.stringify({
+          error: 'Too many requests',
+          error_description: `Rate limit exceeded. Try again in ${rateLimitCheck.retryAfterSeconds} seconds.`,
+        }),
+        {
+          status: 429,
+          headers: {
+            'Content-Type': 'application/json',
+            'Retry-After': String(rateLimitCheck.retryAfterSeconds || 60),
+            'X-RateLimit-Remaining': '0',
+          },
+        }
+      );
+    }
+
+    // Full-vault responses are megabytes each; brake them separately from the
+    // generic API budget so one session cannot sustain mass vault downloads.
+    const isVaultDump =
+      (path === '/api/sync' && method === 'GET') ||
+      (path === '/api/ciphers' && method === 'GET');
+    if (isVaultDump) {
+      const vaultDumpCheck = await rateLimit.consumeBudget(
+        `${userId}:vault-dump`,
+        LIMITS.rateLimit.vaultDumpRequestsPerMinute
+      );
+      if (!vaultDumpCheck.allowed) {
         return new Response(
           JSON.stringify({
             error: 'Too many requests',
-            error_description: `Rate limit exceeded. Try again in ${rateLimitCheck.retryAfterSeconds} seconds.`,
+            error_description: `Vault sync rate limit exceeded. Try again in ${vaultDumpCheck.retryAfterSeconds} seconds.`,
           }),
           {
             status: 429,
             headers: {
               'Content-Type': 'application/json',
-              'Retry-After': String(rateLimitCheck.retryAfterSeconds || 60),
+              'Retry-After': String(vaultDumpCheck.retryAfterSeconds || 60),
               'X-RateLimit-Remaining': '0',
             },
           }
@@ -211,6 +289,9 @@ export async function handleRequest(request: Request, env: Env): Promise<Respons
     if (authenticatedResponse) return authenticatedResponse;
 
     return errorResponse('Not found', 404);
+    }; // respondVerified
+
+    return markServerTimingVerified(await respondVerified());
   } catch (error) {
     console.error('Request error:', error);
     return errorResponse('Internal server error', 500);

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'preact/hooks';
 import { ChevronLeft, ChevronRight, Database, RefreshCw, Save, Search, Server, Settings2, ShieldAlert, Smartphone, Trash2, UserRound } from 'lucide-preact';
+import ConfirmDialog from '@/components/ConfirmDialog';
 import LoadingState from '@/components/LoadingState';
 import type { AuditLogFilters } from '@/lib/api/admin';
 import { t } from '@/lib/i18n';
@@ -8,8 +9,8 @@ import type { AuditLogCategory, AuditLogEntry, AuditLogLevel, AuditLogListResult
 interface LogCenterPageProps {
   onLoadLogs: (filters: AuditLogFilters) => Promise<AuditLogListResult>;
   onLoadSettings: () => Promise<AuditLogSettings>;
-  onSaveSettings: (settings: AuditLogSettings) => Promise<AuditLogSettings>;
-  onClearLogs: () => Promise<number>;
+  onSaveSettings: (settings: AuditLogSettings, masterPassword: string) => Promise<AuditLogSettings>;
+  onClearLogs: (masterPassword: string) => Promise<number>;
   onNotify: (type: 'success' | 'error' | 'warning', text: string) => void;
   mobileLayout?: boolean;
   onMobileBack?: () => void;
@@ -198,6 +199,9 @@ export default function LogCenterPage(props: LogCenterPageProps) {
   const [settingsSaving, setSettingsSaving] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [clearConfirmOpen, setClearConfirmOpen] = useState(false);
+  const [stepUpAction, setStepUpAction] = useState<'save' | 'clear' | null>(null);
+  const [stepUpPassword, setStepUpPassword] = useState('');
+  const [stepUpSubmitting, setStepUpSubmitting] = useState(false);
   const [retentionMode, setRetentionMode] = useState<RetentionMode>('days');
   const [settings, setSettings] = useState<AuditLogSettings>({ retentionDays: 90, maxEntries: null });
   const [error, setError] = useState('');
@@ -269,39 +273,55 @@ export default function LogCenterPage(props: LogCenterPageProps) {
   }
 
   async function saveSettings(): Promise<void> {
-    setSettingsSaving(true);
-    try {
-      const next = await props.onSaveSettings(settings);
-      setSettings(next);
-      setRetentionMode(inferRetentionMode(next));
-      setSettingsOpen(false);
-      setClearConfirmOpen(false);
-      props.onNotify('success', t('txt_log_settings_saved'));
-      void load(0);
-    } catch {
-      props.onNotify('error', t('txt_log_settings_save_failed'));
-    } finally {
-      setSettingsSaving(false);
-    }
+    // Step-up: saving retention settings prunes immediately, so it requires
+    // the master password like every other destructive admin operation.
+    setStepUpAction('save');
+    setStepUpPassword('');
   }
 
   async function clearLogs(): Promise<void> {
-    setSettingsSaving(true);
+    // Step-up: a stolen admin bearer token must not wipe the audit trail.
+    setStepUpAction('clear');
+    setStepUpPassword('');
+  }
+
+  function closeStepUpPrompt(): void {
+    if (stepUpSubmitting) return;
+    setStepUpAction(null);
+    setStepUpPassword('');
+  }
+
+  async function submitStepUpPrompt(): Promise<void> {
+    if (!stepUpAction || stepUpSubmitting) return;
+    const masterPassword = stepUpPassword;
+    setStepUpSubmitting(true);
     try {
-      await props.onClearLogs();
-      setLogs([]);
-      setTotal(0);
-      setHasMore(false);
-      setOffset(0);
-      setSelectedId(null);
-      setMobileDetailOpen(false);
-      setClearConfirmOpen(false);
-      setSettingsOpen(false);
-      props.onNotify('success', t('txt_logs_cleared'));
+      if (stepUpAction === 'save') {
+        const next = await props.onSaveSettings(settings, masterPassword);
+        setSettings(next);
+        setRetentionMode(inferRetentionMode(next));
+        setSettingsOpen(false);
+        setClearConfirmOpen(false);
+        props.onNotify('success', t('txt_log_settings_saved'));
+        void load(0);
+      } else {
+        await props.onClearLogs(masterPassword);
+        setLogs([]);
+        setTotal(0);
+        setHasMore(false);
+        setOffset(0);
+        setSelectedId(null);
+        setMobileDetailOpen(false);
+        setClearConfirmOpen(false);
+        setSettingsOpen(false);
+        props.onNotify('success', t('txt_logs_cleared'));
+      }
+      setStepUpAction(null);
+      setStepUpPassword('');
     } catch {
-      props.onNotify('error', t('txt_clear_logs_failed'));
+      props.onNotify('error', stepUpAction === 'save' ? t('txt_log_settings_save_failed') : t('txt_clear_logs_failed'));
     } finally {
-      setSettingsSaving(false);
+      setStepUpSubmitting(false);
     }
   }
 
@@ -580,6 +600,29 @@ export default function LogCenterPage(props: LogCenterPageProps) {
           )}
         </section>
       </div>
+
+      <ConfirmDialog
+        open={stepUpAction !== null}
+        title={stepUpAction === 'clear' ? t('txt_clear_all_logs') : t('txt_log_retention_settings')}
+        message={t('txt_enter_master_password_to_continue')}
+        confirmText={t('txt_continue')}
+        cancelText={t('txt_cancel')}
+        confirmDisabled={stepUpSubmitting || !stepUpPassword.trim()}
+        cancelDisabled={stepUpSubmitting}
+        onConfirm={() => void submitStepUpPrompt()}
+        onCancel={closeStepUpPrompt}
+      >
+        <label className="field">
+          <span>{t('txt_master_password')}</span>
+          <input
+            className="input"
+            type="password"
+            autoComplete="current-password"
+            value={stepUpPassword}
+            onInput={(e) => setStepUpPassword((e.currentTarget as HTMLInputElement).value)}
+          />
+        </label>
+      </ConfirmDialog>
     </div>
   );
 }

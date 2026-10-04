@@ -952,6 +952,7 @@ const fi: Record<string, string> = {
   "txt_no_account_passkeys": "Ei tilin pääsyavaimia",
   "txt_passkey_name": "Pääsyavaimen nimi",
   "txt_passkey_requires_master_password": "Pääsyavain vahvistettu. Syötä pääsalasanasi avataksesi holvin.",
+  "txt_passkey_requires_two_step": "Pääsyavain vahvistettu. Syötä kaksivaiheisen kirjautumisen koodi.",
   "txt_passkey_not_for_locked_account": "Tämä pääsyavain on tarkoitettu toiselle tilille",
   "txt_prf_not_supported": "PRF ei ole tuettu",
   "txt_invalid_passkey_creation_options": "Virheelliset pääsyavaimen luontiasetukset",

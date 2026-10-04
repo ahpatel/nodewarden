@@ -33,19 +33,20 @@ import {
 import { handlePublicUploadSendFile } from './handlers/sends';
 import { isSafeWebsiteIconContentType } from './utils/content-type';
 import { jsonResponse, unsupportedResponse } from './utils/response';
-import { StorageService } from './services/storage';
+import { isConfiguredWebAuthnAllowedOrigin } from './utils/origins';
+import { getClientIdentifier } from './services/ratelimit';
 import type { Env } from './types';
-import { getConfiguredWebAuthnAllowedOrigins } from './utils/origins';
 import { buildConfigResponse } from './config-response';
 
 type PublicRateLimiter = (category?: string, maxRequests?: number) => Promise<Response | null>;
 
 /* Isolate-local rate limiter for database-free endpoints. Deliberately
-   approximate (per-isolate state, cleared when the map grows past a bound):
-   these endpoints build static responses without touching D1, so protecting
-   the database from them is meaningless — this only guards worker CPU while
-   keeping the path free of database round-trips. */
+   approximate (per-isolate state): these endpoints build static responses
+   without touching D1, so protecting the database from them is meaningless —
+   this only guards worker CPU while keeping the path free of database
+   round-trips. */
 const isolateRateBuckets = new Map<string, { count: number; resetAt: number }>();
+const ISOLATE_BUCKET_LIMIT = 10000;
 
 /* ETag helper: SHA-1 is fine for validator tokens (not a security primitive). */
 async function sha1Prefix(input: string, length: number): Promise<string> {
@@ -58,11 +59,38 @@ async function sha1Prefix(input: string, length: number): Promise<string> {
 }
 
 function enforceIsolateRateLimit(request: Request, maxRequests: number): Response | null {
-  const clientId = request.headers.get('CF-Connecting-IP') || 'unknown';
+  // Shared IP normalization (IPv4-mapped collapse, /64 aggregation): the
+  // raw CF-Connecting-IP header let IPv6 clients rekey per address.
+  const clientId = getClientIdentifier(request);
+  if (!clientId) {
+    return new Response(
+      JSON.stringify({
+        error: 'Forbidden',
+        error_description: 'Client IP is required',
+      }),
+      {
+        status: 403,
+        headers: { 'Content-Type': 'application/json' },
+      }
+    );
+  }
   const now = Date.now();
+  if (isolateRateBuckets.size > ISOLATE_BUCKET_LIMIT) {
+    // Evict expired entries; if a flood of distinct fresh clients still
+    // leaves the map over the bound, shed the oldest buckets only. Never
+    // clear the whole map: that would reset every client's counters at
+    // once and reward the flood.
+    for (const [key, bucket] of isolateRateBuckets) {
+      if (bucket.resetAt <= now) isolateRateBuckets.delete(key);
+    }
+    while (isolateRateBuckets.size > ISOLATE_BUCKET_LIMIT) {
+      const oldest = isolateRateBuckets.keys().next().value;
+      if (oldest === undefined) break;
+      isolateRateBuckets.delete(oldest);
+    }
+  }
   const bucket = isolateRateBuckets.get(clientId);
   if (!bucket || now > bucket.resetAt) {
-    if (isolateRateBuckets.size > 10000) isolateRateBuckets.clear();
     isolateRateBuckets.set(clientId, { count: 1, resetAt: now + 60000 });
     return null;
   }
@@ -85,19 +113,32 @@ function enforceIsolateRateLimit(request: Request, maxRequests: number): Respons
   }
   return null;
 }
-type JwtUnsafeReason = 'missing' | 'too_short' | null;
-
 export interface WebBootstrapResponse {
   defaultKdfIterations: number;
-  jwtUnsafeReason: JwtUnsafeReason;
-  jwtSecretMinLength: number;
   registrationInviteRequired: boolean;
-  webAuthnAllowedOrigins: string[];
   websiteIconsEnabled: boolean;
 }
 
-function isWebsiteIconProxyEnabled(env: Env): boolean {
+async function isWebsiteIconProxyEnabled(env: Env): Promise<boolean> {
   return true;
+}
+
+/* The webauthn connector page proves its parent origin to the server one
+   origin at a time instead of reading the full allowlist from the public
+   bootstrap. Only env-configured lookups: no D1, no account state, and a
+   single yes/no bit per queried origin rather than the whole list. */
+async function handleWebauthnOriginCheck(request: Request, env: Env): Promise<Response> {
+  let body: { origin?: unknown } = {};
+  try {
+    const parsed: unknown = await request.json();
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      body = parsed as { origin?: unknown };
+    }
+  } catch {
+    body = {};
+  }
+  const allowed = isConfiguredWebAuthnAllowedOrigin(env, body.origin);
+  return jsonResponse({ allowed });
 }
 
 function isSameOriginWriteRequest(request: Request): boolean {
@@ -311,23 +352,22 @@ async function handleWebsiteIcon(env: Env, host: string, fallbackMode: 'default'
 }
 
 export async function buildWebBootstrapResponse(env: Env): Promise<WebBootstrapResponse> {
-  const secret = (env.JWT_SECRET || '').trim();
-  const jwtUnsafeReason =
-    !secret
-      ? 'missing'
-      : secret.length < LIMITS.auth.jwtSecretMinLength
-          ? 'too_short'
-          : null;
-  const storage = new StorageService(env.DB);
-  const userCount = await storage.getUserCount();
-
+  // Deliberately minimal: this endpoint is unauthenticated, so it must not
+  // disclose instance security state.
+  // - JWT secret strength and threshold: an attacker learns whether token
+  //   signing is forgeable. The operator is warned once per isolate in the
+  //   server logs instead (see router.ts warnOnUnsafeJwtSecret).
+  // - Registration invite requirement is a constant true. The live value
+  //   derives from the user count and would advertise "the next
+  //   registration becomes instance admin" on fresh deployments; the
+  //   register endpoint itself enforces the real first-user/invite rule.
+  // - The WebAuthn origin allowlist is validated server-side per origin
+  //   (see /api/webauthn/origin-check); publishing it exposed operator-
+  //   configured internal hostnames.
   return {
     defaultKdfIterations: LIMITS.auth.defaultKdfIterations,
-    jwtUnsafeReason,
-    jwtSecretMinLength: LIMITS.auth.jwtSecretMinLength,
-    registrationInviteRequired: userCount > 0,
-    webAuthnAllowedOrigins: getConfiguredWebAuthnAllowedOrigins(env),
-    websiteIconsEnabled: isWebsiteIconProxyEnabled(env),
+    registrationInviteRequired: true,
+    websiteIconsEnabled: await isWebsiteIconProxyEnabled(env),
   };
 }
 
@@ -352,6 +392,13 @@ export async function handlePublicRoute(
     const blocked = await enforcePublicRateLimit('public-read', LIMITS.rateLimit.publicReadRequestsPerMinute);
     if (blocked) return blocked;
     return jsonResponse(await buildWebBootstrapResponse(env));
+  }
+
+  if (path === '/api/webauthn/origin-check' && method === 'POST') {
+    // Database-free (env-only lookup), so the isolate-local limiter guards it.
+    const blocked = enforceIsolateRateLimit(request, LIMITS.rateLimit.publicReadRequestsPerMinute);
+    if (blocked) return blocked;
+    return handleWebauthnOriginCheck(request, env);
   }
 
   if (path === '/fill-assist/manifest.json' && method === 'GET') {

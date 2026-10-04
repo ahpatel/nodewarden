@@ -952,6 +952,7 @@ const de: Record<string, string> = {
   "txt_no_account_passkeys": "Keine Konto-Passkeys",
   "txt_passkey_name": "Passkey-Name",
   "txt_passkey_requires_master_password": "Passkey verifiziert. Geben Sie Ihr Master-Passwort ein, um den Tresor zu entsperren.",
+  "txt_passkey_requires_two_step": "Passkey verifiziert. Geben Sie Ihren Zwei-Faktor-Code ein.",
   "txt_passkey_not_for_locked_account": "Dieser Passkey ist für ein anderes Konto",
   "txt_prf_not_supported": "PRF wird nicht unterstützt",
   "txt_invalid_passkey_creation_options": "Ungültige Optionen zur Passkey-Erstellung",
