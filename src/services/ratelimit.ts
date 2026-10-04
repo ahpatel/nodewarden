@@ -422,16 +422,27 @@ export function getClientIdentifier(request: Request): string | null {
   // 2) X-Real-IP
   // 3) first item of X-Forwarded-For
   // If none are present/valid, treat client IP as unavailable.
+  const FALLBACK_HEADER_NAMES = ['CF-Connecting-IP', 'X-Real-IP', 'X-Forwarded-For'];
   const candidates: Array<string | null> = [
     request.headers.get('CF-Connecting-IP'),
     request.headers.get('X-Real-IP'),
     request.headers.get('X-Forwarded-For')?.split(',')[0]?.trim() || null,
   ];
 
-  for (const raw of candidates) {
+  for (const [index, raw] of candidates.entries()) {
     if (!raw) continue;
     const normalized = normalizeClientIpForRateLimit(raw);
-    if (normalized) return normalized;
+    if (normalized) {
+      if (index > 0) {
+        // TEMPORARY XFF canary (audit lead cand:xff-fallback-identity, planning
+        // issue #20): a non-primary header won client identity, meaning
+        // CF-Connecting-IP was absent and a client-supplied header decided
+        // rate-limit identity. On direct Cloudflare ingress this should never
+        // fire. Review via worker logs after a week, then remove this block.
+        console.warn(`[xff-canary] fallback header "${FALLBACK_HEADER_NAMES[index]}" won client identity`);
+      }
+      return normalized;
+    }
   }
 
   // Local dev (wrangler dev / localhost): allow a deterministic loopback identifier.
