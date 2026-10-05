@@ -136,6 +136,9 @@ const orgDe: Record<string, string> = {
   "txt_organizations_invite_result_title": "Einladungen erstellt",
   "txt_organizations_invite_result_subtitle": "Kopieren Sie jeden Code oder teilen Sie den Link mit der eingeladenen Person.",
   "txt_organizations_invite_result_skipped": "Übersprungen:",
+  "txt_org_share_collections_hint": "Wählen Sie eine oder mehrere Sammlungen — das Element erscheint in allen.",
+  "txt_org_share_bulk_success": "{count} Element(e) in die Organisation verschoben.",
+  "txt_org_share_bulk_partial": "{moved} Element(e) verschoben; {failed} konnten nicht verschoben werden.",
 };
 
 export default orgDe;

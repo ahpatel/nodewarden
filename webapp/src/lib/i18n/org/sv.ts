@@ -136,6 +136,9 @@ const orgSv: Record<string, string> = {
   "txt_organizations_invite_result_title": "Inbjudningar skapade",
   "txt_organizations_invite_result_subtitle": "Kopiera varje kod eller dela dess länk med den inbjudna.",
   "txt_organizations_invite_result_skipped": "Hoppade över:",
+  "txt_org_share_collections_hint": "Välj en eller flera samlingar — objektet visas i alla.",
+  "txt_org_share_bulk_success": "Flyttade {count} objekt till organisationen.",
+  "txt_org_share_bulk_partial": "Flyttade {moved} objekt; {failed} kunde inte flyttas.",
 };
 
 export default orgSv;

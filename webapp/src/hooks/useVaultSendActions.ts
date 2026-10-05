@@ -1598,6 +1598,49 @@ export default function useVaultSendActions(options: UseVaultSendActionsOptions)
         await performShareToOrganization(cipher, organizationId, collectionIds, draftOverride);
       },
 
+      // Bulk variant: share many personal items into one organization with
+      // the same collection set. Per-item failures are counted, not fatal;
+      // the vault is refreshed once at the end and one summary toast reports
+      // the result (no per-item success toasts).
+      async shareVaultItemsToOrganization(
+        items: Cipher[],
+        organizationId: string,
+        collectionIds: string[]
+      ): Promise<{ moved: number; failed: number }> {
+        if (!session?.symEncKey || !session.symMacKey) throw new Error(t('txt_vault_key_unavailable'));
+        requireOnlineWrite();
+        const organizationSession = sessionWithOrganizationKey(organizationId);
+        if (!organizationSession) throw new Error(t('txt_import_org_key_unavailable'));
+        if (!items.length) return { moved: 0, failed: 0 };
+
+        let moved = 0;
+        let failed = 0;
+        for (const cipher of items) {
+          try {
+            const draft = draftFromCipher(cipher);
+            const payload = await buildCipherImportPayload(organizationSession, draft);
+            await shareCipherToOrganization(importAuthedFetch, cipher.id, {
+              cipher: payload,
+              organizationId,
+              collectionIds,
+            });
+            moved += 1;
+          } catch {
+            failed += 1;
+          }
+        }
+        if (moved > 0) {
+          await Promise.all([refetchCiphers(), refetchFolders(), refetchSends()]);
+          await refreshVaultRevisionStamp();
+          if (failed > 0) {
+            onNotify('warning', t('txt_org_share_bulk_partial', { moved: String(moved), failed: String(failed) }));
+          } else {
+            onNotify('success', t('txt_org_share_bulk_success', { count: String(moved) }));
+          }
+        }
+        return { moved, failed };
+      },
+
       async exportVault(request: ExportRequest) {
         if (!session?.symEncKey || !session?.symMacKey) throw new Error(t('txt_vault_key_unavailable'));
         const masterPassword = String(request.masterPassword || '').trim();

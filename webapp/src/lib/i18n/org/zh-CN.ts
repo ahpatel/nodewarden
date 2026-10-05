@@ -136,6 +136,9 @@ const orgZhCN: Record<string, string> = {
   "txt_organizations_invite_result_title": "已创建邀请",
   "txt_organizations_invite_result_subtitle": "复制每个注册码，或将其链接分享给被邀请人。",
   "txt_organizations_invite_result_skipped": "已跳过：",
+  "txt_org_share_collections_hint": "选择一个或多个集合——该项目会同时出现在所有勾选的集合中。",
+  "txt_org_share_bulk_success": "已将 {count} 个项目移至组织。",
+  "txt_org_share_bulk_partial": "已移动 {moved} 个项目；{failed} 个无法移动。",
 };
 
 export default orgZhCN;

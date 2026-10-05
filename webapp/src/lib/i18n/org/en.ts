@@ -136,6 +136,9 @@ const orgEn: Record<string, string> = {
   "txt_organizations_invite_result_title": "Invitations created",
   "txt_organizations_invite_result_subtitle": "Copy each code or share its link with the invitee.",
   "txt_organizations_invite_result_skipped": "Skipped:",
+  "txt_org_share_collections_hint": "Choose one or more collections — the item will appear in all of them.",
+  "txt_org_share_bulk_success": "Moved {count} item(s) to organization.",
+  "txt_org_share_bulk_partial": "Moved {moved} item(s); {failed} could not be moved.",
 };
 
 export default orgEn;

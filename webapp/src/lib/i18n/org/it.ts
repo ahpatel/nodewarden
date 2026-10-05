@@ -136,6 +136,9 @@ const orgIt: Record<string, string> = {
   "txt_organizations_invite_result_title": "Inviti creati",
   "txt_organizations_invite_result_subtitle": "Copia ogni codice o condividi il suo link con l’invitato.",
   "txt_organizations_invite_result_skipped": "Ignorati:",
+  "txt_org_share_collections_hint": "Scegli una o più raccolte: l’elemento apparirà in tutte.",
+  "txt_org_share_bulk_success": "{count} elemento(i) spostati nell’organizzazione.",
+  "txt_org_share_bulk_partial": "Spostati {moved} elemento(i); {failed} non è stato possibile spostarli.",
 };
 
 export default orgIt;

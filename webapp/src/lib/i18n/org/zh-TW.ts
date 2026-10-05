@@ -136,6 +136,9 @@ const orgZhTW: Record<string, string> = {
   "txt_organizations_invite_result_title": "已建立邀請",
   "txt_organizations_invite_result_subtitle": "複製每個註冊碼，或將其連結分享給被邀請人。",
   "txt_organizations_invite_result_skipped": "已略過：",
+  "txt_org_share_collections_hint": "選擇一個或多個集合——項目會同時出現在所有勾選的集合中。",
+  "txt_org_share_bulk_success": "已將 {count} 個項目移至組織。",
+  "txt_org_share_bulk_partial": "已移動 {moved} 個項目；{failed} 個無法移動。",
 };
 
 export default orgZhTW;

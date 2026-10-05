@@ -28,12 +28,13 @@ interface VaultDialogsProps {
   repromptPassword: string;
   deletePasskeyOpen: boolean;
   shareToOrgOpen: boolean;
+  shareToOrgBulk: boolean;
   shareOrgId: string;
-  shareCollectionId: string;
+  shareCollectionIds: string[];
   shareOrganizations: Array<{ id: string; name: string }>;
   shareCollections: VaultCollection[];
   onShareOrgIdChange: (value: string) => void;
-  onShareCollectionIdChange: (value: string) => void;
+  onShareCollectionIdToggle: (id: string, checked: boolean) => void;
   onConfirmShareToOrg: () => void;
   onCancelShareToOrg: () => void;
   onConfirmAddField: () => void;
@@ -193,11 +194,11 @@ export default function VaultDialogs(props: VaultDialogsProps) {
 
       <ConfirmDialog
         open={props.shareToOrgOpen}
-        title={t('txt_org_share_dialog_title')}
+        title={props.shareToOrgBulk ? t('txt_org_share_action') : t('txt_org_share_dialog_title')}
         message={t('txt_org_share_hint')}
-        confirmText={t('txt_org_share_confirm')}
+        confirmText={props.shareToOrgBulk ? t('txt_move') : t('txt_org_share_confirm')}
         cancelText={t('txt_cancel')}
-        confirmDisabled={props.busy || !props.shareOrgId || !props.shareCollectionId}
+        confirmDisabled={props.busy || !props.shareOrgId || props.shareCollectionIds.length === 0}
         cancelDisabled={props.busy}
         onConfirm={props.onConfirmShareToOrg}
         onCancel={props.onCancelShareToOrg}
@@ -209,7 +210,7 @@ export default function VaultDialogs(props: VaultDialogsProps) {
             value={props.shareOrgId}
             onInput={(e) => {
               props.onShareOrgIdChange((e.currentTarget as HTMLSelectElement).value);
-              props.onShareCollectionIdChange('');
+              props.onShareCollectionIdToggle('', false);
             }}
           >
             <option value="">{t('txt_org_share_select_org')}</option>
@@ -221,17 +222,22 @@ export default function VaultDialogs(props: VaultDialogsProps) {
           </select>
         </label>
         {props.shareOrgId && (
-          <label className="field">
+          <div className="field">
             <span>{t('txt_organizations_collections')}</span>
-            <select className="input" value={props.shareCollectionId} onInput={(e) => props.onShareCollectionIdChange((e.currentTarget as HTMLSelectElement).value)}>
-              <option value="">{t('txt_import_org_select_collection')}</option>
+            <div className="share-collection-list">
               {props.shareCollections.map((collection) => (
-                <option key={collection.id} value={collection.id}>
-                  {collection.decName || collection.name || collection.id.slice(0, 8)}
-                </option>
+                <label key={collection.id} className="checkbox-row">
+                  <input
+                    type="checkbox"
+                    checked={props.shareCollectionIds.includes(collection.id)}
+                    onChange={(e) => props.onShareCollectionIdToggle(collection.id, (e.target as HTMLInputElement).checked)}
+                  />
+                  <span>{collection.decName || collection.name || collection.id.slice(0, 8)}</span>
+                </label>
               ))}
-            </select>
-          </label>
+            </div>
+            <div className="field-help">{t('txt_org_share_collections_hint')}</div>
+          </div>
         )}
       </ConfirmDialog>
 

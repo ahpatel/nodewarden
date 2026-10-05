@@ -136,6 +136,9 @@ const orgRu: Record<string, string> = {
   "txt_organizations_invite_result_title": "Приглашения созданы",
   "txt_organizations_invite_result_subtitle": "Скопируйте каждый код или поделитесь его ссылкой с приглашённым.",
   "txt_organizations_invite_result_skipped": "Пропущено:",
+  "txt_org_share_collections_hint": "Выберите одну или несколько коллекций — элемент появится во всех них.",
+  "txt_org_share_bulk_success": "Перемещено {count} элемент(ов) в организацию.",
+  "txt_org_share_bulk_partial": "Перемещено {moved}; не удалось переместить {failed}.",
 };
 
 export default orgRu;

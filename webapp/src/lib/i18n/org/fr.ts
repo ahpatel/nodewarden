@@ -136,6 +136,9 @@ const orgFr: Record<string, string> = {
   "txt_organizations_invite_result_title": "Invitations créées",
   "txt_organizations_invite_result_subtitle": "Copiez chaque code ou partagez son lien avec l’invité.",
   "txt_organizations_invite_result_skipped": "Ignorés :",
+  "txt_org_share_collections_hint": "Choisissez une ou plusieurs collections — l’élément apparaîtra dans chacune.",
+  "txt_org_share_bulk_success": "{count} élément(s) déplacé(s) vers l’organisation.",
+  "txt_org_share_bulk_partial": "{moved} élément(s) déplacé(s) ; {failed} n’ont pas pu l’être.",
 };
 
 export default orgFr;

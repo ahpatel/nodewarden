@@ -110,6 +110,7 @@ export interface AppMainRoutesProps {
   onBulkMoveVaultItems: (ids: string[], folderId: string | null, folderName?: string) => Promise<void>;
   onBulkMoveToCollectionVaultItems: (ids: string[], collectionId: string, organizationId: string, collectionName?: string) => Promise<void>;
   onShareVaultItemToOrganization: (cipher: Cipher, organizationId: string, collectionIds: string[]) => Promise<void>;
+  onShareVaultItemsToOrganization?: (items: Cipher[], organizationId: string, collectionIds: string[]) => Promise<{ moved: number; failed: number }>;
   onVerifyMasterPassword: (email: string, password: string) => Promise<void>;
   onCreateFolder: (name: string) => Promise<void>;
   onRenameFolder: (folderId: string, name: string) => Promise<void>;
@@ -308,6 +309,7 @@ export default function AppMainRoutes(props: AppMainRoutesProps) {
             onBulkMove={props.onBulkMoveVaultItems}
             onBulkMoveToCollection={props.onBulkMoveToCollectionVaultItems}
             onShareVaultItemToOrganization={props.onShareVaultItemToOrganization}
+            onShareVaultItemsToOrganization={props.onShareVaultItemsToOrganization}
             onVerifyMasterPassword={props.onVerifyMasterPassword}
             onNotify={props.onNotify}
             onCreateFolder={props.onCreateFolder}

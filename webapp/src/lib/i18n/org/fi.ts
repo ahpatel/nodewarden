@@ -136,6 +136,9 @@ const orgFi: Record<string, string> = {
   "txt_organizations_invite_result_title": "Kutsut luotu",
   "txt_organizations_invite_result_subtitle": "Kopioi jokainen koodi tai jaa sen linkki kutsutulle.",
   "txt_organizations_invite_result_skipped": "Ohitetut:",
+  "txt_org_share_collections_hint": "Valitse yksi tai useampi kokoelma — kohde näkyy kaikissa niissä.",
+  "txt_org_share_bulk_success": "Siirretty {count} kohde(t) organisaatioon.",
+  "txt_org_share_bulk_partial": "{moved} kohde(t) siirretty; {failed} ei voitu siirtää.",
 };
 
 export default orgFi;
