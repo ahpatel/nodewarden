@@ -139,6 +139,16 @@ const orgEn: Record<string, string> = {
   "txt_org_share_collections_hint": "Choose one or more collections — the item will appear in all of them.",
   "txt_org_share_bulk_success": "Moved {count} item(s) to organization.",
   "txt_org_share_bulk_partial": "Moved {moved} item(s); {failed} could not be moved.",
+  "txt_collection_action_none": "No change",
+  "txt_collection_action_add": "Add",
+  "txt_collection_action_remove": "Remove",
+  "txt_collection_in_selected": "in {count} of {total} selected",
+  "txt_org_collections_actions_hint": "Set an action for each collection — Add places the selected items in it, Remove takes them out.",
+  "txt_org_collections_updated": "Collections updated on {updated} item(s).",
+  "txt_org_collections_updated_partial": "Collections updated on {updated} item(s); {failed} failed.",
+  "txt_org_collections_kept_empty": "{count} item(s) kept in their current collections — removing would leave them with none.",
+  "txt_org_collections_update_failed": "Failed to update collections.",
+  "txt_move_skipped_ineligible": "{count} item(s) skipped — read-only or in another organization.",
 };
 
 export default orgEn;

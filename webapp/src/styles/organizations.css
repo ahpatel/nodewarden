@@ -300,3 +300,55 @@
   display: grid;
   gap: 8px;
 }
+
+/* Vault move dialog: per-collection action rows (No change / Add / Remove) */
+.collection-action-list {
+  display: flex;
+  flex-direction: column;
+  padding: 8px 0 2px;
+}
+
+.collection-action-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 0;
+}
+
+.collection-action-row + .collection-action-row {
+  border-top: 1px solid var(--border-subtle, rgba(148, 163, 184, 0.16));
+}
+
+.collection-action-row .collection-action-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--font-sm);
+  color: var(--muted-strong);
+}
+
+.collection-action-row .collection-action-count {
+  flex: none;
+  font-size: var(--font-xs, 12px);
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.collection-action-row .collection-action-select {
+  flex: none;
+  width: auto;
+  min-width: 120px;
+}
+
+@media (max-width: 640px) {
+  .collection-action-row {
+    flex-wrap: wrap;
+  }
+
+  .collection-action-row .collection-action-select {
+    min-width: 0;
+    flex: 1 1 100%;
+  }
+}

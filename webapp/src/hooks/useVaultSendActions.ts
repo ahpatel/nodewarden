@@ -1641,6 +1641,96 @@ export default function useVaultSendActions(options: UseVaultSendActionsOptions)
         return { moved, failed };
       },
 
+      // Bulk collection add/remove for items already in an organization.
+      // Each collection carries an action: 'add' (union into every selected
+      // item's membership) or 'remove' (excluded from it). Because the
+      // selection may contain items with different current memberships, the
+      // per-item target set is computed here and items are grouped by
+      // identical target so each bulk call replaces exactly that set.
+      // Server rules honored: every item must keep at least one collection
+      // (items that would end up with none are skipped and counted), only
+      // editable items are touched, and the target set must not include
+      // collections the acting member holds read-only.
+      async updateOrgItemCollections(
+        items: Cipher[],
+        organizationId: string,
+        actions: Record<string, 'add' | 'remove'>
+      ): Promise<{ updated: number; failed: number; keptNoCollection: number }> {
+        const adds = Object.entries(actions).filter(([, action]) => action === 'add').map(([id]) => id);
+        const removes = Object.entries(actions).filter(([, action]) => action === 'remove').map(([id]) => id);
+        if (!items.length || (!adds.length && !removes.length)) return { updated: 0, failed: 0, keptNoCollection: 0 };
+        requireOnlineWrite();
+        const orgId = String(organizationId || '').trim();
+        if (!orgId) return { updated: 0, failed: 0, keptNoCollection: 0 };
+
+        const readOnlyCollectionIds = new Set(
+          (collections || [])
+            .filter((collection) => collection.organizationId === orgId && collection.readOnly)
+            .map((collection) => collection.id)
+        );
+
+        const groups = new Map<string, { collectionIds: string[]; cipherIds: string[] }>();
+        let keptNoCollection = 0;
+        for (const cipher of items) {
+          if (cipher.organizationId !== orgId || cipher.edit === false) continue;
+          const current = Array.isArray(cipher.collectionIds) ? [...cipher.collectionIds] : [];
+          const target = new Set(current);
+          for (const id of adds) {
+            if (readOnlyCollectionIds.has(id)) continue;
+            target.add(id);
+          }
+          for (const id of removes) {
+            if (readOnlyCollectionIds.has(id)) continue;
+            target.delete(id);
+          }
+          // The server rejects a payload whose target set includes any
+          // collection the acting member holds read-only — skip such items
+          // (removing the read-only membership itself is fine, since the
+          // target then no longer includes it).
+          if ([...target].some((id) => readOnlyCollectionIds.has(id))) continue;
+          if (target.size === 0) {
+            keptNoCollection += 1;
+            continue;
+          }
+          const unchanged =
+            target.size === current.length && current.every((id) => target.has(id));
+          if (unchanged) continue;
+          const key = [...target].sort().join('|');
+          const entry = groups.get(key) || { collectionIds: [...target], cipherIds: [] };
+          entry.cipherIds.push(cipher.id);
+          groups.set(key, entry);
+        }
+
+        let updated = 0;
+        let failed = 0;
+        for (const entry of groups.values()) {
+          try {
+            await bulkSetCipherCollections(authedFetch, entry.cipherIds, entry.collectionIds);
+            updated += entry.cipherIds.length;
+          } catch {
+            failed += entry.cipherIds.length;
+          }
+        }
+        if (updated > 0 || failed > 0) {
+          await Promise.all([refetchCiphers(), refetchFolders(), refetchSends()]);
+          await refreshVaultRevisionStamp();
+        }
+        if (updated > 0) {
+          if (failed > 0) {
+            onNotify('warning', t('txt_org_collections_updated_partial', { updated: String(updated), failed: String(failed) }));
+          } else {
+            onNotify('success', t('txt_org_collections_updated', { updated: String(updated) }));
+          }
+        }
+        if (keptNoCollection > 0) {
+          onNotify('warning', t('txt_org_collections_kept_empty', { count: String(keptNoCollection) }));
+        }
+        if (failed > 0 && updated === 0) {
+          onNotify('error', t('txt_org_collections_update_failed'));
+        }
+        return { updated, failed, keptNoCollection };
+      },
+
       async exportVault(request: ExportRequest) {
         if (!session?.symEncKey || !session?.symMacKey) throw new Error(t('txt_vault_key_unavailable'));
         const masterPassword = String(request.masterPassword || '').trim();

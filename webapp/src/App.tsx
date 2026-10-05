@@ -2386,6 +2386,7 @@ export default function App() {
     onBulkMoveToCollectionVaultItems: vaultSendActions.bulkMoveVaultItemsToCollection,
     onShareVaultItemToOrganization: vaultSendActions.shareVaultItemToOrganization,
     onShareVaultItemsToOrganization: vaultSendActions.shareVaultItemsToOrganization,
+    onUpdateOrgItemCollections: vaultSendActions.updateOrgItemCollections,
     onVerifyMasterPassword: vaultSendActions.verifyMasterPassword,
     onCreateFolder: vaultSendActions.createFolder,
     onRenameFolder: vaultSendActions.renameFolder,

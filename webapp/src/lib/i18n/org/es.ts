@@ -139,6 +139,16 @@ const orgEs: Record<string, string> = {
   "txt_org_share_collections_hint": "Elija una o más colecciones: el elemento aparecerá en todas.",
   "txt_org_share_bulk_success": "{count} elemento(s) movidos a la organización.",
   "txt_org_share_bulk_partial": "Se movieron {moved} elemento(s); {failed} no se pudieron mover.",
+  "txt_collection_action_none": "Sin cambios",
+  "txt_collection_action_add": "Añadir",
+  "txt_collection_action_remove": "Quitar",
+  "txt_collection_in_selected": "en {count} de {total} seleccionados",
+  "txt_org_collections_actions_hint": "Elija una acción por colección: «Añadir» incluye los elementos seleccionados, «Quitar» los excluye.",
+  "txt_org_collections_updated": "Colecciones actualizadas en {updated} elemento(s).",
+  "txt_org_collections_updated_partial": "Colecciones actualizadas en {updated} elemento(s); {failed} fallaron.",
+  "txt_org_collections_kept_empty": "{count} elemento(s) se mantuvieron en sus colecciones actuales: quitarlos los dejaría sin ninguna.",
+  "txt_org_collections_update_failed": "No se pudo actualizar las colecciones.",
+  "txt_move_skipped_ineligible": "{count} elemento(s) omitidos: de solo lectura o en otra organización.",
 };
 
 export default orgEs;

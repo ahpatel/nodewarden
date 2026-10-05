@@ -139,6 +139,16 @@ const orgFr: Record<string, string> = {
   "txt_org_share_collections_hint": "Choisissez une ou plusieurs collections — l’élément apparaîtra dans chacune.",
   "txt_org_share_bulk_success": "{count} élément(s) déplacé(s) vers l’organisation.",
   "txt_org_share_bulk_partial": "{moved} élément(s) déplacé(s) ; {failed} n’ont pas pu l’être.",
+  "txt_collection_action_none": "Aucun changement",
+  "txt_collection_action_add": "Ajouter",
+  "txt_collection_action_remove": "Retirer",
+  "txt_collection_in_selected": "dans {count} sur {total} sélectionnés",
+  "txt_org_collections_actions_hint": "Choisissez une action par collection — « Ajouter » inclut les éléments sélectionnés, « Retirer » les exclut.",
+  "txt_org_collections_updated": "Collections mises à jour pour {updated} élément(s).",
+  "txt_org_collections_updated_partial": "Collections mises à jour pour {updated} élément(s) ; {failed} en échec.",
+  "txt_org_collections_kept_empty": "{count} élément(s) conservés dans leurs collections actuelles — le retrait les laisserait sans aucune.",
+  "txt_org_collections_update_failed": "Échec de la mise à jour des collections.",
+  "txt_move_skipped_ineligible": "{count} élément(s) ignorés — en lecture seule ou dans une autre organisation.",
 };
 
 export default orgFr;

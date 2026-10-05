@@ -30,6 +30,10 @@ interface VaultDialogsProps {
   shareToOrgOpen: boolean;
   shareOrgId: string;
   shareCollectionIds: string[];
+  bulkCollectionActions: Record<string, 'add' | 'remove'>;
+  bulkCollectionCounts: Record<string, number>;
+  bulkSelectedTotal: number;
+  onBulkCollectionActionChange: (collectionId: string, action: 'add' | 'remove' | 'none') => void;
   shareOrganizations: Array<{ id: string; name: string }>;
   shareCollections: VaultCollection[];
   onShareOrgIdChange: (value: string) => void;
@@ -74,7 +78,7 @@ export default function VaultDialogs(props: VaultDialogsProps) {
   // A move needs a destination: either a folder choice (a folder or
   // explicitly "no folder") or an organization with at least one collection.
   const folderChanged = props.moveFolderId !== '__keep__';
-  const orgChosen = Boolean(props.shareOrgId && props.shareCollectionIds.length > 0);
+  const orgChosen = Boolean(props.shareOrgId && Object.keys(props.bulkCollectionActions).length > 0);
   const moveTargetChosen = folderChanged || orgChosen;
 
   const fieldTypeOptions = getFieldTypeOptions();
@@ -220,19 +224,28 @@ export default function VaultDialogs(props: VaultDialogsProps) {
             {props.shareOrgId && (
               <div className="field">
                 <span>{t('txt_organizations_collections')}</span>
-                <div className="org-editor-collections">
-                  {props.shareCollections.map((collection) => (
-                    <label key={collection.id} className="checkbox-row">
-                      <input
-                        type="checkbox"
-                        checked={props.shareCollectionIds.includes(collection.id)}
-                        onChange={(e) => props.onShareCollectionIdToggle(collection.id, (e.target as HTMLInputElement).checked)}
-                      />
-                      <span>{collection.decName || collection.name || collection.id.slice(0, 8)}</span>
-                    </label>
-                  ))}
+                <div className="collection-action-list">
+                  {props.shareCollections.map((collection) => {
+                    const action = props.bulkCollectionActions[collection.id] || 'none';
+                    const count = props.bulkCollectionCounts[collection.id] || 0;
+                    return (
+                      <div key={collection.id} className="collection-action-row">
+                        <span className="collection-action-name">{collection.decName || collection.name || collection.id.slice(0, 8)}</span>
+                        <span className="collection-action-count">{t('txt_collection_in_selected', { count: String(count), total: String(props.bulkSelectedTotal) })}</span>
+                        <select
+                          className="input collection-action-select"
+                          value={action}
+                          onChange={(e) => props.onBulkCollectionActionChange(collection.id, (e.target as HTMLSelectElement).value as 'add' | 'remove' | 'none')}
+                        >
+                          <option value="none">{t('txt_collection_action_none')}</option>
+                          <option value="add">{t('txt_collection_action_add')}</option>
+                          <option value="remove">{t('txt_collection_action_remove')}</option>
+                        </select>
+                      </div>
+                    );
+                  })}
                 </div>
-                <div className="field-help">{t('txt_org_share_collections_hint')}</div>
+                <div className="field-help">{t('txt_org_collections_actions_hint')}</div>
               </div>
             )}
           </>

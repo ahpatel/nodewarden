@@ -139,6 +139,16 @@ const orgSv: Record<string, string> = {
   "txt_org_share_collections_hint": "Välj en eller flera samlingar — objektet visas i alla.",
   "txt_org_share_bulk_success": "Flyttade {count} objekt till organisationen.",
   "txt_org_share_bulk_partial": "Flyttade {moved} objekt; {failed} kunde inte flyttas.",
+  "txt_collection_action_none": "Ingen ändring",
+  "txt_collection_action_add": "Lägg till",
+  "txt_collection_action_remove": "Ta bort",
+  "txt_collection_in_selected": "i {count} av {total} valda",
+  "txt_org_collections_actions_hint": "Välj en åtgärd per samling — Lägg till inkluderar de valda objekten, Ta bort exkluderar dem.",
+  "txt_org_collections_updated": "Samlingar uppdaterade för {updated} objekt.",
+  "txt_org_collections_updated_partial": "Samlingar uppdaterade för {updated} objekt; {failed} misslyckades.",
+  "txt_org_collections_kept_empty": "{count} objekt behölls i sina nuvarande samlingar — borttag skulle lämna dem utan samling.",
+  "txt_org_collections_update_failed": "Det gick inte att uppdatera samlingarna.",
+  "txt_move_skipped_ineligible": "{count} objekt hoppades över — skrivskyddade eller i en annan organisation.",
 };
 
 export default orgSv;

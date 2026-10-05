@@ -139,6 +139,16 @@ const orgIt: Record<string, string> = {
   "txt_org_share_collections_hint": "Scegli una o più raccolte: l’elemento apparirà in tutte.",
   "txt_org_share_bulk_success": "{count} elemento(i) spostati nell’organizzazione.",
   "txt_org_share_bulk_partial": "Spostati {moved} elemento(i); {failed} non è stato possibile spostarli.",
+  "txt_collection_action_none": "Nessuna modifica",
+  "txt_collection_action_add": "Aggiungi",
+  "txt_collection_action_remove": "Rimuovi",
+  "txt_collection_in_selected": "in {count} di {total} selezionati",
+  "txt_org_collections_actions_hint": "Scegli un’azione per ogni raccolta — «Aggiungi» include gli elementi selezionati, «Rimuovi» li esclude.",
+  "txt_org_collections_updated": "Raccolte aggiornate per {updated} elemento(i).",
+  "txt_org_collections_updated_partial": "Raccolte aggiornate per {updated} elemento(i); {failed} non riusciti.",
+  "txt_org_collections_kept_empty": "{count} elemento(i) mantenuti nelle raccolte attuali — la rimozione li lascerebbe senza nessuna.",
+  "txt_org_collections_update_failed": "Aggiornamento delle raccolte non riuscito.",
+  "txt_move_skipped_ineligible": "{count} elemento(i) ignorati — di sola lettura o in un’altra organizzazione.",
 };
 
 export default orgIt;

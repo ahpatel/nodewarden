@@ -139,6 +139,16 @@ const orgZhTW: Record<string, string> = {
   "txt_org_share_collections_hint": "選擇一個或多個集合——項目會同時出現在所有勾選的集合中。",
   "txt_org_share_bulk_success": "已將 {count} 個項目移至組織。",
   "txt_org_share_bulk_partial": "已移動 {moved} 個項目；{failed} 個無法移動。",
+  "txt_collection_action_none": "不變更",
+  "txt_collection_action_add": "加入",
+  "txt_collection_action_remove": "移除",
+  "txt_collection_in_selected": "在 {total} 個選中項目的 {count} 個中",
+  "txt_org_collections_actions_hint": "為每個集合選擇一個動作——「加入」把選中項目加入集合，「移除」將其取出。",
+  "txt_org_collections_updated": "已更新 {updated} 個項目的集合。",
+  "txt_org_collections_updated_partial": "已更新 {updated} 個項目的集合；{failed} 個失敗。",
+  "txt_org_collections_kept_empty": "{count} 個項目保留在目前的集合中——移除會使它們沒有任何集合。",
+  "txt_org_collections_update_failed": "更新集合失敗。",
+  "txt_move_skipped_ineligible": "已跳過 {count} 個項目——唯讀或屬於其他組織。",
 };
 
 export default orgZhTW;

@@ -139,6 +139,16 @@ const orgDe: Record<string, string> = {
   "txt_org_share_collections_hint": "Wählen Sie eine oder mehrere Sammlungen — das Element erscheint in allen.",
   "txt_org_share_bulk_success": "{count} Element(e) in die Organisation verschoben.",
   "txt_org_share_bulk_partial": "{moved} Element(e) verschoben; {failed} konnten nicht verschoben werden.",
+  "txt_collection_action_none": "Keine Änderung",
+  "txt_collection_action_add": "Hinzufügen",
+  "txt_collection_action_remove": "Entfernen",
+  "txt_collection_in_selected": "in {count} von {total} ausgewählten",
+  "txt_org_collections_actions_hint": "Wählen Sie pro Sammlung eine Aktion — „Hinzufügen“ nimmt die ausgewählten Elemente auf, „Entfernen“ nimmt sie heraus.",
+  "txt_org_collections_updated": "Sammlungen für {updated} Element(e) aktualisiert.",
+  "txt_org_collections_updated_partial": "Sammlungen für {updated} Element(e) aktualisiert; {failed} fehlgeschlagen.",
+  "txt_org_collections_kept_empty": "{count} Element(e) blieben in ihren aktuellen Sammlungen — das Entfernen würde keine übrig lassen.",
+  "txt_org_collections_update_failed": "Aktualisierung der Sammlungen fehlgeschlagen.",
+  "txt_move_skipped_ineligible": "{count} Element(e) übersprungen — schreibgeschützt oder in einer anderen Organisation.",
 };
 
 export default orgDe;

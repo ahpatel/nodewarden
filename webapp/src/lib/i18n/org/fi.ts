@@ -139,6 +139,16 @@ const orgFi: Record<string, string> = {
   "txt_org_share_collections_hint": "Valitse yksi tai useampi kokoelma — kohde näkyy kaikissa niissä.",
   "txt_org_share_bulk_success": "Siirretty {count} kohde(t) organisaatioon.",
   "txt_org_share_bulk_partial": "{moved} kohde(t) siirretty; {failed} ei voitu siirtää.",
+  "txt_collection_action_none": "Ei muutosta",
+  "txt_collection_action_add": "Lisää",
+  "txt_collection_action_remove": "Poista",
+  "txt_collection_in_selected": "{count} / {total} valituista",
+  "txt_org_collections_actions_hint": "Valitse toiminto jokaiselle kokoelmalle — Lisää ottaa valitut kohteet mukaan, Poista jättää ne ulos.",
+  "txt_org_collections_updated": "Kokoelmia päivitetty {updated} kohteelle.",
+  "txt_org_collections_updated_partial": "Kokoelmia päivitetty {updated} kohteelle; {failed} epäonnistui.",
+  "txt_org_collections_kept_empty": "{count} kohde(t) säilytettiin nykyisissä kokoelmissaan — poisto jättäisi ne ilman kokoelmaa.",
+  "txt_org_collections_update_failed": "Kokoelmien päivitys epäonnistui.",
+  "txt_move_skipped_ineligible": "{count} kohde(t) ohitettu — vain luku tai toisessa organisaatiossa.",
 };
 
 export default orgFi;

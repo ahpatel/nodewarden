@@ -139,6 +139,16 @@ const orgRu: Record<string, string> = {
   "txt_org_share_collections_hint": "Выберите одну или несколько коллекций — элемент появится во всех них.",
   "txt_org_share_bulk_success": "Перемещено {count} элемент(ов) в организацию.",
   "txt_org_share_bulk_partial": "Перемещено {moved}; не удалось переместить {failed}.",
+  "txt_collection_action_none": "Без изменений",
+  "txt_collection_action_add": "Добавить",
+  "txt_collection_action_remove": "Убрать",
+  "txt_collection_in_selected": "в {count} из {total} выбранных",
+  "txt_org_collections_actions_hint": "Задайте действие для каждой коллекции — «Добавить» включает выбранные элементы, «Убрать» исключает их.",
+  "txt_org_collections_updated": "Коллекции обновлены для {updated} элемент(ов).",
+  "txt_org_collections_updated_partial": "Коллекции обновлены для {updated} элемент(ов); {failed} не удалось.",
+  "txt_org_collections_kept_empty": "{count} элемент(ов) оставлены в текущих коллекциях — удаление оставило бы их без коллекций.",
+  "txt_org_collections_update_failed": "Не удалось обновить коллекции.",
+  "txt_move_skipped_ineligible": "{count} элемент(ов) пропущено — только чтение или другая организация.",
 };
 
 export default orgRu;

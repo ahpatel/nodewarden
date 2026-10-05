@@ -139,6 +139,16 @@ const orgZhCN: Record<string, string> = {
   "txt_org_share_collections_hint": "选择一个或多个集合——该项目会同时出现在所有勾选的集合中。",
   "txt_org_share_bulk_success": "已将 {count} 个项目移至组织。",
   "txt_org_share_bulk_partial": "已移动 {moved} 个项目；{failed} 个无法移动。",
+  "txt_collection_action_none": "不更改",
+  "txt_collection_action_add": "添加",
+  "txt_collection_action_remove": "移除",
+  "txt_collection_in_selected": "在 {total} 个选中项的 {count} 个中",
+  "txt_org_collections_actions_hint": "为每个集合选择一个操作——“添加”把选中项加入集合，“移除”将其取出。",
+  "txt_org_collections_updated": "已更新 {updated} 个项目的集合。",
+  "txt_org_collections_updated_partial": "已更新 {updated} 个项目的集合；{failed} 个失败。",
+  "txt_org_collections_kept_empty": "{count} 个项目保留在当前集合中——移除会使它们没有任何集合。",
+  "txt_org_collections_update_failed": "更新集合失败。",
+  "txt_move_skipped_ineligible": "已跳过 {count} 个项目——只读或属于其他组织。",
 };
 
 export default orgZhCN;
