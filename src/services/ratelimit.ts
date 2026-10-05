@@ -14,6 +14,7 @@ const CONFIG = {
 export class RateLimitService {
   private static loginIpTableReady = false;
   private static strictBudgetTableReady = false;
+  private static cacheBudgetFallbackLogged = false;
   private static lastLoginIpCleanupAt = 0;
   private static lastStrictBudgetCleanupAt = 0;
 
@@ -185,33 +186,46 @@ export class RateLimitService {
     maxRequests: number,
     windowSeconds: number
   ): Promise<{ allowed: boolean; remaining: number; retryAfterSeconds?: number }> {
-    const nowSec = Math.floor(Date.now() / 1000);
-    const windowStart = nowSec - (nowSec % windowSeconds);
-    const windowEnd = windowStart + windowSeconds;
-    const ttl = Math.max(1, windowEnd - nowSec);
+    try {
+      const nowSec = Math.floor(Date.now() / 1000);
+      const windowStart = nowSec - (nowSec % windowSeconds);
+      const windowEnd = windowStart + windowSeconds;
+      const ttl = Math.max(1, windowEnd - nowSec);
 
-    const cache = await caches.open('rate-limit');
-    const cacheKey = new Request(`https://rl/${identifier}/${windowStart}`);
+      const cache = await caches.open('rate-limit');
+      const cacheKey = new Request(`https://rl/${identifier}/${windowStart}`);
 
-    const cached = await cache.match(cacheKey);
-    let count = 0;
-    if (cached) {
-      count = parseInt(await cached.text(), 10) || 0;
+      const cached = await cache.match(cacheKey);
+      let count = 0;
+      if (cached) {
+        count = parseInt(await cached.text(), 10) || 0;
+      }
+
+      if (count >= maxRequests) {
+        return { allowed: false, remaining: 0, retryAfterSeconds: ttl };
+      }
+
+      count++;
+      await cache.put(
+        cacheKey,
+        new Response(String(count), {
+          headers: { 'Cache-Control': `public, max-age=${ttl}` },
+        })
+      );
+
+      return { allowed: true, remaining: Math.max(0, maxRequests - count) };
+    } catch (error) {
+      // The Cache API is unavailable or failing — notably on workers.dev
+      // deployments, where cache.put cannot run. Fail closed by delegating to
+      // the D1-backed strict budget with the same identifier and window, so
+      // the limit still applies instead of silently not existing.
+      if (!RateLimitService.cacheBudgetFallbackLogged) {
+        RateLimitService.cacheBudgetFallbackLogged = true;
+        console.warn('[rate-limit] Cache API budget unavailable; falling back to D1-backed budget');
+      }
+      void error;
+      return this.consumeStrictBudgetWithWindow(identifier, maxRequests, windowSeconds);
     }
-
-    if (count >= maxRequests) {
-      return { allowed: false, remaining: 0, retryAfterSeconds: ttl };
-    }
-
-    count++;
-    await cache.put(
-      cacheKey,
-      new Response(String(count), {
-        headers: { 'Cache-Control': `public, max-age=${ttl}` },
-      })
-    );
-
-    return { allowed: true, remaining: Math.max(0, maxRequests - count) };
   }
 
   async consumeStrictBudget(

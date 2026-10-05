@@ -1,7 +1,7 @@
 import { Env, Send, SendAuthType, SendType } from '../types';
 import { StorageService } from '../services/storage';
 import { jsonResponse, errorResponse } from '../utils/response';
-import { buildDirectUploadUrl, getSafeJwtSecret, parseDirectUploadPayload } from '../utils/direct-upload';
+import { buildDirectUploadUrl, getSafeJwtSecret, parseDirectUploadPayload, UploadedPayloadTooLargeError } from '../utils/direct-upload';
 import { generateUUID } from '../utils/uuid';
 import { parsePagination, encodeContinuationToken } from '../utils/pagination';
 import { LIMITS } from '../config/limits';
@@ -100,6 +100,9 @@ async function processSendFileUpload(
       },
     });
   } catch (error) {
+    if (error instanceof UploadedPayloadTooLargeError) {
+      return errorResponse('Send storage limit exceeded with this file', 413);
+    }
     const message = error instanceof Error ? error.message : String(error);
     if (message.includes('KV object too large')) {
       return errorResponse('Send storage limit exceeded with this file', 413);

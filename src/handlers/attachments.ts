@@ -12,6 +12,7 @@ import {
   verifyFileDownloadToken,
 } from '../utils/jwt';
 import { applyCipherEmbeddedAttachmentMetadata, applyCipherAccessFlags, cipherToResponse } from './ciphers';
+import { UploadedPayloadTooLargeError } from '../utils/direct-upload';
 import { bumpOrganizationMembers } from '../utils/org-notify';
 import { LIMITS } from '../config/limits';
 import { readActingDeviceIdentifier } from '../utils/device';
@@ -181,6 +182,9 @@ async function processAttachmentUpload(
       },
     });
   } catch (error) {
+    if (error instanceof UploadedPayloadTooLargeError) {
+      return errorResponse(`File too large. Maximum size is ${Math.floor(maxFileSize / (1024 * 1024))}MB`, 413);
+    }
     const message = error instanceof Error ? error.message : String(error);
     if (message.includes('KV object too large')) {
       return errorResponse(`File too large. Maximum size is ${Math.floor(maxFileSize / (1024 * 1024))}MB`, 413);

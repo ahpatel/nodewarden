@@ -443,6 +443,37 @@ test('hub negotiate consumes a dedicated per-IP budget before token issuance', (
 });
 
 
+// ─Upload hardening: byte-counting cap + Cache-API budget fallback ───────────
+
+test('direct uploads count streamed bytes and fail closed when the Cache API is unavailable', () => {
+  const direct = read('src/utils/direct-upload.ts');
+  assert.ok(
+    /capBodyBytes\(request\.body, uploadSize/.test(direct),
+    'the raw-body path streams through the byte-counting cap'
+  );
+  assert.ok(
+    /count \+= value\.byteLength/.test(direct) && /count > expectedBytes/.test(direct),
+    'the cap counts bytes and errors when one too many arrives'
+  );
+
+  const attachments = read('src/handlers/attachments.ts');
+  const sends = read('src/handlers/sends-private.ts');
+  assert.ok(
+    /UploadedPayloadTooLargeError/.test(attachments) && /UploadedPayloadTooLargeError/.test(sends),
+    'both upload callers map the cap error to their 413 response'
+  );
+
+  const ratelimit = read('src/services/ratelimit.ts');
+  assert.ok(
+    /catch \(error\) \{[\s\S]*?consumeStrictBudgetWithWindow\(identifier, maxRequests, windowSeconds\)/.test(ratelimit),
+    'Cache-API budget failures fall back to the D1-backed strict budget'
+  );
+  assert.ok(
+    /cacheBudgetFallbackLogged/.test(ratelimit),
+    'the fallback logs once per isolate for visibility'
+  );
+});
+
 // ─── Ticket 10 (#18): web-bootstrap stops disclosing security state ─────────
 
 test('the public bootstrap no longer discloses JWT strength, provisioning or the origin allowlist', () => {

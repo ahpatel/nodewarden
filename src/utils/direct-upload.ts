@@ -8,6 +8,10 @@ export interface DirectUploadPayload {
   size: number;
 }
 
+/** Raised while streaming an upload whose bytes exceed the accepted size. */
+export class UploadedPayloadTooLargeError extends Error {}
+
+
 interface ParseDirectUploadOptions {
   expectedSize?: number | null;
   expectedFileName?: string | null;
@@ -46,6 +50,46 @@ function parseContentLength(request: Request): number | null {
   const value = Number(raw);
   if (!Number.isFinite(value) || value < 0) return null;
   return Math.floor(value);
+}
+
+/* Count the streamed upload bytes and fail as soon as they exceed the
+   accepted size. The header-based checks above are enforced before streaming,
+   but they depend on a Content-Length header being present and honest — when
+   it is missing the declared size was trusted, and a lying header paired with
+   a longer body streams past every header check
+   (audit lead cand:upload-declared-size-unbounded). R2/S3 puts require a
+   known-length stream, so the body is pumped through a FixedLengthStream
+   sized to the accepted byte count: the pump enforces the cap with an
+   identifiable error, the FixedLengthStream enforces the exact length for the
+   blob store, and an oversize or short body fails the upload before anything
+   is stored. Bytes within the cap stream through untouched. */
+function capBodyBytes(
+  source: ReadableStream<Uint8Array>,
+  expectedBytes: number,
+  tooLargeMessage: string
+): ReadableStream<Uint8Array> {
+  const fixed = new FixedLengthStream(expectedBytes);
+  void (async () => {
+    const reader = source.getReader();
+    const writer = fixed.writable.getWriter();
+    try {
+      let count = 0;
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        count += value.byteLength;
+        if (count > expectedBytes) {
+          throw new UploadedPayloadTooLargeError(tooLargeMessage);
+        }
+        await writer.write(value);
+      }
+      await writer.close();
+    } catch (error) {
+      await reader.cancel().catch(() => {});
+      await writer.abort(error).catch(() => {});
+    }
+  })();
+  return fixed.readable as ReadableStream<Uint8Array>;
 }
 
 export async function parseDirectUploadPayload(
@@ -107,7 +151,7 @@ export async function parseDirectUploadPayload(
   }
 
   return {
-    body: request.body,
+    body: capBodyBytes(request.body, uploadSize, tooLargeMessage),
     contentType: contentType || 'application/octet-stream',
     size: uploadSize,
   };
