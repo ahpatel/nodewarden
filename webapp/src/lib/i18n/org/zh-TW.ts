@@ -125,6 +125,17 @@ const orgZhTW: Record<string, string> = {
   "txt_organizations_delete_collection_failed": "刪除集合失敗",
   "txt_move_to_collection_skipped": "{count} 個項目未被移動——它們是個人項目、屬於其他組織或為唯讀。",
   "txt_bulk_move_to_collection_failed": "移動到集合失敗",
+  "txt_organizations_reg_code": "註冊碼",
+  "txt_organizations_reg_code_title": "註冊碼",
+  "txt_organizations_reg_code_new": "產生新註冊碼",
+  "txt_organizations_reg_code_none": "目前沒有有效的註冊碼。",
+  "txt_organizations_reg_code_email_registered": "此電子郵件已被註冊。請移除該成員後直接邀請。",
+  "txt_organizations_reg_code_expires": "有效期至 {date}",
+  "txt_organizations_reg_code_note": "此碼僅用於註冊被邀請的電子郵件位址。系統不會寄送郵件——請自行分享。",
+  "txt_organizations_reg_code_failed": "載入註冊碼失敗。",
+  "txt_organizations_invite_result_title": "已建立邀請",
+  "txt_organizations_invite_result_subtitle": "複製每個註冊碼，或將其連結分享給被邀請人。",
+  "txt_organizations_invite_result_skipped": "已略過：",
 };
 
 export default orgZhTW;

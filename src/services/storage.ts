@@ -30,11 +30,13 @@ import {
   deleteInvalidInvites as deleteStoredInvalidInvites,
   deleteAllInvites as deleteStoredInvites,
   getInvite as findStoredInvite,
+  listActiveInvitesByEmail as listStoredActiveInvitesByEmail,
   listAuditLogs as listStoredAuditLogs,
   listInvites as listStoredInvites,
   markInviteUsed as markStoredInviteUsed,
   pruneAuditLogs as pruneStoredAuditLogs,
   pruneAuditLogsToMax as pruneStoredAuditLogsToMax,
+  revokeActiveInvitesByEmail as revokeStoredActiveInvitesByEmail,
   revertInviteUsed as revertStoredInviteUsed,
 } from './storage-admin-repo';
 import {
@@ -404,6 +406,14 @@ export class StorageService {
 
   async getInvite(code: string): Promise<Invite | null> {
     return findStoredInvite(this.db, code);
+  }
+
+  async listActiveInvitesByEmail(email: string): Promise<Invite[]> {
+    return listStoredActiveInvitesByEmail(this.db, email);
+  }
+
+  async revokeActiveInvitesByEmail(email: string): Promise<number> {
+    return revokeStoredActiveInvitesByEmail(this.db, email);
   }
 
   async listInvites(includeInactive: boolean = false): Promise<Invite[]> {

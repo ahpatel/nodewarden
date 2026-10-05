@@ -125,6 +125,17 @@ const orgZhCN: Record<string, string> = {
   "txt_organizations_delete_collection_failed": "删除集合失败",
   "txt_move_to_collection_skipped": "{count} 个项目未被移动——它们是个人项目、属于其他组织或为只读。",
   "txt_bulk_move_to_collection_failed": "移动到集合失败",
+  "txt_organizations_reg_code": "注册码",
+  "txt_organizations_reg_code_title": "注册码",
+  "txt_organizations_reg_code_new": "生成新注册码",
+  "txt_organizations_reg_code_none": "当前没有有效的注册码。",
+  "txt_organizations_reg_code_email_registered": "该邮箱已被注册。请移除该成员后直接邀请。",
+  "txt_organizations_reg_code_expires": "有效期至 {date}",
+  "txt_organizations_reg_code_note": "此码仅用于注册被邀请的邮箱地址。系统不会发送邮件——请自行分享。",
+  "txt_organizations_reg_code_failed": "加载注册码失败。",
+  "txt_organizations_invite_result_title": "已创建邀请",
+  "txt_organizations_invite_result_subtitle": "复制每个注册码，或将其链接分享给被邀请人。",
+  "txt_organizations_invite_result_skipped": "已跳过：",
 };
 
 export default orgZhCN;

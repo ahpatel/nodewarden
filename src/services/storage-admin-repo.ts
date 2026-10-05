@@ -94,6 +94,48 @@ export async function getInvite(db: D1Database, code: string): Promise<Invite | 
   };
 }
 
+// Active (unexpired) registration codes bound to one email. Org-minted codes
+// are always email-bound; admin codes may also bind an email. Newest first so
+// a re-minted replacement wins over any older duplicate.
+export async function listActiveInvitesByEmail(db: D1Database, email: string): Promise<Invite[]> {
+  const now = new Date().toISOString();
+  const normalized = email.trim().toLowerCase();
+  const res = await db
+    .prepare(
+      'SELECT code, created_by, used_by, email, expires_at, status, created_at, updated_at FROM invites ' +
+      "WHERE status = 'active' AND expires_at > ? AND email = ? ORDER BY created_at DESC"
+    )
+    .bind(now, normalized)
+    .all<any>();
+  return (res.results || []).map((row) => ({
+    code: row.code,
+    createdBy: row.created_by,
+    usedBy: row.used_by ?? null,
+    email: row.email ?? null,
+    expiresAt: row.expires_at,
+    status: row.status,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  }));
+}
+
+// Revoke every active email-bound code for one email. Used when an owner
+// re-mints a pending member's registration code: the invariant is one live
+// code per pending email, so the replacement does not coexist with older
+// ones. Returns the number of codes revoked.
+export async function revokeActiveInvitesByEmail(db: D1Database, email: string): Promise<number> {
+  const now = new Date().toISOString();
+  const normalized = email.trim().toLowerCase();
+  const result = await db
+    .prepare(
+      "UPDATE invites SET status = 'revoked', updated_at = ? " +
+      "WHERE status = 'active' AND expires_at > ? AND email = ?"
+    )
+    .bind(now, now, normalized)
+    .run();
+  return Number(result.meta.changes ?? 0);
+}
+
 export async function listInvites(db: D1Database, includeInactive: boolean = false): Promise<Invite[]> {
   const now = new Date().toISOString();
   const predicate = includeInactive

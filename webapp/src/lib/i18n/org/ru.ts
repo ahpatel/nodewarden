@@ -125,6 +125,17 @@ const orgRu: Record<string, string> = {
   "txt_organizations_delete_collection_failed": "Не удалось удалить коллекцию",
   "txt_move_to_collection_skipped": "{count} элемент(ов) не были перемещены — личные, из другой организации или только для чтения.",
   "txt_bulk_move_to_collection_failed": "Не удалось переместить в коллекцию",
+  "txt_organizations_reg_code": "Код регистрации",
+  "txt_organizations_reg_code_title": "Код регистрации",
+  "txt_organizations_reg_code_new": "Создать новый код регистрации",
+  "txt_organizations_reg_code_none": "Активный код регистрации отсутствует.",
+  "txt_organizations_reg_code_email_registered": "Этот адрес email уже зарегистрирован. Удалите участника и пригласите его напрямую.",
+  "txt_organizations_reg_code_expires": "Истекает {date}",
+  "txt_organizations_reg_code_note": "Этот код регистрирует только приглашённый адрес email. Письмо не отправляется — передайте код сами.",
+  "txt_organizations_reg_code_failed": "Не удалось загрузить код регистрации.",
+  "txt_organizations_invite_result_title": "Приглашения созданы",
+  "txt_organizations_invite_result_subtitle": "Скопируйте каждый код или поделитесь его ссылкой с приглашённым.",
+  "txt_organizations_invite_result_skipped": "Пропущено:",
 };
 
 export default orgRu;

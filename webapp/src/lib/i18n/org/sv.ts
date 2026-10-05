@@ -125,6 +125,17 @@ const orgSv: Record<string, string> = {
   "txt_organizations_delete_collection_failed": "Misslyckades med att ta bort samlingen",
   "txt_move_to_collection_skipped": "{count} objekt flyttades inte — de är personliga, tillhör en annan organisation eller är skrivskyddade.",
   "txt_bulk_move_to_collection_failed": "Det gick inte att flytta till samlingen",
+  "txt_organizations_reg_code": "Registreringskod",
+  "txt_organizations_reg_code_title": "Registreringskod",
+  "txt_organizations_reg_code_new": "Skapa ny registreringskod",
+  "txt_organizations_reg_code_none": "Ingen aktiv registreringskod.",
+  "txt_organizations_reg_code_email_registered": "Den här e-postadressen är redan registrerad. Ta bort medlemmen och bjud in direkt.",
+  "txt_organizations_reg_code_expires": "Upphör {date}",
+  "txt_organizations_reg_code_note": "Denna kod registrerar bara den inbjudna e-postadressen. Inget e-postmeddelande skickas — dela den själv.",
+  "txt_organizations_reg_code_failed": "Det gick inte att hämta registreringskoden.",
+  "txt_organizations_invite_result_title": "Inbjudningar skapade",
+  "txt_organizations_invite_result_subtitle": "Kopiera varje kod eller dela dess länk med den inbjudna.",
+  "txt_organizations_invite_result_skipped": "Hoppade över:",
 };
 
 export default orgSv;

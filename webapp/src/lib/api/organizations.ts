@@ -173,6 +173,47 @@ export async function inviteOrganizationMembers(
   );
 }
 
+export interface MemberRegistrationCode {
+  inviteCode: string | null;
+  inviteLink: string | null;
+  expiresAt: string | null;
+  /** Set when no code can exist for this member, e.g. `email_registered`. */
+  reason?: string | null;
+}
+
+export async function getMemberRegistrationCode(
+  authedFetch: AuthedFetch,
+  organizationId: string,
+  organizationUserId: string
+): Promise<MemberRegistrationCode> {
+  const body = await requestJson<MemberRegistrationCode & { object?: string }>(
+    authedFetch,
+    `/api/organizations/${organizationId}/users/${organizationUserId}/registration-code`
+  );
+  return {
+    inviteCode: body?.inviteCode ?? null,
+    inviteLink: body?.inviteLink ?? null,
+    expiresAt: body?.expiresAt ?? null,
+    reason: body?.reason ?? null,
+  };
+}
+
+export async function remintMemberRegistrationCode(
+  authedFetch: AuthedFetch,
+  organizationId: string,
+  organizationUserId: string
+): Promise<{ inviteCode: string; inviteLink: string; expiresAt: string }> {
+  return requestJson<{ inviteCode: string; inviteLink: string; expiresAt: string }>(
+    authedFetch,
+    `/api/organizations/${organizationId}/users/${organizationUserId}/registration-code/remint`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),
+    }
+  );
+}
+
 export async function acceptOrganizationInvitation(
   authedFetch: AuthedFetch,
   organizationId: string,

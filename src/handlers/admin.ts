@@ -51,7 +51,7 @@ function randomHex(bytes: number): string {
   return Array.from(data).map(v => v.toString(16).padStart(2, '0')).join('');
 }
 
-function buildInviteLink(request: Request, code: string): string {
+export function buildInviteLink(request: Request, code: string): string {
   const url = new URL(request.url);
   return `${url.origin}/?invite=${encodeURIComponent(code)}`;
 }

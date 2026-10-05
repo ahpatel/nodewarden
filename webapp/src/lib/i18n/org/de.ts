@@ -125,6 +125,17 @@ const orgDe: Record<string, string> = {
   "txt_organizations_delete_collection_failed": "Sammlung konnte nicht gelöscht werden",
   "txt_move_to_collection_skipped": "{count} Element(e) wurde(n) nicht verschoben — persönlich, in einer anderen Organisation oder schreibgeschützt.",
   "txt_bulk_move_to_collection_failed": "Verschieben in die Sammlung fehlgeschlagen",
+  "txt_organizations_reg_code": "Registrierungscode",
+  "txt_organizations_reg_code_title": "Registrierungscode",
+  "txt_organizations_reg_code_new": "Neuen Registrierungscode erstellen",
+  "txt_organizations_reg_code_none": "Kein aktiver Registrierungscode vorhanden.",
+  "txt_organizations_reg_code_email_registered": "Diese E-Mail-Adresse ist bereits registriert. Entfernen Sie das Mitglied und laden Sie es direkt ein.",
+  "txt_organizations_reg_code_expires": "Läuft ab am {date}",
+  "txt_organizations_reg_code_note": "Dieser Code registriert nur die eingeladene E-Mail-Adresse. Es wird keine E-Mail versendet – teilen Sie ihn selbst.",
+  "txt_organizations_reg_code_failed": "Registrierungscode konnte nicht geladen werden.",
+  "txt_organizations_invite_result_title": "Einladungen erstellt",
+  "txt_organizations_invite_result_subtitle": "Kopieren Sie jeden Code oder teilen Sie den Link mit der eingeladenen Person.",
+  "txt_organizations_invite_result_skipped": "Übersprungen:",
 };
 
 export default orgDe;

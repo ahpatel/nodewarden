@@ -125,6 +125,17 @@ const orgEs: Record<string, string> = {
   "txt_organizations_delete_collection_failed": "No se pudo eliminar la colección",
   "txt_move_to_collection_skipped": "{count} elemento(s) no se movió(eron): son personales, de otra organización o de solo lectura.",
   "txt_bulk_move_to_collection_failed": "Error al mover a la colección",
+  "txt_organizations_reg_code": "Código de registro",
+  "txt_organizations_reg_code_title": "Código de registro",
+  "txt_organizations_reg_code_new": "Generar nuevo código de registro",
+  "txt_organizations_reg_code_none": "No hay un código de registro activo.",
+  "txt_organizations_reg_code_email_registered": "Este correo electrónico ya está registrado. Elimine al miembro e invítelo directamente.",
+  "txt_organizations_reg_code_expires": "Caduca el {date}",
+  "txt_organizations_reg_code_note": "Este código solo registra la dirección de correo invitada. No se envía ningún correo: compártalo usted.",
+  "txt_organizations_reg_code_failed": "No se pudo cargar el código de registro.",
+  "txt_organizations_invite_result_title": "Invitaciones creadas",
+  "txt_organizations_invite_result_subtitle": "Copie cada código o comparta su enlace con el invitado.",
+  "txt_organizations_invite_result_skipped": "Omitidos:",
 };
 
 export default orgEs;

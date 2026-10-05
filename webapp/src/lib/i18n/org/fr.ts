@@ -125,6 +125,17 @@ const orgFr: Record<string, string> = {
   "txt_organizations_delete_collection_failed": "Échec de la suppression de la collection",
   "txt_move_to_collection_skipped": "{count} élément(s) n'a/ont pas été déplacé(s) — personnels, d'une autre organisation ou en lecture seule.",
   "txt_bulk_move_to_collection_failed": "Échec du déplacement vers la collection",
+  "txt_organizations_reg_code": "Code d’inscription",
+  "txt_organizations_reg_code_title": "Code d’inscription",
+  "txt_organizations_reg_code_new": "Générer un nouveau code d’inscription",
+  "txt_organizations_reg_code_none": "Aucun code d’inscription actif.",
+  "txt_organizations_reg_code_email_registered": "Cette adresse e-mail est déjà enregistrée. Retirez le membre et invitez-le directement.",
+  "txt_organizations_reg_code_expires": "Expire le {date}",
+  "txt_organizations_reg_code_note": "Ce code n’inscrit que l’adresse e-mail invitée. Aucun e-mail n’est envoyé — partagez-le vous-même.",
+  "txt_organizations_reg_code_failed": "Échec du chargement du code d’inscription.",
+  "txt_organizations_invite_result_title": "Invitations créées",
+  "txt_organizations_invite_result_subtitle": "Copiez chaque code ou partagez son lien avec l’invité.",
+  "txt_organizations_invite_result_skipped": "Ignorés :",
 };
 
 export default orgFr;

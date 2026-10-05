@@ -125,6 +125,17 @@ const orgEn: Record<string, string> = {
   "txt_organizations_delete_collection_failed": "Failed to delete collection",
   "txt_move_to_collection_skipped": "{count} item(s) were not moved — they are personal, in another organization, or read-only.",
   "txt_bulk_move_to_collection_failed": "Move to collection failed",
+  "txt_organizations_reg_code": "Registration code",
+  "txt_organizations_reg_code_title": "Registration code",
+  "txt_organizations_reg_code_new": "New registration code",
+  "txt_organizations_reg_code_none": "No active registration code.",
+  "txt_organizations_reg_code_email_registered": "This email has already been registered. Remove the member and invite them directly instead.",
+  "txt_organizations_reg_code_expires": "Expires {date}",
+  "txt_organizations_reg_code_note": "This code only registers the invited email address. No email is sent — share it yourself.",
+  "txt_organizations_reg_code_failed": "Failed to load the registration code.",
+  "txt_organizations_invite_result_title": "Invitations created",
+  "txt_organizations_invite_result_subtitle": "Copy each code or share its link with the invitee.",
+  "txt_organizations_invite_result_skipped": "Skipped:",
 };
 
 export default orgEn;

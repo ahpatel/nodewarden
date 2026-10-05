@@ -105,12 +105,14 @@ import {
   handleConfirmOrganizationUser,
   handleCreateOrganization,
   handleDeleteOrganization,
+  handleGetMemberRegistrationCode,
   handleGetOrganization,
   handleGetOrganizationUser,
   handleInviteOrganizationUsers,
   handleLeaveOrganization,
   handleListMyOrganizations,
   handleListOrganizationUsers,
+  handleRemintMemberRegistrationCode,
   handleRemoveOrganizationUser,
   handleUpdateOrganization,
   handleUpdateOrganizationUser,
@@ -486,6 +488,12 @@ export async function handleAuthenticatedRoute(
         return errorResponse('Method not allowed', 405);
       }
 
+      if (userSubPath === '/registration-code' && method === 'GET') {
+        return handleGetMemberRegistrationCode(request, env, userId, organizationId, organizationUserId);
+      }
+      if (userSubPath === '/registration-code/remint' && (method === 'POST' || method === 'PUT')) {
+        return handleRemintMemberRegistrationCode(request, env, userId, organizationId, organizationUserId);
+      }
       if (userSubPath === '/accept' && (method === 'POST' || method === 'PUT')) {
         return handleAcceptOrganizationInvitation(request, env, userId, organizationId, organizationUserId);
       }

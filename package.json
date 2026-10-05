@@ -35,7 +35,8 @@
     "deploy:personal": "wrangler deploy -c wrangler.my.toml",
     "deploy:kv": "node scripts/ensure-kv.cjs && wrangler deploy -c wrangler.kv.toml",
     "deploy:staging": "wrangler deploy -c wrangler.staging.toml",
-    "deploy:demo": "npm run build:demo && wrangler pages deploy dist --project-name nw-demo"
+    "deploy:demo": "npm run build:demo && wrangler pages deploy dist --project-name nw-demo",
+    "test:org-registration": "tsx --test scripts/org-registration-codes.test.ts"
   },
   "keywords": [
     "bitwarden",

@@ -125,6 +125,17 @@ const orgIt: Record<string, string> = {
   "txt_organizations_delete_collection_failed": "Impossibile eliminare la raccolta",
   "txt_move_to_collection_skipped": "{count} elemento/i non spostato/i: personali, di un'altra organizzazione o di sola lettura.",
   "txt_bulk_move_to_collection_failed": "Spostamento nella raccolta non riuscito",
+  "txt_organizations_reg_code": "Codice di registrazione",
+  "txt_organizations_reg_code_title": "Codice di registrazione",
+  "txt_organizations_reg_code_new": "Genera nuovo codice di registrazione",
+  "txt_organizations_reg_code_none": "Nessun codice di registrazione attivo.",
+  "txt_organizations_reg_code_email_registered": "Questa email è già registrata. Rimuovi il membro e invitalo direttamente.",
+  "txt_organizations_reg_code_expires": "Scade il {date}",
+  "txt_organizations_reg_code_note": "Questo codice registra solo l’indirizzo email invitato. Nessuna email viene inviata — condividilo tu.",
+  "txt_organizations_reg_code_failed": "Caricamento del codice di registrazione non riuscito.",
+  "txt_organizations_invite_result_title": "Inviti creati",
+  "txt_organizations_invite_result_subtitle": "Copia ogni codice o condividi il suo link con l’invitato.",
+  "txt_organizations_invite_result_skipped": "Ignorati:",
 };
 
 export default orgIt;

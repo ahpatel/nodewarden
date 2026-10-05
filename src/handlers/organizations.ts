@@ -17,6 +17,7 @@ import { auditRequestMetadata, writeAuditEvent } from '../services/audit-events'
 import { bumpOrganizationMembers } from '../utils/org-notify';
 import { ORG_SELF_SERVICE_REGISTRATION_CONFIG_KEY, ORG_USER_STATUS, ORG_USER_TYPE } from '../config/org';
 import { isValidEncString } from './ciphers';
+import { buildInviteLink } from './admin';
 import { deleteAllAttachmentsForCiphers } from './attachments';
 
 // CONTRACT:
@@ -624,6 +625,118 @@ export async function handleInviteOrganizationUsers(request: Request, env: Env, 
   });
 
   return jsonResponse({ invited, skipped, object: 'organizationInviteResult' });
+}
+
+// GET /api/organizations/:id/users/:organizationUserId/registration-code (owners)
+// Returns the pending member's active registration code so owners can share
+// or re-mint it from the Organizations page. Org-minted codes were previously
+// visible only in the admin panel, which an org owner who is not the server
+// admin cannot access. A member whose email has been registered since the
+// invitation (a squatted row) gets a reason instead of a code: a code bound
+// to a registered email is dead on arrival, since registration requires the
+// email to not exist.
+export async function handleGetMemberRegistrationCode(
+  request: Request,
+  env: Env,
+  userId: string,
+  organizationId: string,
+  organizationUserId: string
+): Promise<Response> {
+  const storage = new StorageService(env.DB);
+  const owner = await requireOrganizationOwner(storage, organizationId, userId);
+  if (owner instanceof Response) return owner;
+
+  const member = await storage.getOrganizationUser(organizationUserId);
+  if (!member || member.organizationId !== organizationId) {
+    return errorResponse('Organization user not found', 404);
+  }
+  if (member.status !== ORG_USER_STATUS.INVITED || member.userId) {
+    return errorResponse('Registration codes apply only to invited members without a linked account', 400);
+  }
+
+  const email = normalizeEmail(member.email) ?? member.email.trim().toLowerCase();
+  if (await storage.getUser(email)) {
+    return jsonResponse({
+      inviteCode: null,
+      inviteLink: null,
+      expiresAt: null,
+      reason: 'email_registered',
+      object: 'organizationRegistrationCode',
+    });
+  }
+
+  const [active] = await storage.listActiveInvitesByEmail(email);
+  return jsonResponse({
+    inviteCode: active?.code ?? null,
+    inviteLink: active ? buildInviteLink(request, active.code) : null,
+    expiresAt: active?.expiresAt ?? null,
+    object: 'organizationRegistrationCode',
+  });
+}
+
+// POST /api/organizations/:id/users/:organizationUserId/registration-code/remint (owners)
+// Replaces a pending member's registration code: every active email-bound
+// code is revoked and a fresh one is minted with the standard TTL. Works
+// regardless of the self-service registration toggle — the toggle gates new
+// invitations, never the registration itself, and an already-issued code
+// keeps working after it is turned off. Re-minting is allowed any time (not
+// just after expiry) so a suspected-leaked code can be rotated.
+export async function handleRemintMemberRegistrationCode(
+  request: Request,
+  env: Env,
+  userId: string,
+  organizationId: string,
+  organizationUserId: string
+): Promise<Response> {
+  const storage = new StorageService(env.DB);
+  const owner = await requireOrganizationOwner(storage, organizationId, userId);
+  if (owner instanceof Response) return owner;
+
+  const member = await storage.getOrganizationUser(organizationUserId);
+  if (!member || member.organizationId !== organizationId) {
+    return errorResponse('Organization user not found', 404);
+  }
+  if (member.status !== ORG_USER_STATUS.INVITED || member.userId) {
+    return errorResponse('Registration codes apply only to invited members without a linked account', 400);
+  }
+
+  const email = normalizeEmail(member.email) ?? member.email.trim().toLowerCase();
+  if (await storage.getUser(email)) {
+    return errorResponse('This email has already been registered. Remove the member and invite them directly instead.', 409);
+  }
+
+  // One live code per pending email: revoke every active email-bound code
+  // (org-minted and admin-minted alike) before minting the replacement. If
+  // another org also invited this email, its code is revoked too — that is
+  // safe, because registering with the new code links every pending org row
+  // for the email.
+  await storage.revokeActiveInvitesByEmail(email);
+
+  const now = new Date().toISOString();
+  const expiresAt = new Date(Date.now() + ORG_INVITE_REGISTRATION_TTL_HOURS * 60 * 60 * 1000).toISOString();
+  const invite: Invite = {
+    code: randomHex(20),
+    createdBy: userId,
+    usedBy: null,
+    email,
+    expiresAt,
+    status: 'active',
+    createdAt: now,
+    updatedAt: now,
+  };
+  await storage.createInvite(invite);
+  await writeOrgAudit(storage, request, userId, 'organization.user.invite.remint', {
+    organizationId,
+    email,
+    expiresAt,
+  });
+
+  return jsonResponse({
+    inviteCode: invite.code,
+    inviteLink: buildInviteLink(request, invite.code),
+    expiresAt,
+    object: 'organizationRegistrationCode',
+  });
 }
 
 // GET /api/organizations/:id/users (owners)

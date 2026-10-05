@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'preact/hooks';
-import { KeyRound, Plus, RefreshCw, SlidersHorizontal, Trash2 } from 'lucide-preact';
+import { KeyRound, Clipboard, Plus, RefreshCw, SlidersHorizontal, Trash2 } from 'lucide-preact';
 import ConfirmDialog from '@/components/ConfirmDialog';
+import OrganizationRegistrationCodeDialog from '@/components/OrganizationRegistrationCodeDialog';
+import { copyTextToClipboard } from '@/lib/clipboard';
 import { base64ToBytes, decryptStr, looksLikeEncString } from '@/lib/crypto';
 import {
   type OrganizationCollection,
@@ -21,6 +23,7 @@ import {
   removeOrganizationMember,
   updateOrganization,
   updateOrganizationMember,
+  type InviteOrganizationUsersResult,
 } from '@/lib/api/organizations';
 import {
   type OrgKeyParts,
@@ -123,6 +126,8 @@ export default function OrganizationsPage(props: OrganizationsPageProps) {
   const [busy, setBusy] = useState<string | null>(null);
   const [permissionsMember, setPermissionsMember] = useState<OrganizationMember | null>(null);
   const [permissionsRows, setPermissionsRows] = useState<Array<{ id: string; name: string; enabled: boolean; readOnly: boolean; hidePasswords: boolean }>>([]);
+  const [registrationCodeMember, setRegistrationCodeMember] = useState<OrganizationMember | null>(null);
+  const [inviteResult, setInviteResult] = useState<InviteOrganizationUsersResult | null>(null);
   const [permissionsAccessAll, setPermissionsAccessAll] = useState(false);
   const [permissionsSubmitting, setPermissionsSubmitting] = useState(false);
   const [legacyOwnKeyOrgIds, setLegacyOwnKeyOrgIds] = useState<Record<string, boolean>>({});
@@ -392,22 +397,11 @@ export default function OrganizationsPage(props: OrganizationsPageProps) {
         type: inviteRole,
         accessAll: inviteAccessAll,
       });
-      const withCode = result.invited.filter((item) => item.inviteCode).length;
-      const needsAdmin = result.invited.filter((item) => item.requiresAdminRegistration).length;
-      let message: string;
-      if (result.invited.length > 0 && needsAdmin === result.invited.length) {
-        message = t('txt_organizations_invite_admin_registration_note', { count: String(needsAdmin) });
-      } else {
-        message = t('txt_organizations_invite_sent', { count: String(result.invited.length) });
-        if (withCode > 0) {
-          message += ' ' + t('txt_organizations_invite_codes_note', { count: String(withCode) });
-        }
-        if (needsAdmin > 0) {
-          message += ' ' + t('txt_organizations_invite_admin_registration_note', { count: String(needsAdmin) });
-        }
-      }
-      notify('success', message);
       setInviteEmails('');
+      // Codes and skips are shown in the result dialog rather than a toast:
+      // an org owner who is not the server admin has no other way to get the
+      // codes, and skip reasons name the exact emails.
+      setInviteResult(result);
       await refreshOrgDetail(selectedOrgId);
     } catch (err) {
       notify('error', err instanceof Error ? err.message : t('txt_organizations_invite_failed'));
@@ -851,6 +845,16 @@ export default function OrganizationsPage(props: OrganizationsPageProps) {
                               : '-'}
                           </td>
                           <td>
+                            {selectedIsOwner && Number(member.status) === STATUS_INVITED && !member.userId && (
+                              <button
+                                type="button"
+                                className="btn btn-secondary small"
+                                disabled={busy === member.id}
+                                onClick={() => setRegistrationCodeMember(member)}
+                              >
+                                {t('txt_organizations_reg_code')}
+                              </button>
+                            )}
                             {selectedIsOwner && Number(member.status) === STATUS_CONFIRMED && (
                               <button
                                 type="button"
@@ -1055,6 +1059,66 @@ export default function OrganizationsPage(props: OrganizationsPageProps) {
             <p className="small-note">{t('txt_organizations_delete_collection_no_target')}</p>
           )}
         </div>
+      </ConfirmDialog>
+
+      <OrganizationRegistrationCodeDialog
+        open={registrationCodeMember !== null}
+        authedFetch={authedFetch}
+        organizationId={selectedOrgId}
+        member={registrationCodeMember}
+        onClose={() => setRegistrationCodeMember(null)}
+      />
+
+      <ConfirmDialog
+        open={inviteResult !== null}
+        title={t('txt_organizations_invite_result_title')}
+        message={t('txt_organizations_invite_result_subtitle')}
+        hideConfirm
+        hideCancel
+        closeButton
+        onConfirm={() => {}}
+        onCancel={() => setInviteResult(null)}
+      >
+        {inviteResult && (
+          <div className="org-permissions-rows">
+            {inviteResult.invited.length > 0 && (
+              <>
+                {inviteResult.invited.map((item) => (
+                  <div className="field" key={`invited-${item.email}`}>
+                    <span>{item.email}</span>
+                    {item.inviteCode ? (
+                      <div className="input-action-wrap">
+                        <input className="input" readonly value={item.inviteCode} />
+                        <button
+                          type="button"
+                          className="btn btn-secondary"
+                          onClick={() => void copyTextToClipboard(
+                            `${window.location.origin}/?invite=${encodeURIComponent(item.inviteCode as string)}`,
+                            { successMessage: t('txt_link_copied') }
+                          )}
+                        >
+                          <Clipboard size={14} className="btn-icon" /> {t('txt_copy_link')}
+                        </button>
+                      </div>
+                    ) : item.requiresAdminRegistration ? (
+                      <div className="field-help">{t('txt_organizations_invite_admin_registration_note', { count: '1' })}</div>
+                    ) : null}
+                  </div>
+                ))}
+              </>
+            )}
+            {inviteResult.skipped.length > 0 && (
+              <>
+                <div className="field-help">{t('txt_organizations_invite_result_skipped')}</div>
+                {inviteResult.skipped.map((item) => (
+                  <div className="field-help" key={`skipped-${item.email}`}>
+                    {item.email} — {item.reason}
+                  </div>
+                ))}
+              </>
+            )}
+          </div>
+        )}
       </ConfirmDialog>
     </div>
   );

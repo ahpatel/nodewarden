@@ -125,6 +125,17 @@ const orgFi: Record<string, string> = {
   "txt_organizations_delete_collection_failed": "Kokoelman poistaminen epäonnistui",
   "txt_move_to_collection_skipped": "{count} kohdetta ei siirretty — ne ovat henkilökohtaisia, toisessa organisaatiossa tai vain luku -oikeudella.",
   "txt_bulk_move_to_collection_failed": "Siirto kokoelmaan epäonnistui",
+  "txt_organizations_reg_code": "Rekisteröintikoodi",
+  "txt_organizations_reg_code_title": "Rekisteröintikoodi",
+  "txt_organizations_reg_code_new": "Luo uusi rekisteröintikoodi",
+  "txt_organizations_reg_code_none": "Ei aktiivista rekisteröintikoodia.",
+  "txt_organizations_reg_code_email_registered": "Tämä sähköpostiosoite on jo rekisteröity. Poista jäsen ja kutsu hänet suoraan.",
+  "txt_organizations_reg_code_expires": "Vanhenee {date}",
+  "txt_organizations_reg_code_note": "Tämä koodi rekisteröi vain kutsutun sähköpostiosoitteen. Sähköpostia ei lähetetä — jaa koodi itse.",
+  "txt_organizations_reg_code_failed": "Rekisteröintikoodin lataaminen epäonnistui.",
+  "txt_organizations_invite_result_title": "Kutsut luotu",
+  "txt_organizations_invite_result_subtitle": "Kopioi jokainen koodi tai jaa sen linkki kutsutulle.",
+  "txt_organizations_invite_result_skipped": "Ohitetut:",
 };
 
 export default orgFi;
