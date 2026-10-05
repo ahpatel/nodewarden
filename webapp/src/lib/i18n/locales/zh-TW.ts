@@ -1549,7 +1549,10 @@ const zhTW: Record<string, string> = {
   "txt_password_not_found_in_breaches": "未在外洩密碼庫中發現",
   "txt_password_security_check_failed": "無法完成外洩檢查。",
   "txt_creating": "正在建立…",
-  "txt_sending": "正在傳送…"
+  "txt_sending": "正在傳送…",
+  "txt_move_keep_folder": "保留目前資料夾",
+  "txt_move_dialog_hint": "選擇目標資料夾、組織，或兩者都選。僅套用所選的部分。",
+  "txt_org_share_move_to_org": "組織",
 };
 
 export default zhTW;

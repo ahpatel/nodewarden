@@ -1549,7 +1549,10 @@ const ru: Record<string, string> = {
   "txt_password_security_weak_short": "Weak password",
   "txt_password_security_reused_short": "Reused",
   "txt_creating": "Создание…",
-  "txt_sending": "Отправка…"
+  "txt_sending": "Отправка…",
+  "txt_move_keep_folder": "Оставить текущую папку",
+  "txt_move_dialog_hint": "Выберите целевую папку, организацию или и то, и другое. Применяются только выбранные части.",
+  "txt_org_share_move_to_org": "Организация",
 };
 
 export default ru;

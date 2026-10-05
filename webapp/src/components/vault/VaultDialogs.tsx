@@ -28,7 +28,6 @@ interface VaultDialogsProps {
   repromptPassword: string;
   deletePasskeyOpen: boolean;
   shareToOrgOpen: boolean;
-  shareToOrgBulk: boolean;
   shareOrgId: string;
   shareCollectionIds: string[];
   shareOrganizations: Array<{ id: string; name: string }>;
@@ -71,6 +70,13 @@ interface VaultDialogsProps {
 }
 
 export default function VaultDialogs(props: VaultDialogsProps) {
+
+  // A move needs a destination: either a folder choice (a folder or
+  // explicitly "no folder") or an organization with at least one collection.
+  const folderChanged = props.moveFolderId !== '__keep__';
+  const orgChosen = Boolean(props.shareOrgId && props.shareCollectionIds.length > 0);
+  const moveTargetChosen = folderChanged || orgChosen;
+
   const fieldTypeOptions = getFieldTypeOptions();
   return (
     <>
@@ -171,10 +177,10 @@ export default function VaultDialogs(props: VaultDialogsProps) {
       <ConfirmDialog
         open={props.moveOpen}
         title={t('txt_move_selected_items')}
-        message={t('txt_choose_destination_folder')}
+        message={t('txt_move_dialog_hint')}
         confirmText={t('txt_move')}
         cancelText={t('txt_cancel')}
-        confirmDisabled={props.busy}
+        confirmDisabled={props.busy || !moveTargetChosen}
         cancelDisabled={props.busy}
         onConfirm={props.onConfirmMove}
         onCancel={props.onCancelMove}
@@ -182,6 +188,7 @@ export default function VaultDialogs(props: VaultDialogsProps) {
         <label className="field">
           <span>{t('txt_folder')}</span>
           <select className="input" value={props.moveFolderId} onInput={(e) => props.onMoveFolderIdChange((e.currentTarget as HTMLSelectElement).value)}>
+            <option value="__keep__">{t('txt_move_keep_folder')}</option>
             <option value="__none__">{t('txt_no_folder')}</option>
             {props.folders.map((folder) => (
               <option key={folder.id} value={folder.id}>
@@ -190,54 +197,45 @@ export default function VaultDialogs(props: VaultDialogsProps) {
             ))}
           </select>
         </label>
-      </ConfirmDialog>
-
-      <ConfirmDialog
-        open={props.shareToOrgOpen}
-        title={props.shareToOrgBulk ? t('txt_org_share_action') : t('txt_org_share_dialog_title')}
-        message={t('txt_org_share_hint')}
-        confirmText={props.shareToOrgBulk ? t('txt_move') : t('txt_org_share_confirm')}
-        cancelText={t('txt_cancel')}
-        confirmDisabled={props.busy || !props.shareOrgId || props.shareCollectionIds.length === 0}
-        cancelDisabled={props.busy}
-        onConfirm={props.onConfirmShareToOrg}
-        onCancel={props.onCancelShareToOrg}
-      >
-        <label className="field">
-          <span>{t('txt_organizations_title')}</span>
-          <select
-            className="input"
-            value={props.shareOrgId}
-            onInput={(e) => {
-              props.onShareOrgIdChange((e.currentTarget as HTMLSelectElement).value);
-              props.onShareCollectionIdToggle('', false);
-            }}
-          >
-            <option value="">{t('txt_org_share_select_org')}</option>
-            {props.shareOrganizations.map((organization) => (
-              <option key={organization.id} value={organization.id}>
-                {organization.name || organization.id.slice(0, 8)}
-              </option>
-            ))}
-          </select>
-        </label>
-        {props.shareOrgId && (
-          <div className="field">
-            <span>{t('txt_organizations_collections')}</span>
-            <div className="share-collection-list">
-              {props.shareCollections.map((collection) => (
-                <label key={collection.id} className="checkbox-row">
-                  <input
-                    type="checkbox"
-                    checked={props.shareCollectionIds.includes(collection.id)}
-                    onChange={(e) => props.onShareCollectionIdToggle(collection.id, (e.target as HTMLInputElement).checked)}
-                  />
-                  <span>{collection.decName || collection.name || collection.id.slice(0, 8)}</span>
-                </label>
-              ))}
-            </div>
-            <div className="field-help">{t('txt_org_share_collections_hint')}</div>
-          </div>
+        {props.shareOrganizations.length > 0 && (
+          <>
+            <label className="field">
+              <span>{t('txt_org_share_move_to_org')}</span>
+              <select
+                className="input"
+                value={props.shareOrgId}
+                onInput={(e) => {
+                  props.onShareOrgIdChange((e.currentTarget as HTMLSelectElement).value);
+                  props.onShareCollectionIdToggle('', false);
+                }}
+              >
+                <option value="">{t('txt_org_share_select_org')}</option>
+                {props.shareOrganizations.map((organization) => (
+                  <option key={organization.id} value={organization.id}>
+                    {organization.name || organization.id.slice(0, 8)}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {props.shareOrgId && (
+              <div className="field">
+                <span>{t('txt_organizations_collections')}</span>
+                <div className="org-editor-collections">
+                  {props.shareCollections.map((collection) => (
+                    <label key={collection.id} className="checkbox-row">
+                      <input
+                        type="checkbox"
+                        checked={props.shareCollectionIds.includes(collection.id)}
+                        onChange={(e) => props.onShareCollectionIdToggle(collection.id, (e.target as HTMLInputElement).checked)}
+                      />
+                      <span>{collection.decName || collection.name || collection.id.slice(0, 8)}</span>
+                    </label>
+                  ))}
+                </div>
+                <div className="field-help">{t('txt_org_share_collections_hint')}</div>
+              </div>
+            )}
+          </>
         )}
       </ConfirmDialog>
 

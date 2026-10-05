@@ -111,11 +111,10 @@ export default function VaultPage(props: VaultPageProps) {
   const [bulkArchiveOpen, setBulkArchiveOpen] = useState(false);
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [moveOpen, setMoveOpen] = useState(false);
-  const [moveFolderId, setMoveFolderId] = useState('__none__');
+  const [moveFolderId, setMoveFolderId] = useState('__keep__');
   const [createFolderOpen, setCreateFolderOpen] = useState(false);
   const [newFolderName, setNewFolderName] = useState('');
   const [shareToOrgOpen, setShareToOrgOpen] = useState(false);
-  const [shareToOrgBulk, setShareToOrgBulk] = useState(false);
   const [shareOrgId, setShareOrgId] = useState('');
   const [shareCollectionIds, setShareCollectionIds] = useState<string[]>([]);
   const [pendingRenameFolder, setPendingRenameFolder] = useState<Folder | null>(null);
@@ -1014,29 +1013,9 @@ const folderName = useCallback((id: string | null | undefined): string => {
     !cipher.archivedDate &&
     shareableOrganizations.length > 0;
 
-  // Selected personal items eligible for a bulk move to an organization.
-  const shareableSelectedCount = useMemo(() => {
-    if (!props.onShareVaultItemsToOrganization) return 0;
-    let count = 0;
-    for (const cipher of props.ciphers) {
-      if (selectedMap[cipher.id] && canShareToOrganization(cipher)) count += 1;
-    }
-    return count;
-  }, [selectedMap, props.ciphers, shareableOrganizations, props.onShareVaultItemsToOrganization]);
-
   function openShareToOrganization(): void {
     setShareOrgId('');
     setShareCollectionIds([]);
-    setShareToOrgBulk(false);
-    setShareToOrgOpen(true);
-  }
-
-  // Bulk "Move to organization": opened from the selection toolbar. Only
-  // shareable personal items are moved (org items are skipped and counted).
-  function openBulkShareToOrganization(): void {
-    setShareOrgId('');
-    setShareCollectionIds([]);
-    setShareToOrgBulk(true);
     setShareToOrgOpen(true);
   }
 
@@ -1049,20 +1028,11 @@ const folderName = useCallback((id: string | null | undefined): string => {
   }
 
   async function confirmShareToOrganization(): Promise<void> {
+    if (!selectedCipher || !props.onShareVaultItemToOrganization) return;
     if (!shareOrgId || shareCollectionIds.length === 0) return;
     setBusy(true);
     try {
-      if (shareToOrgBulk) {
-        const items = props.ciphers.filter(
-          (cipher) => selectedMap[cipher.id] && canShareToOrganization(cipher)
-        );
-        if (items.length === 0 || !props.onShareVaultItemsToOrganization) return;
-        await props.onShareVaultItemsToOrganization(items, shareOrgId, shareCollectionIds);
-        setSelectedMap({});
-      } else {
-        if (!selectedCipher || !props.onShareVaultItemToOrganization) return;
-        await props.onShareVaultItemToOrganization(selectedCipher, shareOrgId, shareCollectionIds);
-      }
+      await props.onShareVaultItemToOrganization(selectedCipher, shareOrgId, shareCollectionIds);
       setShareToOrgOpen(false);
       setShareOrgId('');
       setShareCollectionIds([]);
@@ -1108,17 +1078,39 @@ const folderName = useCallback((id: string | null | undefined): string => {
     }
   }
 
+  // Merged bulk move: shares the selected personal items into the chosen
+  // organization with the checked collections, and/or files every selected
+  // item into the chosen folder. Share first, folder second: the folder move
+  // handles personal and org items alike (per-user filing for org items), so
+  // items just shared into the org are filed too — doing the folder move
+  // first would be overwritten by the share's carry-the-current-filing
+  // behavior.
   async function confirmBulkMove(): Promise<void> {
     const ids = Object.entries(selectedMap)
       .filter(([, selected]) => selected)
       .map(([id]) => id);
     if (!ids.length) return;
-    const folderId = moveFolderId === '__none__' ? null : moveFolderId;
+    const folderChanged = moveFolderId !== '__keep__';
+    const orgChosen = Boolean(shareOrgId && shareCollectionIds.length > 0);
+    if (!folderChanged && !orgChosen) return;
     setBusy(true);
     try {
-      await props.onBulkMove(ids, folderId, folderName(folderId));
+      if (orgChosen) {
+        const items = props.ciphers.filter(
+          (cipher) => selectedMap[cipher.id] && canShareToOrganization(cipher)
+        );
+        if (items.length > 0 && props.onShareVaultItemsToOrganization) {
+          await props.onShareVaultItemsToOrganization(items, shareOrgId, shareCollectionIds);
+        }
+      }
+      if (folderChanged) {
+        const folderId = moveFolderId === '__none__' ? null : moveFolderId;
+        await props.onBulkMove(ids, folderId, folderName(folderId));
+      }
       setSelectedMap({});
       setMoveOpen(false);
+      setShareOrgId('');
+      setShareCollectionIds([]);
     } catch {
       // The action layer already shows the user-facing error toast.
     } finally {
@@ -1356,7 +1348,7 @@ const folderName = useCallback((id: string | null | undefined): string => {
   const handleBulkArchive = useCallback(() => setBulkArchiveOpen(true), []);
   const handleBulkUnarchive = useCallback(() => { void confirmBulkUnarchive(); }, [selectedMap, props.onBulkUnarchive]);
   const handleOpenMove = useCallback(() => {
-    setMoveFolderId('__none__');
+    setMoveFolderId('__keep__');
     setMoveOpen(true);
   }, []);
   const handleClearSelection = useCallback(() => setSelectedMap({}), []);
@@ -1475,8 +1467,6 @@ const folderName = useCallback((id: string | null | undefined): string => {
           onBulkArchive={handleBulkArchive}
           onBulkUnarchive={handleBulkUnarchive}
           onOpenMove={handleOpenMove}
-          onOpenShareToOrg={() => openBulkShareToOrganization()}
-          shareToOrgEnabled={shareableSelectedCount > 0}
           onClearSelection={handleClearSelection}
           onScroll={handleListScroll}
           onToggleSelected={handleToggleSelected}
@@ -1607,6 +1597,12 @@ const folderName = useCallback((id: string | null | undefined): string => {
         moveOpen={moveOpen}
         moveFolderId={moveFolderId}
         folders={props.folders}
+        shareOrgId={shareOrgId}
+        shareCollectionIds={shareCollectionIds}
+        shareOrganizations={shareableOrganizations}
+        shareCollections={(props.collections || []).filter((collection) => collection.organizationId === shareOrgId)}
+        onShareOrgIdChange={setShareOrgId}
+        onShareCollectionIdToggle={toggleShareCollection}
         createFolderOpen={createFolderOpen}
         newFolderName={newFolderName}
         renameFolderOpen={!!pendingRenameFolder}
@@ -1617,13 +1613,6 @@ const folderName = useCallback((id: string | null | undefined): string => {
         repromptPassword={repromptPassword}
         deletePasskeyOpen={pendingDeletePasskeyIndex != null}
         shareToOrgOpen={shareToOrgOpen}
-        shareToOrgBulk={shareToOrgBulk}
-        shareOrgId={shareOrgId}
-        shareCollectionIds={shareCollectionIds}
-        shareOrganizations={shareableOrganizations}
-        shareCollections={(props.collections || []).filter((collection) => collection.organizationId === shareOrgId)}
-        onShareOrgIdChange={setShareOrgId}
-        onShareCollectionIdToggle={toggleShareCollection}
         onConfirmShareToOrg={() => void confirmShareToOrganization()}
         onCancelShareToOrg={() => setShareToOrgOpen(false)}
         onConfirmAddField={() => {

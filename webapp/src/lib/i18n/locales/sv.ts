@@ -1549,7 +1549,10 @@ const sv: Record<string, string> = {
   "txt_password_security_weak_short": "Weak password",
   "txt_password_security_reused_short": "Reused",
   "txt_creating": "Skapar…",
-  "txt_sending": "Skickar…"
+  "txt_sending": "Skickar…",
+  "txt_move_keep_folder": "Behåll aktuell mapp",
+  "txt_move_dialog_hint": "Välj en målmapp, en organisation eller båda. Endast valda delar tillämpas.",
+  "txt_org_share_move_to_org": "Organisation",
 };
 
 export default sv;

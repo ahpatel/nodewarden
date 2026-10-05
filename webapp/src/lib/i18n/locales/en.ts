@@ -1549,7 +1549,10 @@ const en: Record<string, string> = {
   "txt_password_not_found_in_breaches": "Not found in the breach database",
   "txt_password_security_check_failed": "The breach check could not be completed.",
   "txt_creating": "Creating…",
-  "txt_sending": "Sending…"
+  "txt_sending": "Sending…",
+  "txt_move_keep_folder": "Keep current folder",
+  "txt_move_dialog_hint": "Choose a destination folder, an organization, or both. Only the selected parts apply.",
+  "txt_org_share_move_to_org": "Organization",
 };
 
 export default en;

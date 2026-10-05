@@ -1549,7 +1549,10 @@ const fi: Record<string, string> = {
   "txt_password_security_weak_short": "Weak password",
   "txt_password_security_reused_short": "Reused",
   "txt_creating": "Luodaan…",
-  "txt_sending": "Lähetetään…"
+  "txt_sending": "Lähetetään…",
+  "txt_move_keep_folder": "Säilytä nykyinen kansio",
+  "txt_move_dialog_hint": "Valitse kohdekansio, organisaatio tai molemmat. Vain valitut osat otetaan käyttöön.",
+  "txt_org_share_move_to_org": "Organisaatio",
 };
 
 export default fi;

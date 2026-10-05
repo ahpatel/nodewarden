@@ -23,7 +23,6 @@ import {
   Star,
   StickyNote,
   Trash2,
-  Users,
   X,
 } from 'lucide-preact';
 import LoadingState from '@/components/LoadingState';
@@ -93,8 +92,6 @@ interface VaultListPanelProps {
   onBulkArchive: () => void;
   onBulkUnarchive: () => void;
   onOpenMove: () => void;
-  onOpenShareToOrg: () => void;
-  shareToOrgEnabled: boolean;
   onClearSelection: () => void;
   onScroll: (top: number) => void;
   onToggleSelected: (cipherId: string, checked: boolean) => void;
@@ -333,16 +330,6 @@ export default function VaultListPanel(props: VaultListPanelProps) {
               {props.sidebarFilter.kind !== 'trash' && props.sidebarFilter.kind !== 'archive' && props.sidebarFilter.kind !== 'duplicates' && (
                 <button type="button" className="btn btn-secondary small" disabled={props.busy} onClick={props.onOpenMove}>
                   <FolderInput size={14} className="btn-icon" /> {t('txt_move')}
-                </button>
-              )}
-              {props.sidebarFilter.kind !== 'trash' && props.sidebarFilter.kind !== 'archive' && props.sidebarFilter.kind !== 'duplicates' && (
-                <button
-                  type="button"
-                  className="btn btn-secondary small"
-                  disabled={props.busy || !props.shareToOrgEnabled}
-                  onClick={props.onOpenShareToOrg}
-                >
-                  <Users size={14} className="btn-icon" /> {t('txt_org_share_action')}
                 </button>
               )}
               <button type="button" className="btn btn-danger small" disabled={props.busy} onClick={props.onOpenBulkDelete}>

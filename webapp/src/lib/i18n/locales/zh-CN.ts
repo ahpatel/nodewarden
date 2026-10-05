@@ -1549,7 +1549,10 @@ const zhCN: Record<string, string> = {
   "txt_password_not_found_in_breaches": "未在泄露密码库中发现",
   "txt_password_security_check_failed": "无法完成泄露检查。",
   "txt_creating": "正在创建…",
-  "txt_sending": "正在发送…"
+  "txt_sending": "正在发送…",
+  "txt_move_keep_folder": "保留当前文件夹",
+  "txt_move_dialog_hint": "选择目标文件夹、组织，或两者都选。仅应用所选的部分。",
+  "txt_org_share_move_to_org": "组织",
 };
 
 export default zhCN;

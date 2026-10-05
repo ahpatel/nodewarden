@@ -1549,7 +1549,10 @@ const it: Record<string, string> = {
   "txt_password_security_weak_short": "Weak password",
   "txt_password_security_reused_short": "Reused",
   "txt_creating": "Creazione…",
-  "txt_sending": "Invio…"
+  "txt_sending": "Invio…",
+  "txt_move_keep_folder": "Mantieni la cartella attuale",
+  "txt_move_dialog_hint": "Scegli una cartella di destinazione, un’organizzazione o entrambi. Solo le parti scelte vengono applicate.",
+  "txt_org_share_move_to_org": "Organizzazione",
 };
 
 export default it;
